@@ -1,0 +1,22 @@
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Build
+backend/target/
+node_modules/
+frontend/dist/
+
+# Environment
+*.env
+*.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp
+*.log
+*.tmp
+*.swp

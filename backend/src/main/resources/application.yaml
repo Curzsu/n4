@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: n4-monitor
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/n4_alarm?useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: 1234
+    driver-class-name: com.mysql.cj.jdbc.Driver
