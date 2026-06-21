@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.n4monitor.mapper.DeviceMapper">
+
+    <select id="findAll" resultType="com.n4monitor.entity.Device">
+        SELECT * FROM device WHERE is_deleted = 0
+    </select>
+
+    <select id="findBySysParentId" resultType="com.n4monitor.entity.Device">
+        SELECT * FROM device WHERE sys_parent_id = #{sysParentId} AND is_deleted = 0
+        ORDER BY sys_sort_order
+    </select>
+
+    <select id="findRootDevices" resultType="com.n4monitor.entity.Device">
+        SELECT * FROM device WHERE sys_parent_id IS NULL AND is_deleted = 0
+        ORDER BY sys_sort_order
+    </select>
+
+    <select id="countByProductType" resultType="com.n4monitor.entity.Device">
+        SELECT d.device_id, d.device_name, p.product_type,
+               d.status, d.sys_parent_id, d.sys_level
+        FROM device d
+        JOIN product p ON d.product_id = p.product_id
+        WHERE d.is_deleted = 0
+    </select>
+
+    <select id="findByDeviceId" resultType="com.n4monitor.entity.Device">
+        SELECT * FROM device WHERE device_id = #{deviceId} AND is_deleted = 0
+    </select>
+
+</mapper>
