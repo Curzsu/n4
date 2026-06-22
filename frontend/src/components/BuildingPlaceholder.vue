@@ -1,6 +1,7 @@
 <template>
   <div class="building-placeholder">
-    <img src="@/assets/building-placeholder.svg" alt="Campus Digital Twin" class="building-image" />
+    <!-- <img src="@/assets/building-placeholder.svg" alt="Campus Digital Twin" class="building-image" /> -->
+    <div class="building-image"></div>
     <div class="building-overlay-info">
       <span class="overlay-temp">{{ temperature }}°C</span>
       <span class="overlay-time">{{ currentTime }}</span>
@@ -42,7 +43,7 @@ onUnmounted(() => {
 
 .building-image {
   width: 100%;
-  height: auto;
+  height: 300px;
   max-height: 300px;
   object-fit: contain;
 }
