@@ -23,10 +23,11 @@
         highlight-current
         :filter-node-method="filterNode"
         ref="treeRef"
+        @node-click="handleNodeClick"
       >
         <template #default="{ data }">
           <span :class="['tree-node-label', `node-${data.type}`]">
-            <span :class="['status-dot', getStatusClass(data.status)]"></span>
+            <span v-if="data.type === 'device'" :class="['status-dot', getStatusClass(data.status)]"></span>
             {{ data.label }}
           </span>
         </template>
@@ -56,6 +57,10 @@ const treeRef = ref<InstanceType<typeof ElTree>>()
 const treeProps = {
   children: 'children',
   label: 'label',
+}
+
+function handleNodeClick(data: DeviceTreeNode) {
+  store.selectedNode = data
 }
 
 function toggleCollapse() {

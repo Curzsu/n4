@@ -5,8 +5,7 @@ import com.n4monitor.entity.Device;
 import com.n4monitor.mapper.DeviceMapper;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 @Service
 public class DeviceService {
@@ -18,38 +17,82 @@ public class DeviceService {
     }
 
     public List<DeviceTreeNodeDto> getDeviceTree() {
-        List<Device> rootDevices = deviceMapper.findRootDevices();
-        List<DeviceTreeNodeDto> tree = new ArrayList<>();
-        for (Device root : rootDevices) {
-            tree.add(buildTreeNode(root));
-        }
-        return tree;
-    }
+        List<Device> allDevices = deviceMapper.findAll();
+        
+        List<DeviceTreeNodeDto> rootNodes = new ArrayList<>();
+        Map<String, DeviceTreeNodeDto> pathNodeMap = new HashMap<>();
 
-    private DeviceTreeNodeDto buildTreeNode(Device device) {
-        DeviceTreeNodeDto node = new DeviceTreeNodeDto();
-        node.setId(device.getDeviceId());
-        node.setLabel(device.getDeviceName());
-        node.setType(resolveNodeType(device.getSysLevel()));
-        node.setStatus(device.getStatus());
-
-        List<Device> children = deviceMapper.findBySysParentId(device.getDeviceId());
-        if (children != null && !children.isEmpty()) {
-            List<DeviceTreeNodeDto> childNodes = new ArrayList<>();
-            for (Device child : children) {
-                childNodes.add(buildTreeNode(child));
+        for (Device device : allDevices) {
+            String sysPath = device.getSysPath();
+            if (sysPath == null || sysPath.trim().isEmpty()) {
+                continue;
             }
-            node.setChildren(childNodes);
-        } else {
-            node.setChildren(new ArrayList<>());
+
+            // Split path by '/' and filter out empty segments
+            String[] segments = Arrays.stream(sysPath.split("/"))
+                                      .filter(s -> !s.trim().isEmpty())
+                                      .toArray(String[]::new);
+
+            if (segments.length == 0) {
+                continue;
+            }
+
+            String currentPath = "";
+            DeviceTreeNodeDto parentNode = null;
+
+            for (int i = 0; i < segments.length; i++) {
+                String segment = segments[i];
+                currentPath = currentPath + "/" + segment;
+                boolean isLeaf = (i == segments.length - 1);
+
+                DeviceTreeNodeDto currentNode = pathNodeMap.get(currentPath);
+                if (currentNode == null) {
+                    currentNode = new DeviceTreeNodeDto();
+                    currentNode.setChildren(new ArrayList<>());
+
+                    if (isLeaf) {
+                        // Leaf node corresponds to the actual device
+                        currentNode.setId(device.getDeviceId());
+                        currentNode.setLabel(device.getDeviceName());
+                        currentNode.setType("device");
+                        currentNode.setStatus(device.getStatus());
+                    } else {
+                        // Intermediate node
+                        // Generate a unique ID based on path hash to avoid clashes with DB IDs
+                        currentNode.setId((long) currentPath.hashCode());
+                        currentNode.setLabel(segment);
+                        currentNode.setType(resolveNodeTypeByLevel(i));
+                        currentNode.setStatus(1); // Default online for grouping nodes
+                    }
+
+                    pathNodeMap.put(currentPath, currentNode);
+
+                    if (parentNode == null) {
+                        if (!rootNodes.contains(currentNode)) {
+                            rootNodes.add(currentNode);
+                        }
+                    } else {
+                        parentNode.getChildren().add(currentNode);
+                    }
+                } else if (isLeaf) {
+                    // Update in case duplicate path mappings occur
+                    currentNode.setId(device.getDeviceId());
+                    currentNode.setLabel(device.getDeviceName());
+                    currentNode.setType("device");
+                    currentNode.setStatus(device.getStatus());
+                }
+
+                parentNode = currentNode;
+            }
         }
-        return node;
+
+        return rootNodes;
     }
 
-    private String resolveNodeType(Integer sysLevel) {
-        if (sysLevel == null || sysLevel == 0) return "site";
-        if (sysLevel == 1) return "building";
-        if (sysLevel == 2) return "system";
-        return "device";
+    private String resolveNodeTypeByLevel(int level) {
+        if (level == 0) return "site";
+        if (level == 1) return "building";
+        return "system";
     }
 }
+

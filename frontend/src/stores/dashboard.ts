@@ -14,6 +14,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const pueTrend = ref<TrendData | null>(null)
   const temperatureTrend = ref<TrendData | null>(null)
   const deviceTree = ref<DeviceTreeNode[]>([])
+  const selectedNode = ref<DeviceTreeNode | null>(null)
   const loading = ref(false)
 
   async function fetchAllDashboardData() {
@@ -56,6 +57,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     pueTrend,
     temperatureTrend,
     deviceTree,
+    selectedNode,
     loading,
     fetchAllDashboardData,
   }

@@ -59,3 +59,18 @@ export interface DeviceTreeNode {
   status: number
   children: DeviceTreeNode[]
 }
+
+export interface MonitorPoint {
+  pointId: number
+  registerId: string
+  pointName: string
+  pointCode: string
+  pointType: number
+  dataType: number
+  unit: string
+  displayPrecision: number
+  deviceId: number
+  pointValue: string
+  pointStatus: number
+}
+
