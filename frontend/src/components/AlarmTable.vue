@@ -13,33 +13,35 @@
       </div>
     </div>
 
-    <!-- Table -->
-    <el-table
-      :data="tableData"
-      style="width: 100%"
-      :header-cell-style="headerCellStyle"
-      :cell-style="cellStyle"
-      size="small"
-      v-loading="loading"
-    >
-      <el-table-column prop="time" label="Time" width="180" />
-      <el-table-column prop="severity" label="Severity" width="100">
-        <template #default="{ row }">
-          <el-tag :type="severityTagType(row.severity)" size="small" effect="dark">
-            {{ row.severity }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="source" label="Source" width="120" />
-      <el-table-column prop="message" label="Message" min-width="200" />
-      <el-table-column prop="location" label="Location" width="150" />
-      <el-table-column prop="status" label="Status" width="100">
-        <template #default="{ row }">
-          <span :class="['status-text', row.status.toLowerCase()]">{{ row.status }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="ackBy" label="Ack. By" width="100" />
-    </el-table>
+    <!-- Table (scrollable body) -->
+    <div class="table-body">
+      <el-table
+        :data="tableData"
+        style="width: 100%"
+        :header-cell-style="headerCellStyle"
+        :cell-style="cellStyle"
+        size="small"
+        v-loading="loading"
+      >
+        <el-table-column prop="time" label="Time" width="180" />
+        <el-table-column prop="severity" label="Severity" width="100">
+          <template #default="{ row }">
+            <el-tag :type="severityTagType(row.severity)" size="small" effect="dark">
+              {{ row.severity }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="source" label="Source" width="120" />
+        <el-table-column prop="message" label="Message" min-width="200" />
+        <el-table-column prop="location" label="Location" width="150" />
+        <el-table-column prop="status" label="Status" width="100">
+          <template #default="{ row }">
+            <span :class="['status-text', row.status.toLowerCase()]">{{ row.status }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="ackBy" label="Ack. By" width="100" />
+      </el-table>
+    </div>
   </div>
 </template>
 
@@ -111,11 +113,39 @@ onMounted(() => {
   border: 1px solid $border-card;
   border-radius: 8px;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .tab-bar {
   display: flex;
   border-bottom: 1px solid $border-color;
+  flex-shrink: 0;
+}
+
+.table-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+
+  /* Dark themed scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: #374151 #111827;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: #111827;
+  }
+  &::-webkit-scrollbar-thumb {
+    background-color: #374151;
+    border-radius: 3px;
+    &:hover {
+      background-color: #4b5563;
+    }
+  }
 }
 
 .tab-item {
