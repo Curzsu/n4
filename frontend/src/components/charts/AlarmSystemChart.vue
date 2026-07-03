@@ -30,6 +30,7 @@ const colors = ['#3b82f6', '#eab308', '#f97316', '#10b981', '#6b7280']
 
 const chartOption = computed(() => {
   if (!data.value) return {}
+  const total = data.value.items.reduce((sum, item) => sum + item.value, 0)
   return {
     backgroundColor: 'transparent',
     tooltip: {
@@ -37,14 +38,27 @@ const chartOption = computed(() => {
       formatter: '{b}: {c} ({d}%)',
     },
     legend: {
-      orient: 'horizontal',
-      bottom: 0,
+      orient: 'vertical',
+      right: 5,
+      top: 'center',
       textStyle: { color: '#9ca3af', fontSize: 10 },
+      itemWidth: 8,
+      itemHeight: 8,
     },
     series: [{
       type: 'pie',
-      radius: '60%',
-      center: ['50%', '45%'],
+      radius: ['35%', '60%'],
+      center: ['30%', '50%'],
+      avoidLabelOverlap: false,
+      label: {
+        show: true,
+        position: 'center',
+        formatter: `{a|${total}}\n{b|Total}`,
+        rich: {
+          a: { fontSize: 18, fontWeight: 'bold', color: '#e5e7eb', lineHeight: 22 },
+          b: { fontSize: 10, color: '#6b7280' },
+        },
+      },
       data: data.value.items.map((item, i) => ({
         name: item.name,
         value: item.value,

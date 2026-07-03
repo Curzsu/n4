@@ -18,6 +18,7 @@
       :data="tableData"
       style="width: 100%"
       :header-cell-style="headerCellStyle"
+      :cell-style="cellStyle"
       size="small"
       v-loading="loading"
     >
@@ -59,10 +60,18 @@ const tabs = [
 ]
 
 const headerCellStyle = {
-  backgroundColor: '#1a2332',
-  color: '#9ca3af',
+  backgroundColor: '#0d1117',
+  color: '#e5e7eb',
   fontSize: '12px',
+  fontWeight: '600',
   borderBottom: '1px solid #2d3748',
+}
+
+const cellStyle = {
+  backgroundColor: '#111827',
+  color: '#e5e7eb',
+  fontSize: '12px',
+  borderBottom: '1px solid #1f2937',
 }
 
 function severityTagType(severity: string): string {
@@ -146,15 +155,47 @@ onMounted(() => {
 }
 
 :deep(.el-table) {
-  background-color: transparent;
-  color: $text-secondary;
+  background-color: #111827;
+  color: #e5e7eb;
+
+  --el-table-bg-color: #111827;
+  --el-table-tr-bg-color: #111827;
+  --el-table-row-hover-bg-color: #1a2332;
+  --el-table-border-color: #1f2937;
+  --el-table-header-bg-color: #0d1117;
+  --el-table-text-color: #e5e7eb;
+  --el-table-header-text-color: #e5e7eb;
+
+  .el-table__inner-wrapper {
+    background-color: #111827;
+  }
+
+  .el-table__body-wrapper {
+    background-color: #111827;
+  }
+
+  .el-table__header-wrapper {
+    background-color: #0d1117;
+  }
+
+  .el-table__row {
+    background-color: #111827;
+  }
 
   .el-table__row:hover > td {
-    background-color: $bg-card-hover;
+    background-color: #1a2332 !important;
   }
 
   td, th {
-    border-bottom: 1px solid $border-color;
+    border-bottom: 1px solid #1f2937;
   }
+}
+
+:deep(.el-table__empty-block) {
+  background-color: #111827;
+}
+
+:deep(.el-loading-mask) {
+  background-color: rgba(10, 14, 23, 0.7);
 }
 </style>
