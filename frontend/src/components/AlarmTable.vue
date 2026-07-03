@@ -13,46 +13,53 @@
       </div>
     </div>
 
-    <!-- Table (scrollable body) -->
-    <div class="table-body">
-      <el-table
-        :data="tableData"
-        style="width: 100%"
-        :header-cell-style="headerCellStyle"
-        :cell-style="cellStyle"
-        size="small"
-        v-loading="loading"
-      >
-        <el-table-column prop="time" label="Time" width="180" />
-        <el-table-column prop="severity" label="Severity" width="100">
-          <template #default="{ row }">
-            <el-tag :type="severityTagType(row.severity)" size="small" effect="dark">
-              {{ row.severity }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="source" label="Source" width="120" />
-        <el-table-column prop="message" label="Message" min-width="200" />
-        <el-table-column prop="location" label="Location" width="150" />
-        <el-table-column prop="status" label="Status" width="100">
-          <template #default="{ row }">
-            <span :class="['status-text', row.status.toLowerCase()]">{{ row.status }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="ackBy" label="Ack. By" width="100" />
-      </el-table>
-    </div>
+    <!-- Table with built-in scrolling via max-height -->
+    <el-table
+      :data="tableData"
+      :max-height="tableMaxHeight"
+      style="width: 100%"
+      :header-cell-style="headerCellStyle"
+      :cell-style="cellStyle"
+      size="small"
+      v-loading="loading"
+    >
+      <el-table-column prop="time" label="Time" width="180" />
+      <el-table-column prop="severity" label="Severity" width="100">
+        <template #default="{ row }">
+          <el-tag :type="severityTagType(row.severity)" size="small" effect="dark">
+            {{ row.severity }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column prop="source" label="Source" width="120" />
+      <el-table-column prop="message" label="Message" min-width="200" />
+      <el-table-column prop="location" label="Location" width="150" />
+      <el-table-column prop="status" label="Status" width="100">
+        <template #default="{ row }">
+          <span :class="['status-text', row.status.toLowerCase()]">{{ row.status }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column prop="ackBy" label="Ack. By" width="100" />
+    </el-table>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { alarmApi } from '@/api/alarm'
 import type { AlarmRecord } from '@/api/types'
 
 const loading = ref(false)
 const tableData = ref<AlarmRecord[]>([])
 const activeTab = ref('active')
+
+// Calculate max height for el-table's built-in scrolling
+// viewport - topnav(48) - bottombar(48) - padding(32) - tab-bar(~42) - charts-row(~260) - gaps(~24)
+const tableMaxHeight = ref(300)
+
+function updateTableMaxHeight() {
+  tableMaxHeight.value = Math.max(200, window.innerHeight - 460)
+}
 
 const tabs = [
   { key: 'active', label: 'Active Alarms', count: '' },
@@ -103,7 +110,13 @@ function onTabChange(tab: string) {
 }
 
 onMounted(() => {
+  updateTableMaxHeight()
+  window.addEventListener('resize', updateTableMaxHeight)
   fetchData('active')
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateTableMaxHeight)
 })
 </script>
 
@@ -115,38 +128,12 @@ onMounted(() => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 0;
 }
 
 .tab-bar {
   display: flex;
   border-bottom: 1px solid $border-color;
   flex-shrink: 0;
-}
-
-.table-body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-
-  /* Dark themed scrollbar */
-  scrollbar-width: thin;
-  scrollbar-color: #374151 #111827;
-
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-  &::-webkit-scrollbar-track {
-    background: #111827;
-  }
-  &::-webkit-scrollbar-thumb {
-    background-color: #374151;
-    border-radius: 3px;
-    &:hover {
-      background-color: #4b5563;
-    }
-  }
 }
 
 .tab-item {
@@ -224,6 +211,10 @@ onMounted(() => {
 
 :deep(.el-table__empty-block) {
   background-color: #111827;
+}
+
+:deep(.el-table .el-scrollbar__bar.is-horizontal) {
+  display: none;
 }
 
 :deep(.el-loading-mask) {
