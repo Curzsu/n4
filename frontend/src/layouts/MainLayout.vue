@@ -2,11 +2,22 @@
   <div class="main-layout">
     <TopNavbar />
     <div class="layout-body">
-      <LeftSidebar />
+      <!-- Conditional left sidebar -->
+      <AlarmSidebar v-if="isAlarmRoute" />
+      <LeftSidebar v-else />
+
       <div class="layout-content">
         <slot />
       </div>
-      <div class="layout-right-panel">
+
+      <!-- Conditional right panel -->
+      <div v-if="isAlarmRoute" class="layout-right-panel">
+        <AlarmSummaryPanel />
+        <AlarmSystemChart />
+        <AlarmSourcesChart />
+        <AlarmQuickActions />
+      </div>
+      <div v-else class="layout-right-panel">
         <AlarmSummary />
         <SystemStatus />
       </div>
@@ -16,11 +27,21 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import TopNavbar from '@/components/TopNavbar.vue'
 import LeftSidebar from '@/components/LeftSidebar.vue'
 import BottomToolbar from '@/components/BottomToolbar.vue'
 import AlarmSummary from '@/components/AlarmSummary.vue'
 import SystemStatus from '@/components/SystemStatus.vue'
+import AlarmSidebar from '@/components/AlarmSidebar.vue'
+import AlarmSummaryPanel from '@/components/AlarmSummaryPanel.vue'
+import AlarmSystemChart from '@/components/charts/AlarmSystemChart.vue'
+import AlarmSourcesChart from '@/components/charts/AlarmSourcesChart.vue'
+import AlarmQuickActions from '@/components/AlarmQuickActions.vue'
+
+const route = useRoute()
+const isAlarmRoute = computed(() => route.path === '/alarm')
 </script>
 
 <style scoped lang="scss">
