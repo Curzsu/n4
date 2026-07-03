@@ -61,8 +61,11 @@ const isAlarmRoute = computed(() => route.path === '/alarm')
 
 .layout-content {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 16px;
+  display: flex;
+  flex-direction: column;
 }
 
 .layout-right-panel {
