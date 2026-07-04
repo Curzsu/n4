@@ -1,22 +1,20 @@
 <template>
   <div class="quick-actions-panel">
-    <div class="action-buttons">
-      <el-button class="action-btn" @click="noop">
-        <el-icon><Bell /></el-icon>
-        <span>Silence All</span>
-      </el-button>
-      <el-button class="action-btn" @click="noop">
-        <el-icon><Setting /></el-icon>
-        <span>Alarm Configuration</span>
-      </el-button>
-      <el-button class="action-btn" @click="noop">
-        <el-icon><CircleCheck /></el-icon>
-        <span>Acknowledge</span>
-      </el-button>
-      <el-button class="action-btn" @click="noop">
-        <el-icon><Download /></el-icon>
-        <span>Alarm Log Export</span>
-      </el-button>
+    <div class="btn" @click="noop">
+      <el-icon><Bell /></el-icon>
+      <span>Silence All</span>
+    </div>
+    <div class="btn" @click="noop">
+      <el-icon><Setting /></el-icon>
+      <span>Alarm Configuration</span>
+    </div>
+    <div class="btn" @click="noop">
+      <el-icon><CircleCheck /></el-icon>
+      <span>Acknowledge</span>
+    </div>
+    <div class="btn" @click="noop">
+      <el-icon><Download /></el-icon>
+      <span>Alarm Log Export</span>
     </div>
   </div>
 </template>
@@ -34,31 +32,46 @@ function noop() {
   background-color: $bg-card;
   border: 1px solid $border-card;
   border-radius: 8px;
-  padding: 12px;
-}
-
-.action-buttons {
+  padding: 8px;
+  box-sizing: border-box;
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
 }
 
-.action-btn {
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 4px 4px;
   background-color: $bg-card-hover;
   border: 1px solid $border-card;
+  border-radius: 4px;
   color: $text-secondary;
-  font-size: 12px;
-  height: 36px;
+  font-size: 10px;
+  cursor: pointer;
+  overflow: hidden;
+  box-sizing: border-box;
+
+  .el-icon {
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+
+  span {
+    white-space: normal;
+    word-break: break-word;
+    text-align: center;
+    line-height: 1.2;
+  }
 
   &:hover {
     background-color: $bg-dark;
     color: $accent-green;
     border-color: $accent-green;
-  }
-
-  .el-icon {
-    margin-right: 4px;
-    font-size: 14px;
   }
 }
 </style>

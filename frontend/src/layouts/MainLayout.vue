@@ -12,10 +12,12 @@
 
       <!-- Conditional right panel -->
       <div v-if="isAlarmRoute" class="layout-right-panel">
-        <AlarmSummaryPanel />
-        <AlarmSystemChart />
-        <AlarmSourcesChart />
-        <AlarmQuickActions />
+        <div class="right-panel-inner">
+          <AlarmSummaryPanel />
+          <AlarmSystemChart />
+          <AlarmSourcesChart />
+          <AlarmQuickActions />
+        </div>
       </div>
       <div v-else class="layout-right-panel">
         <AlarmSummary />
@@ -70,11 +72,20 @@ const isAlarmRoute = computed(() => route.path === '/alarm')
 
 .layout-right-panel {
   width: $right-panel-width;
+  max-width: $right-panel-width;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
   padding: 16px 12px;
   flex-shrink: 0;
   overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.right-panel-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 </style>

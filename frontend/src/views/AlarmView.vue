@@ -26,6 +26,7 @@ import AlarmHourChart from '@/components/charts/AlarmHourChart.vue'
   gap: 12px;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
 }
 
 .alarm-table-section {
