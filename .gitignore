@@ -22,3 +22,5 @@ Thumbs.db
 *.swp
 
 材料/
+.superpowers/
+test-producer/

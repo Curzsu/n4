@@ -11,8 +11,27 @@ spring:
     password: 1234
     driver-class-name: com.mysql.cj.jdbc.Driver
 
+  kafka:
+    bootstrap-servers: 47.121.30.136:9092
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
 mybatis:
   mapper-locations: classpath:mapper/*.xml
   type-aliases-package: com.n4monitor.entity
   configuration:
     map-underscore-to-camel-case: true
+
+# 报警规则配置
+alarm:
+  rule:
+    excel-file: D:/Apro/N4-monitor/材料/alarm_rules_config.xlsx
+    log-file: D:/Apro/N4-monitor/材料/points-2.log
+    redis-key: alarm:rules
+  flink:
+    enabled: true
+    topic: obix-mqtt-points
+    group-id: n4-flink-alarm-processor
