@@ -186,9 +186,11 @@ public class AlarmProcessingJob {
             state.setLocation("");
 
             // 写入 Redis hash: alarm:latest, field=path, value=JSON
+            // 同时发布到 Redis channel 通知 WebSocket 推送
             try {
                 String json = objectMapper.writeValueAsString(state);
                 jedis.hset(REDIS_LATEST_KEY, path, json);
+                jedis.publish("alarm:notifications", json);
             } catch (Exception e) {
                 System.err.println("[FLINK] 写入 Redis 最新状态失败: " + path + " - " + e.getMessage());
             }

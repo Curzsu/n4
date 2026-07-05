@@ -6,35 +6,55 @@
     </div>
     <div class="alarm-counts">
       <div class="alarm-count-item critical">
-        <span class="count-value">{{ summary?.critical || 0 }}</span>
+        <span class="count-value">{{ summary.critical }}</span>
         <span class="count-label">Critical</span>
       </div>
       <div class="alarm-count-item major">
-        <span class="count-value">{{ summary?.major || 0 }}</span>
+        <span class="count-value">{{ summary.major }}</span>
         <span class="count-label">Major</span>
       </div>
       <div class="alarm-count-item minor">
-        <span class="count-value">{{ summary?.minor || 0 }}</span>
+        <span class="count-value">{{ summary.minor }}</span>
         <span class="count-label">Minor</span>
       </div>
       <div class="alarm-count-item warning">
-        <span class="count-value">{{ summary?.warning || 0 }}</span>
+        <span class="count-value">{{ summary.warning }}</span>
         <span class="count-label">Warning</span>
       </div>
     </div>
-    <div class="date-range">2024-05-01 00:00:00 — 2024-05-31 23:59:59</div>
+    <div class="date-range">{{ currentDate }}</div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { alarmApi } from '@/api/alarm'
-import type { AlarmSummary } from '@/api/types'
+import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
 
-const summary = ref<AlarmSummary | null>(null)
+const { summaryData } = useAlarmWebSocket()
 
+const summary = computed(() => summaryData.value)
+
+const currentDate = computed(() => {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+  const fmt = (d: Date) => d.toLocaleString('zh-CN', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false
+  }).replace(/\//g, '-')
+  return `${fmt(start)} — ${fmt(end)}`
+})
+
+// Initial fetch
 onMounted(async () => {
-  summary.value = await alarmApi.getAlarmSummary()
+  try {
+    const data = await alarmApi.getAlarmSummary()
+    summaryData.value = data
+  } catch (e) {
+    console.error('Failed to fetch alarm summary:', e)
+  }
 })
 </script>
 

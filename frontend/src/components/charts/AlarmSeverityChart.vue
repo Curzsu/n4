@@ -6,22 +6,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { PieChart } from 'echarts/charts'
 import { TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import { alarmApi } from '@/api/alarm'
+import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
 import type { AlarmSeverityData } from '@/api/types'
 
 use([PieChart, TooltipComponent, LegendComponent, CanvasRenderer])
 
-const data = ref<AlarmSeverityData | null>(null)
-
-onMounted(async () => {
-  data.value = await alarmApi.getAlarmBySeverity()
-})
+const { severityData } = useAlarmWebSocket()
 
 const colorMap: Record<string, string> = {
   Critical: '#ef4444',
@@ -31,7 +28,8 @@ const colorMap: Record<string, string> = {
 }
 
 const chartOption = computed(() => {
-  if (!data.value) return {}
+  const data = severityData.value
+  if (!data || !data.items || data.items.length === 0) return {}
   return {
     backgroundColor: 'transparent',
     tooltip: {
@@ -52,18 +50,27 @@ const chartOption = computed(() => {
       label: {
         show: true,
         position: 'center',
-        formatter: `{a|${data.value.total}}\n{b|Total}`,
+        formatter: `{a|${data.total}}\n{b|Total}`,
         rich: {
           a: { fontSize: 24, fontWeight: 'bold', color: '#e5e7eb', lineHeight: 30 },
           b: { fontSize: 11, color: '#6b7280' },
         },
       },
-      data: data.value.items.map(item => ({
+      data: data.items.map(item => ({
         name: item.name,
         value: item.value,
         itemStyle: { color: colorMap[item.name] || '#6b7280' },
       })),
     }],
+  }
+})
+
+// Initial fetch
+onMounted(async () => {
+  try {
+    severityData.value = await alarmApi.getAlarmBySeverity()
+  } catch (e) {
+    console.error('Failed to fetch severity data:', e)
   }
 })
 </script>

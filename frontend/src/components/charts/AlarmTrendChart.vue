@@ -6,22 +6,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import { alarmApi } from '@/api/alarm'
+import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
 import type { AlarmTrendData } from '@/api/types'
 
 use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
 const data = ref<AlarmTrendData | null>(null)
-
-onMounted(async () => {
-  data.value = await alarmApi.getAlarmTrend()
-})
+const { onUpdate } = useAlarmWebSocket()
 
 const colorMap: Record<string, string> = {
   Critical: '#ef4444',
@@ -64,6 +62,24 @@ const chartOption = computed(() => {
       itemStyle: { color: colorMap[s.name] || '#6b7280' },
     })),
   }
+})
+
+async function fetchTrendData() {
+  try {
+    data.value = await alarmApi.getAlarmTrend()
+  } catch (e) {
+    console.error('Failed to fetch trend data:', e)
+  }
+}
+
+// Initial fetch
+onMounted(() => {
+  fetchTrendData()
+})
+
+// Refresh trend data when WebSocket receives updates
+onUpdate(() => {
+  fetchTrendData()
 })
 </script>
 

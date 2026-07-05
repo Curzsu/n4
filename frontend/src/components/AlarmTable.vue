@@ -15,7 +15,7 @@
 
     <!-- Table with built-in scrolling via max-height -->
     <el-table
-      :data="tableData"
+      :data="filteredData"
       :max-height="tableMaxHeight"
       style="width: 100%"
       :header-cell-style="headerCellStyle"
@@ -45,28 +45,44 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { alarmApi } from '@/api/alarm'
+import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
 import type { AlarmRecord } from '@/api/types'
 
 const loading = ref(false)
 const tableData = ref<AlarmRecord[]>([])
 const activeTab = ref('active')
 
+// Connect to WebSocket
+const { latestAlarm, onUpdate } = useAlarmWebSocket()
+
 // Calculate max height for el-table's built-in scrolling
-// viewport - topnav(48) - bottombar(48) - padding(32) - tab-bar(~42) - charts-row(~260) - gaps(~24)
 const tableMaxHeight = ref(300)
 
 function updateTableMaxHeight() {
   tableMaxHeight.value = Math.max(200, window.innerHeight - 460)
 }
 
-const tabs = [
-  { key: 'active', label: 'Active Alarms', count: '' },
-  { key: 'unacknowledged', label: 'Unacknowledged', count: '17' },
+const tabs = computed(() => [
+  { key: 'active', label: 'Active Alarms', count: String(tableData.value.length) },
+  { key: 'unacknowledged', label: 'Unacknowledged', count: String(tableData.value.filter(a => a.status === 'Unack').length) },
   { key: 'acknowledged', label: 'Acknowledged', count: '' },
   { key: 'cleared', label: 'Cleared', count: '' },
-]
+])
+
+const filteredData = computed(() => {
+  switch (activeTab.value) {
+    case 'unacknowledged':
+      return tableData.value.filter(a => a.status === 'Unack')
+    case 'acknowledged':
+      return tableData.value.filter(a => a.status === 'Ack')
+    case 'cleared':
+      return tableData.value.filter(a => a.status === 'Cleared')
+    default:
+      return tableData.value
+  }
+})
 
 const headerCellStyle = {
   backgroundColor: '#0d1117',
@@ -93,10 +109,10 @@ function severityTagType(severity: string): string {
   }
 }
 
-async function fetchData(tab: string) {
+async function fetchData() {
   loading.value = true
   try {
-    tableData.value = await alarmApi.getActiveAlarms(tab)
+    tableData.value = await alarmApi.getActiveAlarms('active')
   } catch (e) {
     console.error('Failed to fetch alarm data:', e)
   } finally {
@@ -106,13 +122,49 @@ async function fetchData(tab: string) {
 
 function onTabChange(tab: string) {
   activeTab.value = tab
-  fetchData(tab)
 }
+
+// Handle real-time WebSocket updates
+onUpdate((data: any) => {
+  if (!data.alarm) return
+
+  const alarm = data.alarm
+  // Format timestamp as ISO-like string for consistent sorting
+  const formatTime = (ts: number) => {
+    const d = new Date(ts)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  }
+
+  const newRecord: AlarmRecord = {
+    time: alarm.timestamp ? formatTime(alarm.timestamp) : '-',
+    severity: alarm.severity || 'Normal',
+    source: alarm.name || '',
+    message: alarm.message || '',
+    location: alarm.location || '',
+    status: alarm.status || 'Unack',
+    ackBy: alarm.ackBy || '-',
+  }
+
+  // Remove existing record if present (to re-insert at top)
+  const existingIndex = tableData.value.findIndex(r => r.source === newRecord.source)
+  if (existingIndex >= 0) {
+    tableData.value.splice(existingIndex, 1)
+  }
+
+  // Always insert at the top (newest first)
+  tableData.value.unshift(newRecord)
+
+  // Keep max 100 rows
+  if (tableData.value.length > 100) {
+    tableData.value = tableData.value.slice(0, 100)
+  }
+})
 
 onMounted(() => {
   updateTableMaxHeight()
   window.addEventListener('resize', updateTableMaxHeight)
-  fetchData('active')
+  fetchData()
 })
 
 onBeforeUnmount(() => {
