@@ -12,12 +12,12 @@ import java.util.*;
 import java.util.regex.*;
 
 /**
- * 报警规则加载器
+ * Alarm rule loader.
  * <p>
- * 1. 从 Excel (alarm_rules_config.xlsx) 读取用户已配置的规则
- * 2. 从日志文件 (points-2.log) 分析所有点位及其数值范围
- * 3. 对 Excel 中未配置的点位，根据日志数据自动生成模拟规则
- * 4. 合并后存入 Redis 供 Kafka 消费者使用
+ * 1. Read user-configured rules from Excel (alarm_rules_config.xlsx)
+ * 2. Analyze all points and their value ranges from the log file (points-2.log)
+ * 3. Auto-generate mock rules for points not configured in Excel based on log data
+ * 4. Merge and store in Redis for Kafka consumers to use
  */
 @Slf4j
 @Service
@@ -27,10 +27,10 @@ public class AlarmRuleLoader {
     private static final Pattern LOG_LINE_PATTERN = Pattern.compile(
             "timestamp=\\[([^\\]]+)]\\s*,topic=([^,]+)\\s*,key=(.*?)\\s*,value=(.*)");
 
-    /** Excel 中每个阈值分级对应的列偏移 (Value, Severity, Message) */
+    /** Column offsets in Excel for each threshold level (Value, Severity, Message) */
     private static final String[] THRESHOLD_LEVELS = {"Normal", "High", "High-High", "Low", "Low-Low", "Offline"};
 
-    /** 每个分级在 Excel 中占 3 列，从第 2 列开始 */
+    /** Each level occupies 3 columns in Excel, starting from column 2 */
     private static final int[][] LEVEL_COLUMNS = {
             {2, 3, 4},    // Normal:    Value, Severity, Message
             {5, 6, 7},    // High:      Value, Severity, Message
@@ -43,41 +43,41 @@ public class AlarmRuleLoader {
     private final AlarmRuleService alarmRuleService;
 
     // ══════════════════════════════════════════════════════════════════
-    //  主入口: 加载规则 (Excel + 日志自动补全) → Redis
+    //  Main entry: load rules (Excel + log auto-completion) → Redis
     // ══════════════════════════════════════════════════════════════════
 
     /**
-     * 从 Excel + 日志加载规则并写入 Redis
+     * Load rules from Excel + log and write to Redis.
      *
-     * @param excelFilePath Excel 规则配置文件路径 (alarm_rules_config.xlsx)
-     * @param logFilePath   日志文件路径 (points-2.log)
+     * @param excelFilePath Excel rule config file path (alarm_rules_config.xlsx)
+     * @param logFilePath   Log file path (points-2.log)
      */
     public void loadRules(String excelFilePath, String logFilePath) {
         log.info("══════════════════════════════════════════════════");
-        log.info("开始加载报警规则");
+        log.info("Starting to load alarm rules");
 
-        // 1. 读取 Excel 中用户已配置的规则
+        // 1. Read user-configured rules from Excel
         Map<String, List<AlarmRule>> excelRules = readExcelRules(excelFilePath);
-        log.info("[1/3] Excel 用户配置: {} 个点位", excelRules.size());
+        log.info("[1/3] Excel user config: {} points", excelRules.size());
 
-        // 2. 解析日志，统计各点位数据
+        // 2. Parse log to collect point statistics
         File logFile = resolveFile(logFilePath);
         if (logFile == null) {
-            log.error("无法找到日志文件: {}", logFilePath);
+            log.error("Cannot find log file: {}", logFilePath);
             if (excelRules.isEmpty()) {
-                log.error("Excel 和日志均无数据, 无法加载规则");
+                log.error("Both Excel and log have no data, cannot load rules");
                 return;
             }
-            log.warn("仅使用 Excel 规则 (无日志数据用于补全)");
+            log.warn("Using Excel rules only (no log data for completion)");
             alarmRuleService.saveAllRules(excelRules);
-            log.info("规则加载完成 (仅 Excel): {} 个点位", excelRules.size());
+            log.info("Rule loading complete (Excel only): {} points", excelRules.size());
             return;
         }
 
         Map<String, PointStats> pointStatsMap = analyzeLog(logFile.getAbsolutePath());
-        log.info("[2/3] 日志分析: {} 个唯一点位", pointStatsMap.size());
+        log.info("[2/3] Log analysis: {} unique points", pointStatsMap.size());
 
-        // 3. 合并: Excel 配置优先, 未配置的从日志自动生成
+        // 3. Merge: Excel config takes priority, auto-generate for unconfigured points
         Map<String, List<AlarmRule>> allRules = new LinkedHashMap<>();
         int userCount = 0;
         int autoCount = 0;
@@ -87,11 +87,11 @@ public class AlarmRuleLoader {
             PointStats stats = entry.getValue();
 
             if (excelRules.containsKey(path)) {
-                // 用户已配置 → 直接使用
+                // User configured → use directly
                 allRules.put(path, excelRules.get(path));
                 userCount++;
             } else {
-                // 未配置 → 自动生成
+                // Not configured → auto-generate
                 List<AlarmRule> rules = generateRules(path, stats);
                 if (!rules.isEmpty()) {
                     allRules.put(path, rules);
@@ -100,7 +100,7 @@ public class AlarmRuleLoader {
             }
         }
 
-        // Excel 中有但日志中没有的点位也加入
+        // Also add points that exist in Excel but not in log
         for (Map.Entry<String, List<AlarmRule>> entry : excelRules.entrySet()) {
             if (!allRules.containsKey(entry.getKey())) {
                 allRules.put(entry.getKey(), entry.getValue());
@@ -108,35 +108,35 @@ public class AlarmRuleLoader {
             }
         }
 
-        // 4. 存入 Redis
+        // 4. Store in Redis
         alarmRuleService.saveAllRules(allRules);
-        log.info("[3/3] 规则加载完成: 用户配置={} 自动生成={} 总计={}",
+        log.info("[3/3] Rule loading complete: user config={} auto generated={} total={}",
                 userCount, autoCount, allRules.size());
         log.info("══════════════════════════════════════════════════");
     }
 
     // ══════════════════════════════════════════════════════════════════
-    //  Excel 读取
+    //  Excel reading
     // ══════════════════════════════════════════════════════════════════
 
     /**
-     * 读取 Excel 文件中用户已配置的报警规则
+     * Read user-configured alarm rules from Excel file.
      *
-     * Excel 结构:
-     *   Row 1: 合并的分级表头 (Normal | High | High-High | Low | Low-Low | Offline)
-     *   Row 2: 子表头 (Value | Severity | Message) × 6
-     *   Row 3+: 数据行, Column A = path
+     * Excel structure:
+     *   Row 1: Merged level header (Normal | High | High-High | Low | Low-Low | Offline)
+     *   Row 2: Sub-header (Value | Severity | Message) × 6
+     *   Row 3+: Data rows, Column A = path
      */
     private Map<String, List<AlarmRule>> readExcelRules(String excelFilePath) {
         Map<String, List<AlarmRule>> rules = new LinkedHashMap<>();
 
         File excelFile = resolveFile(excelFilePath);
         if (excelFile == null) {
-            log.warn("未找到 Excel 配置文件: {}, 跳过 Excel 读取", excelFilePath);
+            log.warn("Excel config file not found: {}, skipping Excel read", excelFilePath);
             return rules;
         }
 
-        log.info("读取 Excel 规则配置: {}", excelFile.getAbsolutePath());
+        log.info("Reading Excel rule config: {}", excelFile.getAbsolutePath());
 
         try (Workbook wb = new XSSFWorkbook(excelFile)) {
             Sheet sheet = wb.getSheet("Alarm Rules");
@@ -144,7 +144,7 @@ public class AlarmRuleLoader {
                 sheet = wb.getSheetAt(0);
             }
 
-            // 从第 3 行开始读数据 (Row 1-2 是表头)
+            // Read data from row 3 (Row 1-2 are headers)
             for (int r = 2; r <= sheet.getLastRowNum(); r++) {
                 Row row = sheet.getRow(r);
                 if (row == null) continue;
@@ -165,13 +165,13 @@ public class AlarmRuleLoader {
                     String severity = getCellString(row.getCell(sevCol - 1));
                     String message = getCellString(row.getCell(msgCol - 1));
 
-                    // 判断该分级是否已配置
+                    // Check if this level is configured
                     boolean configured;
                     if (level.equals("Normal")) {
                         configured = (severity != null && !severity.isBlank())
                                 || (message != null && !message.isBlank());
                     } else if (level.equals("Offline")) {
-                        // Offline 的 value 预填了 "Null", 看 severity/message
+                        // Offline value is pre-filled with "Null", check severity/message
                         configured = (severity != null && !severity.isBlank())
                                 || (message != null && !message.isBlank());
                     } else {
@@ -195,13 +195,13 @@ public class AlarmRuleLoader {
             }
 
         } catch (Exception e) {
-            log.error("读取 Excel 文件失败: {}", excelFile.getAbsolutePath(), e);
+            log.error("Failed to read Excel file: {}", excelFile.getAbsolutePath(), e);
         }
 
         return rules;
     }
 
-    /** 安全读取单元格字符串值 */
+    /** Safely read cell string value */
     private String getCellString(Cell cell) {
         if (cell == null) return null;
         return switch (cell.getCellType()) {
@@ -224,7 +224,7 @@ public class AlarmRuleLoader {
     }
 
     // ══════════════════════════════════════════════════════════════════
-    //  日志分析
+    //  Log analysis
     // ══════════════════════════════════════════════════════════════════
 
     private Map<String, PointStats> analyzeLog(String filePath) {
@@ -246,13 +246,13 @@ public class AlarmRuleLoader {
                      .addValue(value);
             }
         } catch (IOException e) {
-            log.error("读取日志文件失败: {}", filePath, e);
+            log.error("Failed to read log file: {}", filePath, e);
         }
 
         return stats;
     }
 
-    /** 简单提取 JSON 字段值 */
+    /** Simple extraction of JSON field value */
     private String extractJsonField(String json, String field) {
         Pattern p = Pattern.compile("\"" + field + "\"\\s*:\\s*\"([^\"]*)\"");
         Matcher m = p.matcher(json);
@@ -260,7 +260,7 @@ public class AlarmRuleLoader {
     }
 
     // ══════════════════════════════════════════════════════════════════
-    //  路径解析
+    //  Path resolution
     // ══════════════════════════════════════════════════════════════════
 
     private File resolveFile(String path) {
@@ -277,7 +277,7 @@ public class AlarmRuleLoader {
             File f3 = new File(parentDir, cleanPath);
             if (f3.exists()) return f3;
 
-            File f4 = new File(parentDir, "材料" + File.separator + new File(cleanPath).getName());
+            File f4 = new File(parentDir, "materials" + File.separator + new File(cleanPath).getName());
             if (f4.exists()) return f4;
         }
 
@@ -285,11 +285,11 @@ public class AlarmRuleLoader {
     }
 
     // ══════════════════════════════════════════════════════════════════
-    //  规则自动生成 (用于 Excel 中未配置的点位)
-    //  每个点位都生成完整的 6 种分级规则, value/severity/message 全部填充
+    //  Auto rule generation (for points not configured in Excel)
+    //  Generate complete 6-level rules for each point, value/severity/message all filled
     // ══════════════════════════════════════════════════════════════════
 
-    private static final Random RANDOM = new Random(42); // 固定种子保证可重现
+    private static final Random RANDOM = new Random(42); // Fixed seed for reproducibility
 
     private List<AlarmRule> generateRules(String path, PointStats stats) {
         String shortName = path.substring(path.lastIndexOf('/') + 1);
@@ -302,7 +302,7 @@ public class AlarmRuleLoader {
             case NUMERIC -> generateNumericRules(rules, shortName, stats);
         }
 
-        // Offline 规则（所有类型通用，始终生成）
+        // Offline rule (common to all types, always generated)
         rules.add(AlarmRule.builder()
                 .level("Offline").value("Null").severity("Critical")
                 .message(shortName + " is offline - no data received")
@@ -311,7 +311,7 @@ public class AlarmRuleLoader {
         return rules;
     }
 
-    // ── 字符串型: 6 级全填充 ──────────────────────────────────────────
+    // ── String type: all 6 levels filled ──────────────────────────────────────────
 
     private void generateStringRules(List<AlarmRule> rules, String name) {
         rules.add(AlarmRule.builder()
@@ -331,7 +331,7 @@ public class AlarmRuleLoader {
                 .message(name + " value invalid or missing").build());
     }
 
-    // ── 布尔型: 6 级全填充, 随机选择报警状态 ──────────────────────────
+    // ── Bool type: all 6 levels filled, randomly choose alarm state ──────────────────────────
 
     private void generateBoolRules(List<AlarmRule> rules, String name, PointStats stats) {
         Set<String> values = stats.uniqueValues;
@@ -339,7 +339,7 @@ public class AlarmRuleLoader {
         String normalVal = values.contains("false") ? "false" : "true";
         String alarmVal = "true".equals(normalVal) ? "false" : "true";
 
-        // 通信/电源状态: false = 报警
+        // Communication/power status: false = alarm
         if (nameLower.contains("communication") || nameLower.contains("comm")) {
             normalVal = "true";
             alarmVal = "false";
@@ -347,7 +347,7 @@ public class AlarmRuleLoader {
             normalVal = values.contains("true") ? "true" : "false";
             alarmVal = "true".equals(normalVal) ? "false" : "true";
         } else {
-            // 通用开关量: 随机决定哪个状态是报警
+            // Generic switch: randomly decide which state is alarm
             if (RANDOM.nextBoolean()) {
                 normalVal = "false";
                 alarmVal = "true";
@@ -374,7 +374,7 @@ public class AlarmRuleLoader {
                 .message(name + " warning state: " + alarmVal).build());
     }
 
-    // ── 数值型: 6 级全填充, 阈值贴近实际数据范围 ──────────────────────
+    // ── Numeric type: all 6 levels filled, thresholds close to actual data range ──────────────────────
 
     private void generateNumericRules(List<AlarmRule> rules, String name, PointStats stats) {
         String nameLower = name.toLowerCase();
@@ -382,7 +382,7 @@ public class AlarmRuleLoader {
         double min = stats.numericMin;
         double max = stats.numericMax;
 
-        // 获取阈值: 所有 4 个阈值都不为 null
+        // Get thresholds: all 4 thresholds must be non-null
         Thresholds t = getNumericThresholds(nameLower, avg, min, max);
 
         // Normal
@@ -412,11 +412,11 @@ public class AlarmRuleLoader {
     }
 
     /**
-     * 获取数值型阈值: 阈值贴近实际数据范围以增加报警概率
-     * 所有 4 个阈值都保证非 null
+     * Get numeric thresholds: thresholds close to actual data range to increase alarm probability.
+     * All 4 thresholds are guaranteed non-null.
      */
     private Thresholds getNumericThresholds(String name, double avg, double min, double max) {
-        // 基于领域知识的阈值, 但调紧以增加报警概率
+        // Domain-knowledge based thresholds, tightened to increase alarm probability
         Double hh = null, h = null, l = null, ll = null;
 
         if (name.contains("voltage")) {
@@ -450,11 +450,11 @@ public class AlarmRuleLoader {
         } else if (name.contains("remaining_disk")) {
             hh = 10.0; h = 8.0; l = 3.0; ll = 1.5;
         } else if (name.contains("total_size") || name.contains("total_physical") || "ct".equals(name) || "pt".equals(name)) {
-            // 静态值: 用宽阈值
+            // Static value: use wide thresholds
             hh = Double.MAX_VALUE; h = Double.MAX_VALUE; l = -Double.MAX_VALUE; ll = -Double.MAX_VALUE;
         }
 
-        // 默认: 基于数据范围, 阈值贴近实际值
+        // Default: based on data range, thresholds close to actual values
         if (hh == null) {
             if (avg > 0) {
                 hh = round2(avg * 1.3);
@@ -467,7 +467,7 @@ public class AlarmRuleLoader {
                 l = round2(min * 0.9);
                 ll = round2(min * 0.5);
             } else {
-                // 全 0 数据: 设很小的阈值让 0 也触发报警
+                // All-zero data: set very small thresholds so 0 also triggers alarm
                 hh = 0.01; h = 0.001; l = -0.001; ll = -0.01;
             }
         }
@@ -480,7 +480,7 @@ public class AlarmRuleLoader {
     }
 
     // ══════════════════════════════════════════════════════════════════
-    //  内部数据类
+    //  Internal data classes
     // ══════════════════════════════════════════════════════════════════
 
     enum PointType { BOOL, NUMERIC, STRING }

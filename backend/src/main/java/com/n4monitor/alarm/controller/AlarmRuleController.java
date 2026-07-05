@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 /**
- * 报警规则管理接口
+ * Alarm rule management API.
  */
 @RestController
 @RequestMapping("/api/alarm-rules")
@@ -27,16 +27,16 @@ public class AlarmRuleController {
     private String logFilePath;
 
     /**
-     * 手动触发重新加载规则 (Excel + 日志) 到 Redis
+     * Manually trigger reload of rules (Excel + Log) into Redis.
      */
     @PostMapping("/reload")
     public ApiResponse<String> reloadRules() {
         alarmRuleLoader.loadRules(excelFilePath, logFilePath);
-        return ApiResponse.success("报警规则已重新加载到 Redis (Excel + 日志)");
+        return ApiResponse.success("Alarm rules reloaded to Redis (Excel + Log)");
     }
 
     /**
-     * 查询当前规则数量
+     * Query current rule count.
      */
     @GetMapping("/count")
     public ApiResponse<Map<String, Object>> ruleCount() {

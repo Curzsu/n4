@@ -6,7 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 单条报警阈值规则
+ * Single alarm threshold rule.
  */
 @Data
 @Builder
@@ -14,15 +14,15 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class AlarmRule {
 
-    /** 阈值分级: Normal, High, High-High, Low, Low-Low, Offline */
+    /** Threshold level: Normal, High, High-High, Low, Low-Low, Offline */
     private String level;
 
-    /** 阈值数值 (Normal为null, Offline为"Null") */
+    /** Threshold value (null for Normal, "Null" for Offline) */
     private String value;
 
-    /** 报警等级: Critical, Major, Minor, Warning */
+    /** Alarm severity: Critical, Major, Minor, Warning */
     private String severity;
 
-    /** 报警提示内容 */
+    /** Alarm prompt message */
     private String message;
 }

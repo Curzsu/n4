@@ -8,14 +8,14 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 
 /**
- * 应用启动时自动加载报警规则到 Redis
+ * Automatically load alarm rules into Redis on application startup.
  * <p>
- * 加载流程:
- * 1. 先从 Excel (alarm_rules_config.xlsx) 读取用户已配置的规则
- * 2. 对 Excel 中未配置的点位, 从日志文件自动生成模拟规则
- * 3. 合并后写入 Redis
+ * Loading process:
+ * 1. Read user-configured rules from Excel (alarm_rules_config.xlsx)
+ * 2. For points not configured in Excel, auto-generate mock rules from log file
+ * 3. Merge and write to Redis
  * <p>
- * 如果 Redis 中已有规则数据, 则跳过。
+ * Skips if rule data already exists in Redis.
  */
 @Slf4j
 @Component
@@ -35,16 +35,16 @@ public class AlarmRuleInitializer implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         try {
             if (alarmRuleService.hasRules()) {
-                log.info("Redis 中已有报警规则, 跳过自动加载");
+                log.info("Alarm rules already exist in Redis, skipping auto load");
                 return;
             }
 
-            log.info("Redis 中尚无报警规则, 开始加载 (Excel + 日志)...");
+            log.info("No alarm rules in Redis, starting load (Excel + Log)...");
             alarmRuleLoader.loadRules(excelFilePath, logFilePath);
 
         } catch (Exception e) {
-            log.warn("报警规则自动加载失败 (可能是 Redis 未就绪): {}", e.getMessage());
-            log.warn("可通过 POST /api/alarm-rules/reload 手动触发加载");
+            log.warn("Auto load of alarm rules failed (Redis may not be ready): {}", e.getMessage());
+            log.warn("You can manually trigger loading via POST /api/alarm-rules/reload");
         }
     }
 }

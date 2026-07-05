@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 
 /**
- * Kafka 消息中的点位数据 (value JSON 反序列化)
+ * Point data from Kafka message (value JSON deserialization).
  */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)

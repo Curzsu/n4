@@ -22,24 +22,24 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
- * Flink 报警处理作业
+ * Flink alarm processing job.
  * <p>
- * 从 Kafka (obix-mqtt-points) 消费设备点位数据，
- * 从 Redis 加载报警规则，实时评估每条消息，
- * 输出到控制台并同时将最新状态写入 Redis (alarm:latest)。
+ * Consumes device point data from Kafka (obix-mqtt-points),
+ * loads alarm rules from Redis, evaluates each message in real-time,
+ * outputs to console and writes latest state to Redis (alarm:latest).
  * <p>
- * 可通过 main 方法独立运行，也可由 FlinkJobRunner 随 Spring Boot 自动启动。
+ * Can run standalone via main method, or auto-started by FlinkJobRunner with Spring Boot.
  */
 public class AlarmProcessingJob {
 
-    /** Redis 中报警规则的 key */
+    /** Redis key for alarm rules */
     private static final String REDIS_RULES_KEY = "alarm:rules";
 
-    /** Redis 中最新点位状态的 key */
+    /** Redis key for latest point state */
     private static final String REDIS_LATEST_KEY = "alarm:latest";
 
     /**
-     * 独立运行入口 (IDE 或命令行)
+     * Standalone entry point (IDE or command line).
      */
     public static void main(String[] args) throws Exception {
         run("47.121.30.136:9092", "obix-mqtt-points",
@@ -47,13 +47,13 @@ public class AlarmProcessingJob {
     }
 
     /**
-     * 启动 Flink 作业 (阻塞方法, 应在独立线程中调用)
+     * Start Flink job (blocking method, should be called in a separate thread).
      *
-     * @param kafkaBroker  Kafka 地址
-     * @param kafkaTopic   Kafka topic
-     * @param groupId      消费者组 ID
-     * @param redisHost    Redis 地址
-     * @param redisPort    Redis 端口
+     * @param kafkaBroker Kafka address
+     * @param kafkaTopic  Kafka topic
+     * @param groupId     Consumer group ID
+     * @param redisHost   Redis address
+     * @param redisPort   Redis port
      */
     public static void run(String kafkaBroker, String kafkaTopic,
                            String groupId, String redisHost,
@@ -85,8 +85,8 @@ public class AlarmProcessingJob {
     }
 
     /**
-     * Flink ProcessFunction: 从 Redis 加载规则, 评估每条 Kafka 消息,
-     * 输出到控制台并将最新状态写入 Redis
+     * Flink ProcessFunction: load rules from Redis, evaluate each Kafka message,
+     * output to console and write latest state to Redis.
      */
     public static class AlarmProcessFunction extends RichMapFunction<String, String> {
 
@@ -114,7 +114,7 @@ public class AlarmProcessingJob {
             objectMapper = new ObjectMapper();
             rulesCache = new HashMap<>();
 
-            // 从 Redis 加载报警规则
+            // Load alarm rules from Redis
             Map<String, String> raw = jedis.hgetAll(REDIS_RULES_KEY);
             for (Map.Entry<String, String> entry : raw.entrySet()) {
                 try {
@@ -124,39 +124,39 @@ public class AlarmProcessingJob {
                     );
                     rulesCache.put(entry.getKey(), rules);
                 } catch (Exception e) {
-                    System.err.println("[FLINK] 反序列化规则失败: " + entry.getKey());
+                    System.err.println("[FLINK] Failed to deserialize rules: " + entry.getKey());
                 }
             }
 
-            System.out.println("[FLINK] 报警处理器已启动, 加载了 " + rulesCache.size() + " 个点位规则");
-            System.out.println("[FLINK] 最新状态将写入 Redis key: " + REDIS_LATEST_KEY);
+            System.out.println("[FLINK] Alarm processor started, loaded " + rulesCache.size() + " point rules");
+            System.out.println("[FLINK] Latest state will be written to Redis key: " + REDIS_LATEST_KEY);
         }
 
         @Override
         public String map(String message) throws Exception {
-            if (rulesCache == null || rulesCache.isEmpty()) return "[SKIP] 规则未加载";
+            if (rulesCache == null || rulesCache.isEmpty()) return "[SKIP] Rules not loaded";
 
-            // 1. 解析 Kafka 消息
+            // 1. Parse Kafka message
             PointData point;
             try {
                 point = objectMapper.readValue(message, PointData.class);
             } catch (Exception e) {
-                return "[SKIP] JSON 解析失败";
+                return "[SKIP] JSON parse failed";
             }
 
             String path = point.getPath();
             if (path == null) return "[SKIP] path is null";
 
-            // 2. 查找规则并评估
+            // 2. Find rules and evaluate
             List<AlarmRule> pointRules = rulesCache.get(path);
-            if (pointRules == null || pointRules.isEmpty()) return "[SKIP] 未找到规则: " + path;
+            if (pointRules == null || pointRules.isEmpty()) return "[SKIP] Rules not found: " + path;
 
             AlarmRule triggered = evaluate(point.getValue(), pointRules);
             String ts = formatTimestamp(point.getTimestamp());
 
-            // 3. 构建最新状态并写入 Redis
+            // 3. Build latest state and write to Redis
             PointAlarmState state = new PointAlarmState();
-            // 复制 PointData 的所有字段
+            // Copy all PointData fields
             state.setName(point.getName());
             state.setDisplayName(point.getDisplayName());
             state.setPath(point.getPath());
@@ -169,7 +169,7 @@ public class AlarmProcessingJob {
             state.setPort(point.getPort());
             state.setOther(point.getOther());
             state.setTimestamp(point.getTimestamp());
-            // 报警评估结果
+            // Alarm evaluation result
             if (triggered != null) {
                 state.setLevel(triggered.getLevel());
                 state.setSeverity(triggered.getSeverity());
@@ -179,23 +179,23 @@ public class AlarmProcessingJob {
 //                state.setSeverity("Normal");
 //                state.setMessage("within normal range");
             }
-            // 附加字段
+            // Additional fields
             state.setAckBy("-");
             state.setStatus("Unack");
             state.setSource("");
             state.setLocation("");
 
-            // 写入 Redis hash: alarm:latest, field=path, value=JSON
-            // 同时发布到 Redis channel 通知 WebSocket 推送
+            // Write to Redis hash: alarm:latest, field=path, value=JSON
+            // Also publish to Redis channel to notify WebSocket push
             try {
                 String json = objectMapper.writeValueAsString(state);
                 jedis.hset(REDIS_LATEST_KEY, path, json);
                 jedis.publish("alarm:notifications", json);
             } catch (Exception e) {
-                System.err.println("[FLINK] 写入 Redis 最新状态失败: " + path + " - " + e.getMessage());
+                System.err.println("[FLINK] Failed to write latest state to Redis: " + path + " - " + e.getMessage());
             }
 
-            // 4. 控制台输出
+            // 4. Console output
             if (triggered != null) {
                 String color = switch (triggered.getSeverity()) {
                     case "Critical" -> "\033[91m";
@@ -218,7 +218,7 @@ public class AlarmProcessingJob {
             if (jedis != null) jedis.close();
         }
 
-        // ── 阈值评估 ────────────────────────────────────────────────────
+        // ── Threshold evaluation ────────────────────────────────────────────────────
 
         private AlarmRule evaluate(String pointValue, List<AlarmRule> rules) {
             Double numVal = null;

@@ -11,12 +11,13 @@ import org.springframework.stereotype.Service;
 import java.util.*;
 
 /**
- * 报警规则 Redis 管理服务
+ * Alarm rule Redis management service.
  * <p>
- * 负责从 Redis 中读写报警规则，供 Kafka 消费者实时评估使用。
+ * Responsible for reading and writing alarm rules from/to Redis,
+ * used by Kafka consumers for real-time evaluation.
  * Redis key: alarm:rules (Hash)
- *   field: 点位路径 path
- *   value: JSON 数组 [AlarmRule, ...]
+ *   field: point path
+ *   value: JSON array [AlarmRule, ...]
  */
 @Slf4j
 @Service
@@ -29,7 +30,7 @@ public class AlarmRuleService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
-     * 将所有规则批量写入 Redis（覆盖已有数据）
+     * Save all rules to Redis in batch (overwrites existing data).
      */
     public void saveAllRules(Map<String, List<AlarmRule>> allRules) {
         redisTemplate.delete(REDIS_KEY);
@@ -39,18 +40,18 @@ public class AlarmRuleService {
             try {
                 redisData.put(entry.getKey(), objectMapper.writeValueAsString(entry.getValue()));
             } catch (Exception e) {
-                log.error("序列化规则失败, path={}", entry.getKey(), e);
+                log.error("Failed to serialize rules, path={}", entry.getKey(), e);
             }
         }
 
         if (!redisData.isEmpty()) {
             redisTemplate.opsForHash().putAll(REDIS_KEY, redisData);
         }
-        log.info("已存储 {} 个点位规则到 Redis key '{}'", redisData.size(), REDIS_KEY);
+        log.info("Stored {} point rules to Redis key '{}'", redisData.size(), REDIS_KEY);
     }
 
     /**
-     * 从 Redis 加载全部规则到内存
+     * Load all rules from Redis into memory.
      */
     public Map<String, List<AlarmRule>> loadAllRules() {
         Map<Object, Object> raw = redisTemplate.opsForHash().entries(REDIS_KEY);
@@ -63,16 +64,16 @@ public class AlarmRuleService {
                 List<AlarmRule> ruleList = objectMapper.readValue(json, new TypeReference<>() {});
                 rules.put(path, ruleList);
             } catch (Exception e) {
-                log.error("反序列化规则失败, key={}", entry.getKey(), e);
+                log.error("Failed to deserialize rules, key={}", entry.getKey(), e);
             }
         }
 
-        log.info("从 Redis 加载了 {} 个点位规则", rules.size());
+        log.info("Loaded {} point rules from Redis", rules.size());
         return rules;
     }
 
     /**
-     * 获取单个点位的规则
+     * Get rules for a single point.
      */
     public List<AlarmRule> getRules(String path) {
         String json = (String) redisTemplate.opsForHash().get(REDIS_KEY, path);
@@ -80,13 +81,13 @@ public class AlarmRuleService {
         try {
             return objectMapper.readValue(json, new TypeReference<>() {});
         } catch (Exception e) {
-            log.error("反序列化规则失败, path={}", path, e);
+            log.error("Failed to deserialize rules, path={}", path, e);
             return Collections.emptyList();
         }
     }
 
     /**
-     * 检查 Redis 中是否已有规则数据
+     * Check if rule data already exists in Redis.
      */
     public boolean hasRules() {
         Long size = redisTemplate.opsForHash().size(REDIS_KEY);
