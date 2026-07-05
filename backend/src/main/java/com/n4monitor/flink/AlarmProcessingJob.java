@@ -176,8 +176,8 @@ public class AlarmProcessingJob {
                 state.setMessage(triggered.getMessage());
             } else {
                 state.setLevel("Normal");
-                state.setSeverity("Normal");
-                state.setMessage("within normal range");
+//                state.setSeverity("Normal");
+//                state.setMessage("within normal range");
             }
             // 附加字段
             state.setAckBy("-");

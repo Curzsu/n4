@@ -25,6 +25,14 @@ mybatis:
   configuration:
     map-underscore-to-camel-case: true
 
+# TDengine configuration (REST mode, port 6041)
+tdengine:
+  url: jdbc:TAOS-RS://47.121.30.136:6041/n4
+  username: root
+  password: taosdata
+  database: n4
+  supertable: alarm
+
 # 报警规则配置
 alarm:
   rule:
@@ -35,3 +43,9 @@ alarm:
     enabled: true
     topic: obix-mqtt-points
     group-id: n4-flink-alarm-processor
+
+#logging:
+#  level:
+#    org.apache.flink: WARN
+#    org.apache.kafka: WARN
+#    org.apache.pekko: WARN

@@ -96,6 +96,13 @@
             <artifactId>jedis</artifactId>
         </dependency>
 
+        <!-- TDengine JDBC driver -->
+        <dependency>
+            <groupId>com.taosdata.jdbc</groupId>
+            <artifactId>taos-jdbcdriver</artifactId>
+            <version>3.6.0</version>
+        </dependency>
+
         <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
