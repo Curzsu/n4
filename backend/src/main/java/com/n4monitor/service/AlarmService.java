@@ -61,6 +61,7 @@ public class AlarmService {
                 dto.setSource(getTextField(node, "name", ""));
                 dto.setMessage(getTextField(node, "message", ""));
                 dto.setLocation(getTextField(node, "location", ""));
+                dto.setPath(getTextField(node, "path", ""));
                 dto.setStatus(getTextField(node, "status", "Unack"));
                 dto.setAckBy(getTextField(node, "ackBy", "-"));
 

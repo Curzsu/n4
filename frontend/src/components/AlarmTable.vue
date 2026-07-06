@@ -112,7 +112,8 @@ function severityTagType(severity: string): string {
 async function fetchData() {
   loading.value = true
   try {
-    tableData.value = await alarmApi.getActiveAlarms('active')
+    const raw = await alarmApi.getActiveAlarms('active')
+    tableData.value = raw.map(normalizeRecord) // TODO: Temporarily assign a value to the "location" field.
   } catch (e) {
     console.error('Failed to fetch alarm data:', e)
   } finally {
@@ -124,27 +125,39 @@ function onTabChange(tab: string) {
   activeTab.value = tab
 }
 
-// Handle real-time WebSocket updates
-onUpdate((data: any) => {
-  if (!data.alarm) return
+/**
+ * Normalize a raw alarm record from any source (REST API or WebSocket).
+ * Extracts location from path (3rd segment) and ensures all fields have defaults.
+ */
+function normalizeRecord(alarm: any): AlarmRecord {
+  const extractLocation = (path?: string) => {
+    if (!path) return ''
+    const parts = path.split('/')
+    return parts.length > 2 ? parts[2] : ''
+  }
 
-  const alarm = data.alarm
-  // Format timestamp as ISO-like string for consistent sorting
   const formatTime = (ts: number) => {
     const d = new Date(ts)
     const pad = (n: number) => String(n).padStart(2, '0')
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
   }
 
-  const newRecord: AlarmRecord = {
-    time: alarm.timestamp ? formatTime(alarm.timestamp) : '-',
+  return {
+    time: alarm.timestamp ? formatTime(alarm.timestamp) : (alarm.time || '-'),
     severity: alarm.severity || 'Normal',
-    source: alarm.name || '',
+    source: alarm.name || alarm.source || '',// TODO: Temporarily assign a value to the "source" field.
     message: alarm.message || '',
-    location: alarm.location || '',
+    location: extractLocation(alarm.path) || alarm.location || '',// TODO: Temporarily assign a value to the "location" field.
     status: alarm.status || 'Unack',
     ackBy: alarm.ackBy || '-',
   }
+}
+
+// Handle real-time WebSocket updates
+onUpdate((data: any) => {
+  if (!data.alarm) return
+
+  const newRecord = normalizeRecord(data.alarm)
 
   // Remove existing record if present (to re-insert at top)
   const existingIndex = tableData.value.findIndex(r => r.source === newRecord.source)

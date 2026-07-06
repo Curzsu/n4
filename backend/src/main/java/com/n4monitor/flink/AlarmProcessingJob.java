@@ -67,7 +67,7 @@ public class AlarmProcessingJob {
                 .setGroupId(groupId)
                 .setTopics(kafkaTopic)
                 .setValueOnlyDeserializer(new SimpleStringSchema())
-                .setStartingOffsets(OffsetsInitializer.earliest())
+                .setStartingOffsets(OffsetsInitializer.latest())
                 .build();
 
         DataStream<String> kafkaStream = env.fromSource(

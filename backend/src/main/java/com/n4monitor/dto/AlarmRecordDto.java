@@ -11,4 +11,5 @@ public class AlarmRecordDto {
     private String location;    // "Building A / L2"
     private String status;      // "Unack" | "Ack"
     private String ackBy;       // "admin" | "—"
+    private String path;        // full point path, used by frontend to extract location
 }

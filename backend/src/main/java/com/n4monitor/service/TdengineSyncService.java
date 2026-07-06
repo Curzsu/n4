@@ -111,6 +111,7 @@ public class TdengineSyncService {
         String supertable = tdengineConfig.getSupertable();
         String sql = "CREATE STABLE IF NOT EXISTS " + supertable + " ("
                 + "ts TIMESTAMP, "
+                + "data_timestamp TIMESTAMP, "
                 + "point_value NCHAR(64), "
                 + "point_type NCHAR(32), "
                 + "unit NCHAR(16), "
@@ -217,7 +218,7 @@ public class TdengineSyncService {
         String subtable = sanitizeTableName(path);
 
         String sql = "INSERT INTO " + subtable + " USING " + supertable
-                + " TAGS (?, ?, ?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                + " TAGS (?, ?, ?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             // Tags (3)
@@ -225,24 +226,26 @@ public class TdengineSyncService {
             pstmt.setString(2, state.getDisplayName());
             pstmt.setString(3, path);
 
-            // Columns (16)
-            pstmt.setTimestamp(4, state.getTimestamp() != null
-                    ? new Timestamp(state.getTimestamp()) : new Timestamp(System.currentTimeMillis()));
-            pstmt.setString(5, state.getValue());
-            pstmt.setString(6, state.getType());
-            pstmt.setString(7, state.getUnit());
-            pstmt.setString(8, state.getMax());
-            pstmt.setString(9, state.getMin());
-            pstmt.setString(10, state.getIp());
-            pstmt.setString(11, state.getPort());
-            pstmt.setString(12, state.getOther());
-            pstmt.setString(13, state.getLevel());
-            pstmt.setString(14, state.getSeverity());
-            pstmt.setString(15, state.getMessage());
-            pstmt.setString(16, state.getAckBy());
-            pstmt.setString(17, state.getStatus());
-            pstmt.setString(18, state.getSource());
-            pstmt.setString(19, state.getLocation());
+            // Columns (17)
+            // ts = current insertion time
+            pstmt.setTimestamp(4, new Timestamp(System.currentTimeMillis()));
+            // data_timestamp = original data timestamp
+            pstmt.setTimestamp(5, new Timestamp(state.getTimestamp()));
+            pstmt.setString(6, state.getValue());
+            pstmt.setString(7, state.getType());
+            pstmt.setString(8, state.getUnit());
+            pstmt.setString(9, state.getMax());
+            pstmt.setString(10, state.getMin());
+            pstmt.setString(11, state.getIp());
+            pstmt.setString(12, state.getPort());
+            pstmt.setString(13, state.getOther());
+            pstmt.setString(14, state.getLevel());
+            pstmt.setString(15, state.getSeverity());
+            pstmt.setString(16, state.getMessage());
+            pstmt.setString(17, state.getAckBy());
+            pstmt.setString(18, state.getStatus());
+            pstmt.setString(19, state.getSource());
+            pstmt.setString(20, state.getLocation());
 
             pstmt.executeUpdate();
         }
