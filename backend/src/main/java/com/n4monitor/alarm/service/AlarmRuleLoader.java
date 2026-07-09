@@ -14,10 +14,11 @@ import java.util.regex.*;
 /**
  * Alarm rule loader.
  * <p>
- * 1. Read user-configured rules from Excel (alarm_rules_config.xlsx)
- * 2. Analyze all points and their value ranges from the log file (points-2.log)
- * 3. Auto-generate mock rules for points not configured in Excel based on log data
- * 4. Merge and store in Redis for Kafka consumers to use
+ * 1. Read user-configured rules from Excel (alarm_rules_config.xlsx).
+ * 2. Only points present in the Excel sheet are processed.
+ * 3. Validate mutual exclusion: a point cannot have both Boolean and numeric rules.
+ * 4. For points in Excel but without any rule configuration, auto-generate mock rules from the log file.
+ * 5. Store merged rules in Redis for Kafka consumers to use.
  */
 @Slf4j
 @Service
@@ -27,20 +28,21 @@ public class AlarmRuleLoader {
     private static final Pattern LOG_LINE_PATTERN = Pattern.compile(
             "timestamp=\\[([^\\]]+)]\\s*,topic=([^,]+)\\s*,key=(.*?)\\s*,value=(.*)");
 
-    /** Column offsets in Excel for each threshold level (Value, Severity, Message) */
-    private static final String[] THRESHOLD_LEVELS = {"Normal", "High", "High-High", "Low", "Low-Low", "Offline"};
+    /** Threshold levels in the Excel sheet. */
+    private static final String[] THRESHOLD_LEVELS = {"Boolean", "High", "High-High", "Low", "Low-Low"};
 
-    /** Each level occupies 3 columns in Excel, starting from column 2 */
-    private static final int[][] LEVEL_COLUMNS = {
-            {2, 3, 4},    // Normal:    Value, Severity, Message
-            {5, 6, 7},    // High:      Value, Severity, Message
-            {8, 9, 10},   // High-High: Value, Severity, Message
-            {11, 12, 13}, // Low:       Value, Severity, Message
-            {14, 15, 16}, // Low-Low:   Value, Severity, Message
-            {17, 18, 19}, // Offline:   Value, Severity, Message
-    };
+    /** Column layout for each level (1-based column index, sub-column names). */
+    private static final Map<String, LevelColumns> LEVEL_COLUMNS_MAP = Map.of(
+            "Boolean", new LevelColumns(2, List.of("Value", "Severity", "Message")),
+            "High", new LevelColumns(5, List.of("Value", "Severity", "Message", "Hysteresis")),
+            "High-High", new LevelColumns(9, List.of("Value", "Severity", "Message", "Hysteresis")),
+            "Low", new LevelColumns(13, List.of("Value", "Severity", "Message", "Hysteresis")),
+            "Low-Low", new LevelColumns(17, List.of("Value", "Severity", "Message", "Hysteresis"))
+    );
 
     private final AlarmRuleService alarmRuleService;
+
+    record LevelColumns(int startCol, List<String> subColumns) {}
 
     // ══════════════════════════════════════════════════════════════════
     //  Main entry: load rules (Excel + log auto-completion) → Redis
@@ -48,6 +50,9 @@ public class AlarmRuleLoader {
 
     /**
      * Load rules from Excel + log and write to Redis.
+     * <p>
+     * Only points listed in the Excel sheet are processed. If a point has no
+     * user-configured rules, mock rules are generated from the log data.
      *
      * @param excelFilePath Excel rule config file path (alarm_rules_config.xlsx)
      * @param logFilePath   Log file path (points-2.log)
@@ -56,62 +61,59 @@ public class AlarmRuleLoader {
         log.info("══════════════════════════════════════════════════");
         log.info("Starting to load alarm rules");
 
-        // 1. Read user-configured rules from Excel
+        // 1. Read all points from Excel (including empty ones)
         Map<String, List<AlarmRule>> excelRules = readExcelRules(excelFilePath);
-        log.info("[1/3] Excel user config: {} points", excelRules.size());
+        log.info("[1/3] Excel points loaded: {}", excelRules.size());
 
-        // 2. Parse log to collect point statistics
-        File logFile = resolveFile(logFilePath);
-        if (logFile == null) {
-            log.error("Cannot find log file: {}", logFilePath);
-            if (excelRules.isEmpty()) {
-                log.error("Both Excel and log have no data, cannot load rules");
-                return;
-            }
-            log.warn("Using Excel rules only (no log data for completion)");
-            alarmRuleService.saveAllRules(excelRules);
-            log.info("Rule loading complete (Excel only): {} points", excelRules.size());
+        if (excelRules.isEmpty()) {
+            log.warn("No points found in Excel config file, skipping rule loading");
             return;
         }
 
-        Map<String, PointStats> pointStatsMap = analyzeLog(logFile.getAbsolutePath());
-        log.info("[2/3] Log analysis: {} unique points", pointStatsMap.size());
+        // 2. Analyze log only for points present in Excel
+        File logFile = resolveFile(logFilePath);
+        Map<String, PointStats> pointStatsMap = new LinkedHashMap<>();
+        if (logFile != null) {
+            pointStatsMap = analyzeLogForPaths(logFile.getAbsolutePath(), excelRules.keySet());
+            log.info("[2/3] Log analysis: {} points matched Excel config", pointStatsMap.size());
+        } else {
+            log.warn("Cannot find log file: {}", logFilePath);
+        }
 
-        // 3. Merge: Excel config takes priority, auto-generate for unconfigured points
+        // 3. Merge: Excel config takes priority; auto-generate for empty points
         Map<String, List<AlarmRule>> allRules = new LinkedHashMap<>();
         int userCount = 0;
         int autoCount = 0;
+        int skippedCount = 0;
 
-        for (Map.Entry<String, PointStats> entry : pointStatsMap.entrySet()) {
-            String path = entry.getKey();
-            PointStats stats = entry.getValue();
+        for (String path : excelRules.keySet()) {
+            List<AlarmRule> userRules = excelRules.get(path);
 
-            if (excelRules.containsKey(path)) {
-                // User configured → use directly
-                allRules.put(path, excelRules.get(path));
+            if (!userRules.isEmpty()) {
+                allRules.put(path, userRules);
                 userCount++;
             } else {
-                // Not configured → auto-generate
-                List<AlarmRule> rules = generateRules(path, stats);
-                if (!rules.isEmpty()) {
-                    allRules.put(path, rules);
-                    autoCount++;
+                PointStats stats = pointStatsMap.get(path);
+                if (stats != null) {
+                    List<AlarmRule> generated = generateRules(path, stats);
+                    if (!generated.isEmpty()) {
+                        allRules.put(path, generated);
+                        autoCount++;
+                    } else {
+                        skippedCount++;
+                        log.warn("Auto-generation produced no rules for point: {}", path);
+                    }
+                } else {
+                    skippedCount++;
+                    log.warn("No log data available for point: {}", path);
                 }
-            }
-        }
-
-        // Also add points that exist in Excel but not in log
-        for (Map.Entry<String, List<AlarmRule>> entry : excelRules.entrySet()) {
-            if (!allRules.containsKey(entry.getKey())) {
-                allRules.put(entry.getKey(), entry.getValue());
-                userCount++;
             }
         }
 
         // 4. Store in Redis
         alarmRuleService.saveAllRules(allRules);
-        log.info("[3/3] Rule loading complete: user config={} auto generated={} total={}",
-                userCount, autoCount, allRules.size());
+        log.info("[3/3] Rule loading complete: user config={} auto generated={} skipped={} total={}",
+                userCount, autoCount, skippedCount, allRules.size());
         log.info("══════════════════════════════════════════════════");
     }
 
@@ -121,11 +123,13 @@ public class AlarmRuleLoader {
 
     /**
      * Read user-configured alarm rules from Excel file.
-     *
+     * <p>
      * Excel structure:
-     *   Row 1: Merged level header (Normal | High | High-High | Low | Low-Low | Offline)
-     *   Row 2: Sub-header (Value | Severity | Message) × 6
+     *   Row 1: Merged level header (Boolean | High | High-High | Low | Low-Low)
+     *   Row 2: Sub-header (Value | Severity | Message | Hysteresis) per level
      *   Row 3+: Data rows, Column A = path
+     *
+     * @return Map of path to rule list. Paths with no configured rules map to an empty list.
      */
     private Map<String, List<AlarmRule>> readExcelRules(String excelFilePath) {
         Map<String, List<AlarmRule>> rules = new LinkedHashMap<>();
@@ -144,7 +148,7 @@ public class AlarmRuleLoader {
                 sheet = wb.getSheetAt(0);
             }
 
-            // Read data from row 3 (Row 1-2 are headers)
+            // Read data from row 3 (rows 1-2 are headers)
             for (int r = 2; r <= sheet.getLastRowNum(); r++) {
                 Row row = sheet.getRow(r);
                 if (row == null) continue;
@@ -153,55 +157,65 @@ public class AlarmRuleLoader {
                 if (path == null || path.isBlank()) continue;
 
                 List<AlarmRule> pointRules = new ArrayList<>();
-                boolean hasAnyConfig = false;
+                boolean booleanConfigured = false;
+                boolean numericConfigured = false;
 
-                for (int i = 0; i < THRESHOLD_LEVELS.length; i++) {
-                    String level = THRESHOLD_LEVELS[i];
-                    int valCol = LEVEL_COLUMNS[i][0];
-                    int sevCol = LEVEL_COLUMNS[i][1];
-                    int msgCol = LEVEL_COLUMNS[i][2];
+                for (String level : THRESHOLD_LEVELS) {
+                    LevelColumns lc = LEVEL_COLUMNS_MAP.get(level);
 
-                    String value = getCellString(row.getCell(valCol - 1)); // POI 0-based
-                    String severity = getCellString(row.getCell(sevCol - 1));
-                    String message = getCellString(row.getCell(msgCol - 1));
+                    String value = getCellString(row.getCell(lc.startCol() - 1));
+                    String severity = getCellString(row.getCell(lc.startCol())); // startCol is 1-based
+                    String message = getCellString(row.getCell(lc.startCol() + 1));
+                    String hysteresis = null;
+                    if (lc.subColumns().size() > 3) {
+                        hysteresis = getCellString(row.getCell(lc.startCol() + 2));
+                    }
 
-                    // Check if this level is configured
-                    boolean configured;
-                    if (level.equals("Normal")) {
-                        configured = (severity != null && !severity.isBlank())
-                                || (message != null && !message.isBlank());
-                    } else if (level.equals("Offline")) {
-                        // Offline value is pre-filled with "Null", check severity/message
-                        configured = (severity != null && !severity.isBlank())
-                                || (message != null && !message.isBlank());
+                    boolean configured = value != null && !value.isBlank();
+                    if (!configured) continue;
+
+                    if ("Boolean".equals(level)) {
+                        booleanConfigured = true;
                     } else {
-                        configured = value != null && !value.isBlank();
+                        numericConfigured = true;
                     }
 
-                    if (configured) {
-                        hasAnyConfig = true;
-                        pointRules.add(AlarmRule.builder()
-                                .level(level)
-                                .value(value)
-                                .severity(severity)
-                                .message(message)
-                                .build());
+                    pointRules.add(AlarmRule.builder()
+                            .level(level)
+                            .value(value)
+                            .severity(severity)
+                            .message(message)
+                            .hysteresis(hysteresis)
+                            .build());
+                }
+
+                // Mutual exclusion validation
+                if (booleanConfigured && numericConfigured) {
+                    throw new IllegalStateException(
+                            "Point '" + path + "' has both Boolean and numeric alarm rules configured. " +
+                                    "Only one value type is allowed per point.");
+                }
+
+                // Determine point type and assign it to each rule
+                String pointType = booleanConfigured ? "BOOL" : (numericConfigured ? "NUMERIC" : null);
+                if (pointType != null) {
+                    for (AlarmRule rule : pointRules) {
+                        rule.setPointType(pointType);
                     }
                 }
 
-                if (hasAnyConfig) {
-                    rules.put(path, pointRules);
-                }
+                rules.put(path, pointRules);
             }
 
         } catch (Exception e) {
             log.error("Failed to read Excel file: {}", excelFile.getAbsolutePath(), e);
+            throw new RuntimeException("Failed to read alarm rule Excel file", e);
         }
 
         return rules;
     }
 
-    /** Safely read cell string value */
+    /** Safely read cell string value. */
     private String getCellString(Cell cell) {
         if (cell == null) return null;
         return switch (cell.getCellType()) {
@@ -227,7 +241,10 @@ public class AlarmRuleLoader {
     //  Log analysis
     // ══════════════════════════════════════════════════════════════════
 
-    private Map<String, PointStats> analyzeLog(String filePath) {
+    /**
+     * Analyze the log file and collect statistics only for the given set of paths.
+     */
+    private Map<String, PointStats> analyzeLogForPaths(String filePath, Set<String> targetPaths) {
         Map<String, PointStats> stats = new LinkedHashMap<>();
 
         try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
@@ -237,8 +254,9 @@ public class AlarmRuleLoader {
                 if (!m.matches()) continue;
 
                 String key = m.group(3).trim();
-                String valueJson = m.group(4).trim();
+                if (!targetPaths.contains(key)) continue;
 
+                String valueJson = m.group(4).trim();
                 String name = extractJsonField(valueJson, "name");
                 String value = extractJsonField(valueJson, "value");
 
@@ -252,7 +270,7 @@ public class AlarmRuleLoader {
         return stats;
     }
 
-    /** Simple extraction of JSON field value */
+    /** Simple extraction of JSON field value. */
     private String extractJsonField(String json, String field) {
         Pattern p = Pattern.compile("\"" + field + "\"\\s*:\\s*\"([^\"]*)\"");
         Matcher m = p.matcher(json);
@@ -285,11 +303,10 @@ public class AlarmRuleLoader {
     }
 
     // ══════════════════════════════════════════════════════════════════
-    //  Auto rule generation (for points not configured in Excel)
-    //  Generate complete 6-level rules for each point, value/severity/message all filled
+    //  Auto rule generation (for points in Excel but not configured)
     // ══════════════════════════════════════════════════════════════════
 
-    private static final Random RANDOM = new Random(42); // Fixed seed for reproducibility
+    private static final Random RANDOM = new Random(42);
 
     private List<AlarmRule> generateRules(String path, PointStats stats) {
         String shortName = path.substring(path.lastIndexOf('/') + 1);
@@ -297,84 +314,25 @@ public class AlarmRuleLoader {
         List<AlarmRule> rules = new ArrayList<>();
 
         switch (type) {
-            case STRING -> generateStringRules(rules, shortName);
             case BOOL -> generateBoolRules(rules, shortName, stats);
             case NUMERIC -> generateNumericRules(rules, shortName, stats);
+            case STRING -> log.warn("Point '{}' is classified as STRING; skipping auto-generation.", path);
         }
-
-        // Offline rule (common to all types, always generated)
-        rules.add(AlarmRule.builder()
-                .level("Offline").value("Null").severity("Critical")
-                .message(shortName + " is offline - no data received")
-                .build());
 
         return rules;
     }
 
-    // ── String type: all 6 levels filled ──────────────────────────────────────────
-
-    private void generateStringRules(List<AlarmRule> rules, String name) {
-        rules.add(AlarmRule.builder()
-                .level("Normal").value(null).severity("Normal")
-                .message(name + " operating normally").build());
-        rules.add(AlarmRule.builder()
-                .level("High").value("UNEXPECTED").severity("Major")
-                .message(name + " value unexpectedly changed").build());
-        rules.add(AlarmRule.builder()
-                .level("High-High").value("CRITICAL_CHANGE").severity("Critical")
-                .message(name + " critical value change detected").build());
-        rules.add(AlarmRule.builder()
-                .level("Low").value("DEGRADED").severity("Minor")
-                .message(name + " value degraded").build());
-        rules.add(AlarmRule.builder()
-                .level("Low-Low").value("INVALID").severity("Warning")
-                .message(name + " value invalid or missing").build());
-    }
-
-    // ── Bool type: all 6 levels filled, randomly choose alarm state ──────────────────────────
-
     private void generateBoolRules(List<AlarmRule> rules, String name, PointStats stats) {
-        Set<String> values = stats.uniqueValues;
-        String nameLower = name.toLowerCase();
-        String normalVal = values.contains("false") ? "false" : "true";
-        String alarmVal = "true".equals(normalVal) ? "false" : "true";
-
-        // Communication/power status: false = alarm
-        if (nameLower.contains("communication") || nameLower.contains("comm")) {
-            normalVal = "true";
-            alarmVal = "false";
-        } else if (nameLower.contains("power_supply")) {
-            normalVal = values.contains("true") ? "true" : "false";
-            alarmVal = "true".equals(normalVal) ? "false" : "true";
-        } else {
-            // Generic switch: randomly decide which state is alarm
-            if (RANDOM.nextBoolean()) {
-                normalVal = "false";
-                alarmVal = "true";
-            } else {
-                normalVal = "false";
-                alarmVal = "true";
-            }
-        }
-
+        // Boolean points always trigger an alarm when the value is false.
         rules.add(AlarmRule.builder()
-                .level("Normal").value(normalVal).severity("Normal")
-                .message(name + " normal state: " + normalVal).build());
-        rules.add(AlarmRule.builder()
-                .level("High").value(alarmVal).severity("Major")
-                .message(name + " state changed to " + alarmVal).build());
-        rules.add(AlarmRule.builder()
-                .level("High-High").value(alarmVal).severity("Critical")
-                .message(name + " critical state: " + alarmVal).build());
-        rules.add(AlarmRule.builder()
-                .level("Low").value(alarmVal).severity("Minor")
-                .message(name + " minor state deviation: " + alarmVal).build());
-        rules.add(AlarmRule.builder()
-                .level("Low-Low").value(alarmVal).severity("Warning")
-                .message(name + " warning state: " + alarmVal).build());
+                .level("Boolean")
+                .value("false")
+                .severity("Critical")
+                .message(name + " state changed to false")
+                .hysteresis(null)
+                .pointType("BOOL")
+                .build());
     }
-
-    // ── Numeric type: all 6 levels filled, thresholds close to actual data range ──────────────────────
 
     private void generateNumericRules(List<AlarmRule> rules, String name, PointStats stats) {
         String nameLower = name.toLowerCase();
@@ -382,41 +340,50 @@ public class AlarmRuleLoader {
         double min = stats.numericMin;
         double max = stats.numericMax;
 
-        // Get thresholds: all 4 thresholds must be non-null
         Thresholds t = getNumericThresholds(nameLower, avg, min, max);
 
-        // Normal
         rules.add(AlarmRule.builder()
-                .level("Normal").value(null).severity("Normal")
-                .message(name + " within normal range").build());
+                .level("High-High")
+                .value(String.valueOf(t.highHigh()))
+                .severity("Critical")
+                .message(name + " critically high: value >= " + t.highHigh())
+                .hysteresis("0.00")
+                .pointType("NUMERIC")
+                .build());
 
-        // High-High (Critical)
         rules.add(AlarmRule.builder()
-                .level("High-High").value(String.valueOf(t.highHigh)).severity("Critical")
-                .message(name + " critically high: value >= " + t.highHigh).build());
+                .level("High")
+                .value(String.valueOf(t.high()))
+                .severity("Major")
+                .message(name + " high: value >= " + t.high())
+                .hysteresis("0.00")
+                .pointType("NUMERIC")
+                .build());
 
-        // High (Major)
         rules.add(AlarmRule.builder()
-                .level("High").value(String.valueOf(t.high)).severity("Major")
-                .message(name + " high: value >= " + t.high).build());
+                .level("Low")
+                .value(String.valueOf(t.low()))
+                .severity("Minor")
+                .message(name + " low: value <= " + t.low())
+                .hysteresis("0.00")
+                .pointType("NUMERIC")
+                .build());
 
-        // Low (Minor)
         rules.add(AlarmRule.builder()
-                .level("Low").value(String.valueOf(t.low)).severity("Minor")
-                .message(name + " low: value <= " + t.low).build());
-
-        // Low-Low (Warning)
-        rules.add(AlarmRule.builder()
-                .level("Low-Low").value(String.valueOf(t.lowLow)).severity("Warning")
-                .message(name + " critically low: value <= " + t.lowLow).build());
+                .level("Low-Low")
+                .value(String.valueOf(t.lowLow()))
+                .severity("Warning")
+                .message(name + " critically low: value <= " + t.lowLow())
+                .hysteresis("0.00")
+                .pointType("NUMERIC")
+                .build());
     }
 
     /**
-     * Get numeric thresholds: thresholds close to actual data range to increase alarm probability.
-     * All 4 thresholds are guaranteed non-null.
+     * Get numeric thresholds close to the actual data range to increase alarm probability.
+     * All four thresholds are guaranteed non-null.
      */
     private Thresholds getNumericThresholds(String name, double avg, double min, double max) {
-        // Domain-knowledge based thresholds, tightened to increase alarm probability
         Double hh = null, h = null, l = null, ll = null;
 
         if (name.contains("voltage")) {
@@ -450,11 +417,9 @@ public class AlarmRuleLoader {
         } else if (name.contains("remaining_disk")) {
             hh = 10.0; h = 8.0; l = 3.0; ll = 1.5;
         } else if (name.contains("total_size") || name.contains("total_physical") || "ct".equals(name) || "pt".equals(name)) {
-            // Static value: use wide thresholds
             hh = Double.MAX_VALUE; h = Double.MAX_VALUE; l = -Double.MAX_VALUE; ll = -Double.MAX_VALUE;
         }
 
-        // Default: based on data range, thresholds close to actual values
         if (hh == null) {
             if (avg > 0) {
                 hh = round2(avg * 1.3);
@@ -467,7 +432,6 @@ public class AlarmRuleLoader {
                 l = round2(min * 0.9);
                 ll = round2(min * 0.5);
             } else {
-                // All-zero data: set very small thresholds so 0 also triggers alarm
                 hh = 0.01; h = 0.001; l = -0.001; ll = -0.01;
             }
         }

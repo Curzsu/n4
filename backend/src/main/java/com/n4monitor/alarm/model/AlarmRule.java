@@ -14,10 +14,10 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class AlarmRule {
 
-    /** Threshold level: Normal, High, High-High, Low, Low-Low, Offline */
+    /** Threshold level: Boolean, High, High-High, Low, Low-Low */
     private String level;
 
-    /** Threshold value (null for Normal, "Null" for Offline) */
+    /** Threshold value */
     private String value;
 
     /** Alarm severity: Critical, Major, Minor, Warning */
@@ -25,4 +25,10 @@ public class AlarmRule {
 
     /** Alarm prompt message */
     private String message;
+
+    /** Hysteresis / deadband for numeric thresholds (null for Boolean rules) */
+    private String hysteresis;
+
+    /** Point value type: BOOL or NUMERIC */
+    private String pointType;
 }

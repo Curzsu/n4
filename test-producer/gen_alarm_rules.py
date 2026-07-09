@@ -1,12 +1,19 @@
 """
 Generate alarm rule configuration Excel from points-2.log.
 
-Extracts all unique point paths and creates a structured template
-for configuring alarm thresholds, severities, and messages.
+Only boolean and numeric points are kept; other value types are filtered out.
+Columns:
+  - path
+  - Boolean:  Value / Severity / Message
+  - High:     Value / Severity / Message / Hysteresis
+  - High-High:Value / Severity / Message / Hysteresis
+  - Low:      Value / Severity / Message / Hysteresis
+  - Low-Low:  Value / Severity / Message / Hysteresis
 """
 
 import re
 import json
+import sys
 from pathlib import Path
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -14,38 +21,95 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 
 
-# ── Config ──────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════
+# Config
+# ═══════════════════════════════════════════════════════════════════════
+
 LOG_FILE = Path(__file__).parent.parent / "材料" / "points-2.log"
 OUTPUT_FILE = Path(__file__).parent.parent / "材料" / "alarm_rules_config.xlsx"
 
-THRESHOLD_LEVELS = ["Normal", "High", "High-High", "Low", "Low-Low", "Offline"]
 SEVERITY_OPTIONS = ["Critical", "Major", "Minor", "Warning"]
 
-# Color scheme for threshold level headers
-LEVEL_COLORS = {
-    "Normal":    "4CAF50",  # green
-    "High":      "FF9800",  # orange
-    "High-High": "F44336",  # red
-    "Low":       "2196F3",  # blue
-    "Low-Low":   "9C27B0",  # purple
-    "Offline":   "607D8B",  # blue-grey
-}
+# Level metadata: name, sub-column headers, header color
+LEVELS = [
+    {"name": "Boolean",   "cols": ["Value", "Severity", "Message"],             "color": "4CAF50"},
+    {"name": "High",      "cols": ["Value", "Severity", "Message", "Hysteresis"], "color": "FF9800"},
+    {"name": "High-High", "cols": ["Value", "Severity", "Message", "Hysteresis"], "color": "F44336"},
+    {"name": "Low",       "cols": ["Value", "Severity", "Message", "Hysteresis"], "color": "2196F3"},
+    {"name": "Low-Low",   "cols": ["Value", "Severity", "Message", "Hysteresis"], "color": "9C27B0"},
+]
+
+# ═══════════════════════════════════════════════════════════════════════
+# Parse log
+# ═══════════════════════════════════════════════════════════════════════
+
+def classify_value(value) -> str | None:
+    """Classify a raw point value as 'boolean' or 'numeric'. Return None if neither."""
+    if value is None:
+        return None
+    s = str(value).strip().lower()
+    if s in ("true", "false"):
+        return "boolean"
+    try:
+        float(s)
+        return "numeric"
+    except (ValueError, TypeError):
+        return None
 
 
-# ── Parse log ───────────────────────────────────────────────────────
-def extract_unique_paths(log_path: Path) -> list[str]:
-    pattern = re.compile(r'timestamp=\[([^\]]+)\]\s*,topic=([^,]+)\s*,key=(.*?)\s*,value=(.*)')
-    paths = set()
+def parse_log_line(line: str) -> dict | None:
+    """Parse a single log line and return the value JSON object."""
+    pattern = re.compile(
+        r'timestamp=\[([^\]]+)\]\s*,topic=([^,]+)\s*,key=(.*?)\s*,value=(.*)'
+    )
+    m = pattern.match(line.strip())
+    if not m:
+        return None
+    value_str = m.group(4).strip()
+    try:
+        return json.loads(value_str)
+    except json.JSONDecodeError:
+        return None
+
+
+def extract_valid_points(log_path: Path) -> dict[str, dict]:
+    """
+    Read the log file and keep the latest JSON template for each unique path.
+    Only retain points whose value is boolean or numeric.
+    Returns: {path: value_json_with_point_type}
+    """
+    points: dict[str, dict] = {}
+    valid_count = 0
+    skipped_count = 0
+
     with open(log_path, "r", encoding="utf-8") as f:
         for line in f:
-            m = pattern.match(line.strip())
-            if m:
-                paths.add(m.group(3).strip())
-    return sorted(paths)
+            value_json = parse_log_line(line)
+            if not value_json:
+                continue
+
+            path = value_json.get("path")
+            if not path:
+                continue
+
+            point_type = classify_value(value_json.get("value"))
+            if point_type is None:
+                skipped_count += 1
+                continue
+
+            value_json["_point_type"] = point_type
+            points[path] = value_json
+            valid_count += 1
+
+    print(f"解析有效记录: {valid_count} 条，保留点位: {len(points)} 个，跳过非布尔/数值: {skipped_count} 条")
+    return points
 
 
-# ── Build Excel ─────────────────────────────────────────────────────
-def build_workbook(paths: list[str]) -> Workbook:
+# ═══════════════════════════════════════════════════════════════════════
+# Build Excel
+# ═══════════════════════════════════════════════════════════════════════
+
+def build_workbook(points: dict[str, dict]) -> Workbook:
     wb = Workbook()
     ws = wb.active
     ws.title = "Alarm Rules"
@@ -57,134 +121,188 @@ def build_workbook(paths: list[str]) -> Workbook:
         bottom=Side(style="thin", color="B0B0B0"),
     )
 
-    # ── Row 1: Group headers (threshold level names, merged) ────────
+    fill_header = PatternFill("solid", fgColor="333333")
+    fill_editable = PatternFill("solid", fgColor="FFF8E1")
+
+    # ── Row 1: Group headers (merged level names) ─────────────────────
     ws.merge_cells("A1:A2")
-    ws["A1"] = "path"
-    ws["A1"].font = Font(bold=True, size=11, color="FFFFFF")
-    ws["A1"].fill = PatternFill("solid", fgColor="333333")
-    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
-    ws["A1"].border = thin_border
+    cell = ws["A1"]
+    cell.value = "path"
+    cell.font = Font(bold=True, size=11, color="FFFFFF")
+    cell.fill = fill_header
+    cell.alignment = Alignment(horizontal="center", vertical="center")
+    cell.border = thin_border
 
     col = 2
-    for level in THRESHOLD_LEVELS:
-        color = LEVEL_COLORS[level]
+    for level in LEVELS:
+        color = level["color"]
+        col_count = len(level["cols"])
         start_col = get_column_letter(col)
-        end_col = get_column_letter(col + 2)
+        end_col = get_column_letter(col + col_count - 1)
         ws.merge_cells(f"{start_col}1:{end_col}1")
+
         cell = ws[f"{start_col}1"]
-        cell.value = level
+        cell.value = level["name"]
         cell.font = Font(bold=True, size=11, color="FFFFFF")
         cell.fill = PatternFill("solid", fgColor=color)
-        cell.alignment = Alignment(horizontal="center")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
         cell.border = thin_border
-        # Also fill the merged area cells with border
-        for c in range(col, col + 3):
-            ws.cell(row=1, column=c).border = thin_border
-        col += 3
 
-    # ── Row 2: Sub-headers (Value / Severity / Message) ─────────────
-    sub_headers = ["Value", "Severity", "Message"]
+        for c in range(col, col + col_count):
+            ws.cell(row=1, column=c).border = thin_border
+
+        col += col_count
+
+    # ── Row 2: Sub-headers ────────────────────────────────────────────
     col = 2
-    for level in THRESHOLD_LEVELS:
-        color = LEVEL_COLORS[level]
-        for sub in sub_headers:
+    for level in LEVELS:
+        color = level["color"]
+        for sub in level["cols"]:
             cell = ws.cell(row=2, column=col, value=sub)
             cell.font = Font(bold=True, size=10, color="FFFFFF")
             cell.fill = PatternFill("solid", fgColor=color)
-            cell.alignment = Alignment(horizontal="center")
+            cell.alignment = Alignment(horizontal="center", vertical="center")
             cell.border = thin_border
             col += 1
 
-    # ── Data rows ───────────────────────────────────────────────────
-    for i, path in enumerate(paths, start=3):
+    # ── Data rows ─────────────────────────────────────────────────────
+    sorted_paths = sorted(points.keys())
+    for i, path in enumerate(sorted_paths, start=3):
         row = i
+
         # Column A: path
         cell = ws.cell(row=row, column=1, value=path)
         cell.font = Font(size=9)
         cell.alignment = Alignment(vertical="center")
         cell.border = thin_border
 
+        # Remaining columns: all editable; hysteresis defaults to 0.00
         col = 2
-        for level in THRESHOLD_LEVELS:
-            # Value column
-            val_cell = ws.cell(row=row, column=col)
-            val_cell.border = thin_border
-            val_cell.alignment = Alignment(horizontal="center", vertical="center")
-            if level == "Normal":
-                val_cell.value = None
-                val_cell.fill = PatternFill("solid", fgColor="E8F5E9")
-            elif level == "Offline":
-                val_cell.value = "Null"
-                val_cell.fill = PatternFill("solid", fgColor="ECEFF1")
-            else:
-                val_cell.fill = PatternFill("solid", fgColor="FFF8E1")
+        for level in LEVELS:
+            for sub in level["cols"]:
+                cell = ws.cell(row=row, column=col)
+                cell.border = thin_border
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+                cell.fill = fill_editable
+                if sub == "Hysteresis":
+                    cell.value = 0.00
+                col += 1
 
-            # Severity column
-            sev_cell = ws.cell(row=row, column=col + 1)
-            sev_cell.border = thin_border
-            sev_cell.alignment = Alignment(horizontal="center", vertical="center")
-            if level == "Normal":
-                sev_cell.fill = PatternFill("solid", fgColor="E8F5E9")
-            elif level == "Offline":
-                sev_cell.fill = PatternFill("solid", fgColor="ECEFF1")
-            else:
-                sev_cell.fill = PatternFill("solid", fgColor="FFF8E1")
+    # ── Data validation ───────────────────────────────────────────────
+    last_row = len(sorted_paths) + 2
 
-            # Message column
-            msg_cell = ws.cell(row=row, column=col + 2)
-            msg_cell.border = thin_border
-            msg_cell.alignment = Alignment(vertical="center")
-            if level == "Normal":
-                msg_cell.fill = PatternFill("solid", fgColor="E8F5E9")
-            elif level == "Offline":
-                msg_cell.fill = PatternFill("solid", fgColor="ECEFF1")
-            else:
-                msg_cell.fill = PatternFill("solid", fgColor="FFF8E1")
-
-            col += 3
-
-    # ── Data validation: Severity dropdown ──────────────────────────
-    severity_formula = '"' + ",".join(SEVERITY_OPTIONS) + '"'
-    dv = DataValidation(type="list", formula1=severity_formula, allow_blank=True)
-    dv.error = "Please select: Critical, Major, Minor, or Warning"
-    dv.errorTitle = "Invalid Severity"
-    dv.prompt = "Select alarm severity"
-    dv.promptTitle = "Severity"
-
-    # Apply to all severity columns (columns 3, 6, 9, 12, 15, 18)
-    last_row = len(paths) + 2
-    for col_idx in [3, 6, 9, 12, 15, 18]:
-        col_letter = get_column_letter(col_idx)
-        dv.add(f"{col_letter}3:{col_letter}{last_row}")
-    ws.add_data_validation(dv)
-
-    # ── Column widths ───────────────────────────────────────────────
-    ws.column_dimensions["A"].width = 70  # path
+    # Severity dropdown (all severity columns)
+    severity_cols = []
     col = 2
-    for level in THRESHOLD_LEVELS:
-        ws.column_dimensions[get_column_letter(col)].width = 12      # Value
-        ws.column_dimensions[get_column_letter(col + 1)].width = 12  # Severity
-        ws.column_dimensions[get_column_letter(col + 2)].width = 40  # Message
-        col += 3
+    for level in LEVELS:
+        for idx, sub in enumerate(level["cols"]):
+            if sub == "Severity":
+                severity_cols.append(col + idx)
+        col += len(level["cols"])
 
-    # ── Freeze panes ────────────────────────────────────────────────
+    severity_formula = '"' + ",".join(SEVERITY_OPTIONS) + '"'
+    dv_severity = DataValidation(
+        type="list", formula1=severity_formula, allow_blank=True
+    )
+    dv_severity.error = "Please select: Critical, Major, Minor, or Warning"
+    dv_severity.errorTitle = "Invalid Severity"
+    dv_severity.prompt = "Select alarm severity"
+    dv_severity.promptTitle = "Severity"
+    for col_idx in severity_cols:
+        col_letter = get_column_letter(col_idx)
+        dv_severity.add(f"{col_letter}3:{col_letter}{last_row}")
+    ws.add_data_validation(dv_severity)
+
+    # Boolean value dropdown
+    dv_bool = DataValidation(
+        type="list", formula1='"TRUE,FALSE"', allow_blank=True
+    )
+    dv_bool.error = "Please select TRUE or FALSE"
+    dv_bool.errorTitle = "Invalid Boolean Value"
+    dv_bool.prompt = "Select boolean alarm value"
+    dv_bool.promptTitle = "Boolean Value"
+    bool_value_col = 2  # Boolean Value is column B
+    col_letter = get_column_letter(bool_value_col)
+    dv_bool.add(f"{col_letter}3:{col_letter}{last_row}")
+    ws.add_data_validation(dv_bool)
+
+    # Numeric value validation (High / High-High / Low / Low-Low Value columns)
+    numeric_value_cols = []
+    col = 2
+    for level in LEVELS:
+        if level["name"] != "Boolean":
+            numeric_value_cols.append(col)  # first sub-column is Value
+        col += len(level["cols"])
+
+    dv_numeric = DataValidation(type="decimal", allow_blank=True)
+    dv_numeric.error = "Please enter a valid number"
+    dv_numeric.errorTitle = "Invalid Number"
+    for col_idx in numeric_value_cols:
+        col_letter = get_column_letter(col_idx)
+        dv_numeric.add(f"{col_letter}3:{col_letter}{last_row}")
+    ws.add_data_validation(dv_numeric)
+
+    # Hysteresis validation (non-negative decimal)
+    hysteresis_cols = []
+    col = 2
+    for level in LEVELS:
+        for idx, sub in enumerate(level["cols"]):
+            if sub == "Hysteresis":
+                hysteresis_cols.append(col + idx)
+        col += len(level["cols"])
+
+    dv_hysteresis = DataValidation(
+        type="decimal", operator="greaterThanOrEqual", formula1="0", allow_blank=True
+    )
+    dv_hysteresis.error = "Hysteresis must be a non-negative number"
+    dv_hysteresis.errorTitle = "Invalid Hysteresis"
+    dv_hysteresis.prompt = "Enter deadband value (e.g. 0.20)"
+    dv_hysteresis.promptTitle = "Hysteresis"
+    for col_idx in hysteresis_cols:
+        col_letter = get_column_letter(col_idx)
+        dv_hysteresis.add(f"{col_letter}3:{col_letter}{last_row}")
+    ws.add_data_validation(dv_hysteresis)
+
+    # ── Column widths ─────────────────────────────────────────────────
+    ws.column_dimensions["A"].width = 70
+    col = 2
+    for level in LEVELS:
+        for sub in level["cols"]:
+            if sub == "Message":
+                ws.column_dimensions[get_column_letter(col)].width = 40
+            elif sub == "Hysteresis":
+                ws.column_dimensions[get_column_letter(col)].width = 14
+            else:
+                ws.column_dimensions[get_column_letter(col)].width = 12
+            col += 1
+
+    # ── Freeze panes ──────────────────────────────────────────────────
     ws.freeze_panes = "B3"
 
-    # ── Add a legend/instructions sheet ─────────────────────────────
+    # ── Instructions sheet ────────────────────────────────────────────
     ws2 = wb.create_sheet("Instructions")
     instructions = [
         ["Alarm Rules Configuration Guide"],
         [""],
         ["Column", "Description"],
         ["path", "Point path (unique identifier for each device point)"],
-        ["Value (Normal)", "Leave empty — Normal is the default state"],
+        ["Value (Boolean)", "Alarm trigger value: TRUE or FALSE (dropdown)"],
+        ["Severity (Boolean)", "Alarm severity: Critical / Major / Minor / Warning"],
+        ["Message (Boolean)", "Custom alarm message text"],
         ["Value (High)", "Upper threshold — alarm triggers when value >= this"],
-        ["Value (High-High)", "Critical upper threshold — alarm triggers when value >= this"],
+        ["Hysteresis (High)", "Deadband added above the threshold (normal range becomes value <= threshold + hysteresis)"],
+        ["Value (High-High)", "Critical upper threshold"],
+        ["Hysteresis (High-High)", "Deadband added above the critical threshold"],
         ["Value (Low)", "Lower threshold — alarm triggers when value <= this"],
-        ["Value (Low-Low)", "Critical lower threshold — alarm triggers when value <= this"],
-        ["Value (Offline)", "Fixed as 'Null' — triggers when point stops reporting"],
-        ["Severity", "Alarm level: Critical / Major / Minor / Warning (dropdown)"],
-        ["Message", "Custom alarm message text"],
+        ["Hysteresis (Low)", "Deadband subtracted below the threshold (normal range becomes value >= threshold - hysteresis)"],
+        ["Value (Low-Low)", "Critical lower threshold"],
+        ["Hysteresis (Low-Low)", "Deadband subtracted below the critical threshold"],
+        [""],
+        ["Mutual Exclusion Rule"],
+        ["Boolean point", "Fill only the Boolean section. High / High-High / Low / Low-Low must be empty."],
+        ["Numeric point", "Leave the Boolean section empty. Fill High / High-High / Low / Low-Low as needed."],
+        ["Auto detection", "Backend determines the point type by which section is configured."],
+        ["Validation", "If both Boolean and numeric sections are filled, the backend will reject the conflicting configuration."],
         [""],
         ["Severity Levels"],
         ["Critical", "System-threatening condition, immediate action required"],
@@ -192,33 +310,38 @@ def build_workbook(paths: list[str]) -> Workbook:
         ["Minor", "Slight deviation, monitor closely"],
         ["Warning", "Advisory, no immediate risk"],
         [""],
-        ["Color Legend"],
-        ["Green background", "Normal — no value/severity needed"],
-        ["Yellow background", "User-configurable threshold fields"],
-        ["Grey background", "Offline — value fixed as 'Null'"],
+        ["Note"],
+        ["All fields are editable in Excel", "The backend will determine point type and enforce mutual exclusion when loading the rules."],
     ]
     for r, row_data in enumerate(instructions, start=1):
         for c, val in enumerate(row_data, start=1):
             cell = ws2.cell(row=r, column=c, value=val)
             if r == 1:
                 cell.font = Font(bold=True, size=14)
-            elif r in (3, 14, 20):
+            elif r in (3, 18, 25, 31):
                 cell.font = Font(bold=True, size=11)
             else:
                 cell.font = Font(size=10)
 
-    ws2.column_dimensions["A"].width = 25
-    ws2.column_dimensions["B"].width = 70
+    ws2.column_dimensions["A"].width = 28
+    ws2.column_dimensions["B"].width = 90
 
     return wb
 
 
-# ── Main ────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════
+# Main
+# ═══════════════════════════════════════════════════════════════════════
+
 if __name__ == "__main__":
     print(f"Reading log file: {LOG_FILE}")
-    paths = extract_unique_paths(LOG_FILE)
-    print(f"Found {len(paths)} unique points")
+    points = extract_valid_points(LOG_FILE)
+    print(f"Found {len(points)} valid points (boolean or numeric)")
 
-    wb = build_workbook(paths)
+    if not points:
+        print("No valid points found. Exiting.")
+        sys.exit(1)
+
+    wb = build_workbook(points)
     wb.save(str(OUTPUT_FILE))
     print(f"Saved to: {OUTPUT_FILE}")

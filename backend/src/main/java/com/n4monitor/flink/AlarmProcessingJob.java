@@ -100,7 +100,7 @@ public class AlarmProcessingJob {
         private static final DateTimeFormatter TS_FORMAT =
                 DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
-        private static final List<String> PRIORITY_ORDER =
+        private static final List<String> NUMERIC_PRIORITY_ORDER =
                 List.of("High-High", "High", "Low-Low", "Low");
 
         public AlarmProcessFunction(String redisHost, int redisPort) {
@@ -221,31 +221,62 @@ public class AlarmProcessingJob {
         // ── Threshold evaluation ────────────────────────────────────────────────────
 
         private AlarmRule evaluate(String pointValue, List<AlarmRule> rules) {
-            Double numVal = null;
-            try { numVal = Double.parseDouble(pointValue); } catch (Exception ignored) {}
+            String normalizedValue = pointValue != null ? pointValue.trim() : null;
 
-            List<AlarmRule> sorted = rules.stream()
-                    .filter(r -> PRIORITY_ORDER.contains(r.getLevel()))
-                    .filter(r -> r.getSeverity() != null && r.getValue() != null)
-                    .sorted(Comparator.comparingInt(r -> PRIORITY_ORDER.indexOf(r.getLevel())))
-                    .toList();
-
-            for (AlarmRule rule : sorted) {
-                if (numVal != null) {
-                    try {
-                        double threshold = Double.parseDouble(rule.getValue());
-                        boolean triggered = switch (rule.getLevel()) {
-                            case "High", "High-High" -> numVal >= threshold;
-                            case "Low", "Low-Low" -> numVal <= threshold;
-                            default -> false;
-                        };
-                        if (triggered) return rule;
-                    } catch (NumberFormatException ignored) {}
-                } else {
-                    if (pointValue != null && pointValue.equals(rule.getValue())) return rule;
+            // Boolean rules: trigger when the point value matches the configured alarm value
+            for (AlarmRule rule : rules) {
+                if ("Boolean".equals(rule.getLevel()) || "BOOL".equals(rule.getPointType())) {
+                    if (rule.getValue() != null
+                            && normalizedValue != null
+                            && normalizedValue.equalsIgnoreCase(rule.getValue())) {
+                        return rule;
+                    }
                 }
             }
+
+            // Numeric rules: evaluate High / High-High / Low / Low-Low with hysteresis
+            Double numVal = null;
+            try {
+                numVal = Double.parseDouble(normalizedValue);
+            } catch (Exception ignored) {
+            }
+
+            if (numVal == null) {
+                return null;
+            }
+
+            List<AlarmRule> numericRules = rules.stream()
+                    .filter(r -> NUMERIC_PRIORITY_ORDER.contains(r.getLevel()))
+                    .filter(r -> r.getValue() != null)
+                    .sorted(Comparator.comparingInt(r -> NUMERIC_PRIORITY_ORDER.indexOf(r.getLevel())))
+                    .toList();
+
+            for (AlarmRule rule : numericRules) {
+                try {
+                    double threshold = Double.parseDouble(rule.getValue());
+                    double hysteresis = parseHysteresis(rule.getHysteresis());
+
+                    boolean triggered = switch (rule.getLevel()) {
+                        case "High", "High-High" -> numVal >= threshold + hysteresis;
+                        case "Low", "Low-Low" -> numVal <= threshold - hysteresis;
+                        default -> false;
+                    };
+
+                    if (triggered) return rule;
+                } catch (NumberFormatException ignored) {
+                }
+            }
+
             return null;
+        }
+
+        private double parseHysteresis(String hysteresis) {
+            if (hysteresis == null || hysteresis.isBlank()) return 0.0;
+            try {
+                return Double.parseDouble(hysteresis);
+            } catch (NumberFormatException e) {
+                return 0.0;
+            }
         }
 
         private String formatTimestamp(Long epochMs) {
