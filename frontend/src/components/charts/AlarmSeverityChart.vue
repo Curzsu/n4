@@ -1,12 +1,16 @@
 <template>
   <div class="chart-panel">
-    <div class="chart-title">Alarms by Severity (Today)</div>
+    <div class="chart-header">
+      <div class="chart-title">Alarms by Severity (Today)</div>
+      <el-icon class="close-btn" @click="emit('close')"><Close /></el-icon>
+    </div>
     <v-chart :option="chartOption" autoresize class="chart-instance" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { Close } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { PieChart } from 'echarts/charts'
@@ -17,6 +21,10 @@ import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
 import type { AlarmSeverityData } from '@/api/types'
 
 use([PieChart, TooltipComponent, LegendComponent, CanvasRenderer])
+
+const emit = defineEmits<{
+  (e: 'close'): void
+}>()
 
 const { severityData } = useAlarmWebSocket()
 
@@ -82,12 +90,36 @@ onMounted(async () => {
   border-radius: 8px;
   padding: 12px;
 }
+.chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
 .chart-title {
   font-size: 13px;
   color: $text-secondary;
   font-weight: 500;
-  margin-bottom: 8px;
 }
+
+.close-btn {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: $text-muted;
+  cursor: pointer;
+  transition: color 0.2s, background-color 0.2s;
+
+  &:hover {
+    color: $text-primary;
+    background-color: $bg-card-hover;
+  }
+}
+
 .chart-instance {
   width: 100%;
   height: 200px;

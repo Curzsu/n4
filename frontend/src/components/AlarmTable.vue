@@ -1,5 +1,5 @@
 <template>
-  <div class="alarm-table-panel">
+  <div ref="tablePanelRef" class="alarm-table-panel">
     <!-- Tab bar -->
     <div class="tab-bar">
       <div
@@ -11,18 +11,35 @@
         {{ tab.label }}
         <span v-if="tab.count" class="tab-count">{{ tab.count }}</span>
       </div>
+      <div class="tab-actions">
+        <el-button
+          :type="isAllSelected ? 'primary' : 'default'"
+          size="small"
+          @click="toggleSelectAll"
+        >
+          {{ isAllSelected ? 'Deselect All' : 'Select All' }}
+        </el-button>
+      </div>
     </div>
 
-    <!-- Table with built-in scrolling via max-height -->
+    <!-- Table with fixed height for internal scrolling -->
     <el-table
       :data="filteredData"
-      :max-height="tableMaxHeight"
+      :height="tableHeight"
       style="width: 100%"
       :header-cell-style="headerCellStyle"
       :cell-style="cellStyle"
       size="small"
       v-loading="loading"
     >
+      <el-table-column width="48" align="center">
+        <template #default="{ row }">
+          <el-checkbox
+            :model-value="selectedIds.has(row.id)"
+            @change="(val: boolean) => toggleSelection(row.id, val)"
+          />
+        </template>
+      </el-table-column>
       <el-table-column prop="time" label="Time" width="180" />
       <el-table-column prop="severity" label="Severity" width="100">
         <template #default="{ row }">
@@ -53,16 +70,21 @@ import type { AlarmRecord } from '@/api/types'
 const loading = ref(false)
 const tableData = ref<AlarmRecord[]>([])
 const activeTab = ref('active')
+const selectedIds = ref<Set<string>>(new Set())
+const tablePanelRef = ref<HTMLDivElement>()
+const tableHeight = ref(400)
 
 // Connect to WebSocket
 const { latestAlarm, onUpdate } = useAlarmWebSocket()
 
-// Calculate max height for el-table's built-in scrolling
-const tableMaxHeight = ref(300)
-
-function updateTableMaxHeight() {
-  tableMaxHeight.value = Math.max(200, window.innerHeight - 460)
+function updateTableHeight() {
+  if (!tablePanelRef.value) return
+  const tabBar = tablePanelRef.value.querySelector('.tab-bar') as HTMLElement | null
+  const tabBarHeight = tabBar?.offsetHeight || 42
+  tableHeight.value = Math.max(200, tablePanelRef.value.clientHeight - tabBarHeight)
 }
+
+let resizeObserver: ResizeObserver | null = null
 
 const tabs = computed(() => [
   { key: 'active', label: 'Active Alarms', count: String(tableData.value.length) },
@@ -83,6 +105,28 @@ const filteredData = computed(() => {
       return tableData.value
   }
 })
+
+const isAllSelected = computed(() => {
+  if (filteredData.value.length === 0) return false
+  return filteredData.value.every(row => selectedIds.value.has(row.id))
+})
+
+function toggleSelection(id: string, selected: boolean) {
+  if (selected) {
+    selectedIds.value.add(id)
+  } else {
+    selectedIds.value.delete(id)
+  }
+}
+
+function toggleSelectAll() {
+  const ids = filteredData.value.map(row => row.id)
+  if (isAllSelected.value) {
+    ids.forEach(id => selectedIds.value.delete(id))
+  } else {
+    ids.forEach(id => selectedIds.value.add(id))
+  }
+}
 
 const headerCellStyle = {
   backgroundColor: '#0d1117',
@@ -123,6 +167,7 @@ async function fetchData() {
 
 function onTabChange(tab: string) {
   activeTab.value = tab
+  selectedIds.value.clear()
 }
 
 /**
@@ -142,12 +187,15 @@ function normalizeRecord(alarm: any): AlarmRecord {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
   }
 
+  const source = alarm.name || alarm.source || ''
+
   return {
+    id: source || `${Date.now()}-${Math.random()}`,
     time: alarm.timestamp ? formatTime(alarm.timestamp) : (alarm.time || '-'),
     severity: alarm.severity || 'Normal',
-    source: alarm.name || alarm.source || '',// TODO: Temporarily assign a value to the "source" field.
+    source: source,
     message: alarm.message || '',
-    location: extractLocation(alarm.path) || alarm.location || '',// TODO: Temporarily assign a value to the "location" field.
+    location: extractLocation(alarm.path) || alarm.location || '',
     status: alarm.status || 'Unack',
     ackBy: alarm.ackBy || '-',
   }
@@ -175,13 +223,16 @@ onUpdate((data: any) => {
 })
 
 onMounted(() => {
-  updateTableMaxHeight()
-  window.addEventListener('resize', updateTableMaxHeight)
+  updateTableHeight()
+  resizeObserver = new ResizeObserver(updateTableHeight)
+  if (tablePanelRef.value) {
+    resizeObserver.observe(tablePanelRef.value)
+  }
   fetchData()
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('resize', updateTableMaxHeight)
+  resizeObserver?.disconnect()
 })
 </script>
 
@@ -193,12 +244,22 @@ onBeforeUnmount(() => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 .tab-bar {
   display: flex;
   border-bottom: 1px solid $border-color;
   flex-shrink: 0;
+}
+
+.tab-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 8px;
 }
 
 .tab-item {

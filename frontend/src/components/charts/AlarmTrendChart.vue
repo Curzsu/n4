@@ -1,12 +1,16 @@
 <template>
   <div class="chart-panel">
-    <div class="chart-title">Alarms Trend (Last 24h)</div>
+    <div class="chart-header">
+      <div class="chart-title">Alarms Trend (Last 24h)</div>
+      <el-icon class="close-btn" @click="emit('close')"><Close /></el-icon>
+    </div>
     <v-chart :option="chartOption" autoresize class="chart-instance" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { Close } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
@@ -17,6 +21,10 @@ import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
 import type { AlarmTrendData } from '@/api/types'
 
 use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
+
+const emit = defineEmits<{
+  (e: 'close'): void
+}>()
 
 const data = ref<AlarmTrendData | null>(null)
 const { onUpdate } = useAlarmWebSocket()
@@ -90,12 +98,36 @@ onUpdate(() => {
   border-radius: 8px;
   padding: 12px;
 }
+.chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
 .chart-title {
   font-size: 13px;
   color: $text-secondary;
   font-weight: 500;
-  margin-bottom: 8px;
 }
+
+.close-btn {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: $text-muted;
+  cursor: pointer;
+  transition: color 0.2s, background-color 0.2s;
+
+  &:hover {
+    color: $text-primary;
+    background-color: $bg-card-hover;
+  }
+}
+
 .chart-instance {
   width: 100%;
   height: 200px;

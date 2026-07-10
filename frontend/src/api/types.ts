@@ -77,6 +77,7 @@ export interface MonitorPoint {
 // ===== Alarm Page Types =====
 
 export interface AlarmRecord {
+  id: string
   time: string
   severity: string
   source: string
