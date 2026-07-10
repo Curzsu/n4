@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.n4monitor.dto.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -23,7 +24,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AlarmService {
 
-    private static final String REDIS_LATEST_KEY = "alarm:latest";
+    @Value("${alarm.redis.latest-key:alarm:latest}")
+    private String latestRedisKey;
+
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final DateTimeFormatter HOUR_FORMAT = DateTimeFormatter.ofPattern("HH:00");
 
@@ -34,7 +37,7 @@ public class AlarmService {
      * Read all alarm states from Redis and convert to AlarmRecordDto list.
      */
     private List<AlarmRecordDto> readAllAlarms() {
-        Map<Object, Object> rawData = redisTemplate.opsForHash().entries(REDIS_LATEST_KEY);
+        Map<Object, Object> rawData = redisTemplate.opsForHash().entries(latestRedisKey);
         if (rawData == null || rawData.isEmpty()) {
             return Collections.emptyList();
         }
@@ -154,7 +157,7 @@ public class AlarmService {
         }
 
         // Read raw data to get timestamps
-        Map<Object, Object> rawData = redisTemplate.opsForHash().entries(REDIS_LATEST_KEY);
+        Map<Object, Object> rawData = redisTemplate.opsForHash().entries(latestRedisKey);
         if (rawData != null) {
             for (Object value : rawData.values()) {
                 try {
@@ -196,7 +199,7 @@ public class AlarmService {
      * Get alarm distribution by hour.
      */
     public AlarmHourChartDto getAlarmByHour() {
-        Map<Object, Object> rawData = redisTemplate.opsForHash().entries(REDIS_LATEST_KEY);
+        Map<Object, Object> rawData = redisTemplate.opsForHash().entries(latestRedisKey);
 
         // Count by hour
         Map<String, Integer> hourCount = new TreeMap<>();
@@ -237,7 +240,7 @@ public class AlarmService {
      * Get alarm distribution by system (using point name prefix).
      */
     public AlarmSystemChartDto getAlarmBySystem() {
-        Map<Object, Object> rawData = redisTemplate.opsForHash().entries(REDIS_LATEST_KEY);
+        Map<Object, Object> rawData = redisTemplate.opsForHash().entries(latestRedisKey);
         Map<String, Integer> systemCount = new HashMap<>();
 
         if (rawData != null) {
@@ -272,7 +275,7 @@ public class AlarmService {
      * Get top alarm sources.
      */
     public AlarmSourceChartDto getAlarmTopSources() {
-        Map<Object, Object> rawData = redisTemplate.opsForHash().entries(REDIS_LATEST_KEY);
+        Map<Object, Object> rawData = redisTemplate.opsForHash().entries(latestRedisKey);
         Map<String, Integer> sourceCount = new HashMap<>();
 
         if (rawData != null) {

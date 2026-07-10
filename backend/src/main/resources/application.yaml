@@ -32,17 +32,27 @@ tdengine:
   password: taosdata
   database: n4
   supertable: alarm
+  realtime-supertable: alarm_realtime
+  # Periodic snapshot sync interval from Redis to TDengine
+  sync-fixed-rate-ms: 5000 # The time interval for storing the latest status of the location points.
+  sync-initial-delay-ms: 15000 # The initial execution delay time of the scheduled synchronization task
 
-# 报警规则配置
+# Alarm configuration
 alarm:
   rule:
     excel-file: D:/Apro/N4-monitor/材料/alarm_rules_config.xlsx
     log-file: D:/Apro/N4-monitor/材料/points-2.log
-    redis-key: alarm:rules
   flink:
     enabled: true
-    topic: obix-mqtt-points
+    topic: mqtt-push-kafka
+#    topic: obix-mqtt-points
     group-id: n4-flink-alarm-processor
+  # Redis keys and channels used by alarm processing
+  redis:
+    rules-key: alarm:rules
+    latest-key: alarm:latest
+    notification-channel: alarm:notifications
+    realtime-channel: alarm:realtime
 
 #logging:
 #  level:

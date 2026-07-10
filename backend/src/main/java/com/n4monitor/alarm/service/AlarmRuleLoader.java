@@ -170,6 +170,9 @@ public class AlarmRuleLoader {
                     if (lc.subColumns().size() > 3) {
                         hysteresis = getCellString(row.getCell(lc.startCol() + 2));
                     }
+                    if (hysteresis == null || hysteresis.isBlank()) {
+                        hysteresis = "0.00";
+                    }
 
                     boolean configured = value != null && !value.isBlank();
                     if (!configured) continue;

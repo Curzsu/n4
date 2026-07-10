@@ -279,53 +279,6 @@ def build_workbook(points: dict[str, dict]) -> Workbook:
     # ── Freeze panes ──────────────────────────────────────────────────
     ws.freeze_panes = "B3"
 
-    # ── Instructions sheet ────────────────────────────────────────────
-    ws2 = wb.create_sheet("Instructions")
-    instructions = [
-        ["Alarm Rules Configuration Guide"],
-        [""],
-        ["Column", "Description"],
-        ["path", "Point path (unique identifier for each device point)"],
-        ["Value (Boolean)", "Alarm trigger value: TRUE or FALSE (dropdown)"],
-        ["Severity (Boolean)", "Alarm severity: Critical / Major / Minor / Warning"],
-        ["Message (Boolean)", "Custom alarm message text"],
-        ["Value (High)", "Upper threshold — alarm triggers when value >= this"],
-        ["Hysteresis (High)", "Deadband added above the threshold (normal range becomes value <= threshold + hysteresis)"],
-        ["Value (High-High)", "Critical upper threshold"],
-        ["Hysteresis (High-High)", "Deadband added above the critical threshold"],
-        ["Value (Low)", "Lower threshold — alarm triggers when value <= this"],
-        ["Hysteresis (Low)", "Deadband subtracted below the threshold (normal range becomes value >= threshold - hysteresis)"],
-        ["Value (Low-Low)", "Critical lower threshold"],
-        ["Hysteresis (Low-Low)", "Deadband subtracted below the critical threshold"],
-        [""],
-        ["Mutual Exclusion Rule"],
-        ["Boolean point", "Fill only the Boolean section. High / High-High / Low / Low-Low must be empty."],
-        ["Numeric point", "Leave the Boolean section empty. Fill High / High-High / Low / Low-Low as needed."],
-        ["Auto detection", "Backend determines the point type by which section is configured."],
-        ["Validation", "If both Boolean and numeric sections are filled, the backend will reject the conflicting configuration."],
-        [""],
-        ["Severity Levels"],
-        ["Critical", "System-threatening condition, immediate action required"],
-        ["Major", "Significant deviation, attention needed soon"],
-        ["Minor", "Slight deviation, monitor closely"],
-        ["Warning", "Advisory, no immediate risk"],
-        [""],
-        ["Note"],
-        ["All fields are editable in Excel", "The backend will determine point type and enforce mutual exclusion when loading the rules."],
-    ]
-    for r, row_data in enumerate(instructions, start=1):
-        for c, val in enumerate(row_data, start=1):
-            cell = ws2.cell(row=r, column=c, value=val)
-            if r == 1:
-                cell.font = Font(bold=True, size=14)
-            elif r in (3, 18, 25, 31):
-                cell.font = Font(bold=True, size=11)
-            else:
-                cell.font = Font(size=10)
-
-    ws2.column_dimensions["A"].width = 28
-    ws2.column_dimensions["B"].width = 90
-
     return wb
 
 

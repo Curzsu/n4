@@ -23,5 +23,6 @@ Thumbs.db
 
 材料/
 .superpowers/
-test-producer/
+#test-producer/
 docs/
+__pycache__/

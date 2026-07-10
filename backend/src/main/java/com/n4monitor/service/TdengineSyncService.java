@@ -7,6 +7,7 @@ import com.n4monitor.config.TdengineConfig;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -17,26 +18,28 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * TDengine data synchronization service
+ * TDengine data synchronization service.
  * <p>
- * Periodically reads latest point data from Redis (alarm:latest)
- * and writes to TDengine database asynchronously.
+ * Provides two persistence paths:
+ * <ol>
+ *   <li>Periodic snapshot: reads latest point data from Redis (alarm:latest)
+ *       and writes to TDengine supertable {@code alarm} every N seconds.
+ *   <li>Real-time alarm records: writes confirmed alarm records to supertable
+ *       {@code alarm_realtime} immediately when Flink publishes them.
+ * </ol>
  * <p>
  * Uses REST mode (jdbc:TAOS-RS) so no native TDengine client is required.
- * Connection is established lazily on the first sync attempt.
+ * Connection is established lazily on the first access.
  * <p>
- * Supertable: alarm
- * Subtable: each point has its own subtable named by path field
- * Tags: name, displayName, path
- * Columns: value, type, unit, max, min, ip, port, other, timestamp,
- *          level, severity, message, ackBy, status, source, location
+ * Subtable naming: each point has its own subtable named by the sanitized path field.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class TdengineSyncService {
 
-    private static final String REDIS_LATEST_KEY = "alarm:latest";
+    @Value("${alarm.redis.latest-key:alarm:latest}")
+    private String latestRedisKey;
 
     private final TdengineConfig tdengineConfig;
     private final StringRedisTemplate redisTemplate;
@@ -77,8 +80,9 @@ public class TdengineSyncService {
             if (!initialized) {
                 initDatabase();
                 initSupertable();
+                initRealtimeSupertable();
                 initialized = true;
-                log.info("TDengine database and supertable initialized");
+                log.info("TDengine database and supertables initialized");
             }
             return true;
         } catch (Exception e) {
@@ -89,7 +93,7 @@ public class TdengineSyncService {
     }
 
     /**
-     * Create database if not exists
+     * Create database if not exists.
      */
     private void initDatabase() throws SQLException {
         String database = tdengineConfig.getDatabase();
@@ -98,14 +102,13 @@ public class TdengineSyncService {
             stmt.execute(sql);
             log.info("Database '{}' created/verified", database);
         }
-        // Switch to the database
         try (Statement stmt = connection.createStatement()) {
             stmt.execute("USE " + database);
         }
     }
 
     /**
-     * Create supertable if not exists
+     * Create snapshot supertable if not exists.
      */
     private void initSupertable() throws SQLException {
         String supertable = tdengineConfig.getSupertable();
@@ -139,10 +142,46 @@ public class TdengineSyncService {
     }
 
     /**
-     * Scheduled task: sync data from Redis to TDengine every 5 seconds.
-     * Submits work to async executor so the scheduler thread is never blocked.
+     * Create real-time alarm supertable if not exists.
      */
-    @Scheduled(fixedRate = 5000, initialDelay = 15000)
+    private void initRealtimeSupertable() throws SQLException {
+        String supertable = tdengineConfig.getRealtimeSupertable();
+        String sql = "CREATE STABLE IF NOT EXISTS " + supertable + " ("
+                + "ts TIMESTAMP, "
+                + "data_timestamp TIMESTAMP, "
+                + "point_value NCHAR(64), "
+                + "point_type NCHAR(32), "
+                + "unit NCHAR(16), "
+                + "max_val NCHAR(64), "
+                + "min_val NCHAR(64), "
+                + "ip_addr NCHAR(64), "
+                + "port_num NCHAR(16), "
+                + "other NCHAR(256), "
+                + "alarm_level NCHAR(32), "
+                + "alarm_severity NCHAR(32), "
+                + "alarm_message NCHAR(256), "
+                + "hysteresis NCHAR(32), "
+                + "ack_by NCHAR(32), "
+                + "alarm_status NCHAR(32), "
+                + "alarm_source NCHAR(64), "
+                + "alarm_location NCHAR(128)"
+                + ") TAGS ("
+                + "name NCHAR(128), "
+                + "display_name NCHAR(128), "
+                + "path NCHAR(256)"
+                + ")";
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute(sql);
+            log.info("Realtime supertable '{}' created/verified", supertable);
+        }
+    }
+
+    /**
+     * Scheduled task: sync data from Redis to TDengine periodically.
+     * Interval is configured via tdengine.sync-fixed-rate-ms.
+     */
+    @Scheduled(fixedRateString = "${tdengine.sync-fixed-rate-ms:5000}",
+            initialDelayString = "${tdengine.sync-initial-delay-ms:15000}")
     public void syncData() {
         asyncExecutor.submit(() -> {
             try {
@@ -154,26 +193,24 @@ public class TdengineSyncService {
     }
 
     /**
-     * Read latest data from Redis and write to TDengine
+     * Read latest data from Redis and write to TDengine snapshot supertable.
      */
     private void doSyncData() {
-        // Lazy connect - don't crash the app if TDengine is unavailable
         if (!ensureConnected()) {
             log.debug("TDengine not available, skipping sync cycle");
             return;
         }
 
-        // 1. Read all data from Redis hash
         Map<Object, Object> rawData;
         try {
-            rawData = redisTemplate.opsForHash().entries(REDIS_LATEST_KEY);
+            rawData = redisTemplate.opsForHash().entries(latestRedisKey);
         } catch (Exception e) {
-            log.warn("Failed to read from Redis key '{}': {}", REDIS_LATEST_KEY, e.getMessage());
+            log.warn("Failed to read from Redis key '{}': {}", latestRedisKey, e.getMessage());
             return;
         }
 
         if (rawData == null || rawData.isEmpty()) {
-            log.debug("No data in Redis key '{}'", REDIS_LATEST_KEY);
+            log.debug("No data in Redis key '{}'", latestRedisKey);
             return;
         }
 
@@ -182,18 +219,16 @@ public class TdengineSyncService {
         int successCount = 0;
         int failCount = 0;
 
-        // 2. Process each entry
         for (Map.Entry<Object, Object> entry : rawData.entrySet()) {
             String path = (String) entry.getKey();
             String json = (String) entry.getValue();
 
             try {
                 PointAlarmState state = objectMapper.readValue(json, new TypeReference<>() {});
-                writeToTdengine(state);
+                writeToSnapshotSupertable(state);
                 successCount++;
             } catch (SQLException e) {
                 failCount++;
-                // Connection lost, will reconnect on next cycle
                 log.error("SQL error writing path '{}': {}", path, e.getMessage());
                 closeConnection();
                 break;
@@ -204,15 +239,33 @@ public class TdengineSyncService {
         }
 
         if (successCount > 0) {
-            log.info("Synced {} entries to TDengine (failed: {})", successCount, failCount);
+            log.info("Synced {} entries to TDengine snapshot (failed: {})", successCount, failCount);
         }
     }
 
     /**
-     * Write a single PointAlarmState to TDengine.
-     * Uses INSERT ... USING STABLE TAGS syntax for automatic subtable creation.
+     * Write a single real-time alarm record to TDengine.
+     * Called from the Redis pub/sub listener when Flink confirms an alarm.
      */
-    private void writeToTdengine(PointAlarmState state) throws SQLException {
+    public void writeRealtimeAlarm(PointAlarmState state) {
+        asyncExecutor.submit(() -> {
+            try {
+                if (!ensureConnected()) {
+                    log.warn("TDengine not available, dropping realtime alarm: {}", state.getPath());
+                    return;
+                }
+                writeToRealtimeSupertable(state);
+                log.debug("Wrote realtime alarm to TDengine: {}", state.getPath());
+            } catch (Exception e) {
+                log.error("Failed to write realtime alarm for path: {}", state.getPath(), e);
+            }
+        });
+    }
+
+    /**
+     * Write a single PointAlarmState to the snapshot supertable.
+     */
+    private void writeToSnapshotSupertable(PointAlarmState state) throws SQLException {
         String supertable = tdengineConfig.getSupertable();
         String path = state.getPath();
         String subtable = sanitizeTableName(path);
@@ -221,15 +274,11 @@ public class TdengineSyncService {
                 + " TAGS (?, ?, ?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            // Tags (3)
             pstmt.setString(1, state.getName());
             pstmt.setString(2, state.getDisplayName());
             pstmt.setString(3, path);
 
-            // Columns (17)
-            // ts = current insertion time
             pstmt.setTimestamp(4, new Timestamp(System.currentTimeMillis()));
-            // data_timestamp = original data timestamp
             pstmt.setTimestamp(5, new Timestamp(state.getTimestamp()));
             pstmt.setString(6, state.getValue());
             pstmt.setString(7, state.getType());
@@ -252,6 +301,45 @@ public class TdengineSyncService {
     }
 
     /**
+     * Write a single confirmed alarm record to the realtime supertable.
+     */
+    private void writeToRealtimeSupertable(PointAlarmState state) throws SQLException {
+        String supertable = tdengineConfig.getRealtimeSupertable();
+        String path = state.getPath();
+        String subtable = sanitizeTableName(path) + "_rt";
+
+        String sql = "INSERT INTO " + subtable + " USING " + supertable
+                + " TAGS (?, ?, ?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+            pstmt.setString(1, state.getName());
+            pstmt.setString(2, state.getDisplayName());
+            pstmt.setString(3, path);
+
+            pstmt.setTimestamp(4, new Timestamp(System.currentTimeMillis()));
+            pstmt.setTimestamp(5, new Timestamp(state.getTimestamp()));
+            pstmt.setString(6, state.getValue());
+            pstmt.setString(7, state.getType());
+            pstmt.setString(8, state.getUnit());
+            pstmt.setString(9, state.getMax());
+            pstmt.setString(10, state.getMin());
+            pstmt.setString(11, state.getIp());
+            pstmt.setString(12, state.getPort());
+            pstmt.setString(13, state.getOther());
+            pstmt.setString(14, state.getLevel());
+            pstmt.setString(15, state.getSeverity());
+            pstmt.setString(16, state.getMessage());
+            pstmt.setString(17, state.getHysteresis());
+            pstmt.setString(18, state.getAckBy());
+            pstmt.setString(19, state.getStatus());
+            pstmt.setString(20, state.getSource());
+            pstmt.setString(21, state.getLocation());
+
+            pstmt.executeUpdate();
+        }
+    }
+
+    /**
      * Sanitize path to create a valid TDengine table name.
      * Replace special characters with underscores.
      */
@@ -263,7 +351,7 @@ public class TdengineSyncService {
     }
 
     /**
-     * Close current connection quietly
+     * Close current connection quietly.
      */
     private void closeConnection() {
         if (connection != null) {
@@ -276,7 +364,7 @@ public class TdengineSyncService {
     }
 
     /**
-     * Cleanup resources on shutdown
+     * Cleanup resources on shutdown.
      */
     @PreDestroy
     public void destroy() {

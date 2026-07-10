@@ -6,6 +6,8 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * TDengine database configuration.
+ * <p>
+ * All values are read from {@code application.yaml} under the {@code tdengine} prefix.
  * Uses REST mode (jdbc:TAOS-RS) to avoid native library dependency.
  */
 @Data
@@ -13,18 +15,27 @@ import org.springframework.context.annotation.Configuration;
 @ConfigurationProperties(prefix = "tdengine")
 public class TdengineConfig {
 
-    /** JDBC connection URL (REST mode, default port 6041) */
-    private String url = "jdbc:TAOS-RS://47.121.30.136:6041/n4";
+    /** JDBC connection URL (REST mode, port 6041) */
+    private String url;
 
     /** Database username */
-    private String username = "root";
+    private String username;
 
     /** Database password */
-    private String password = "taosdata";
+    private String password;
 
     /** Database name */
-    private String database = "n4";
+    private String database;
 
-    /** Supertable name */
-    private String supertable = "alarm";
+    /** Supertable name for periodic latest-state snapshots */
+    private String supertable;
+
+    /** Supertable name for real-time alarm records */
+    private String realtimeSupertable;
+
+    /** Fixed rate interval (ms) for periodic sync from Redis to TDengine */
+    private long syncFixedRateMs;
+
+    /** Initial delay (ms) before the first periodic sync */
+    private long syncInitialDelayMs;
 }

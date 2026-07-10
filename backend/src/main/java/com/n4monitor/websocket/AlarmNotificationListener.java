@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.connection.Message;
 import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -29,7 +30,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AlarmNotificationListener implements MessageListener {
 
-    private static final String REDIS_LATEST_KEY = "alarm:latest";
+    @Value("${alarm.redis.latest-key:alarm:latest}")
+    private String latestRedisKey;
+
     private static final DateTimeFormatter HOUR_FORMAT = DateTimeFormatter.ofPattern("HH:00");
 
     private final StringRedisTemplate redisTemplate;
@@ -45,7 +48,7 @@ public class AlarmNotificationListener implements MessageListener {
             log.debug("Alarm notification body: {}", alarmJson.substring(0, Math.min(100, alarmJson.length())));
 
             // Read all current alarm states from Redis
-            Map<Object, Object> allAlarms = redisTemplate.opsForHash().entries(REDIS_LATEST_KEY);
+            Map<Object, Object> allAlarms = redisTemplate.opsForHash().entries(latestRedisKey);
             if (allAlarms == null || allAlarms.isEmpty()) {
                 return;
             }

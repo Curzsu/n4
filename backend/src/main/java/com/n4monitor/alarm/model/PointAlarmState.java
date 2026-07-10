@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.io.Serializable;
+
 /**
  * Latest alarm state of a point (stored in Redis: alarm:latest).
  * <p>
@@ -12,16 +14,19 @@ import lombok.EqualsAndHashCode;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class PointAlarmState extends PointData {
+public class PointAlarmState extends PointData implements Serializable {
 
-    /** Threshold level: Normal / High / High-High / Low / Low-Low / Offline */
+    /** Threshold level: Boolean / High / High-High / Low / Low-Low */
     private String level;
 
-    /** Alarm severity: Critical / Major / Minor / Warning / Normal */
+    /** Alarm severity: Critical / Major / Minor / Warning */
     private String severity;
 
     /** Alarm message */
     private String message;
+
+    /** Hysteresis (confirmation timeout in seconds) used for this alarm */
+    private String hysteresis;
 
     /** Acknowledged by (default "-") */
     private String ackBy;

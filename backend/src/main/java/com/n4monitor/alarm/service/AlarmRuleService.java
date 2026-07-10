@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.n4monitor.alarm.model.AlarmRule;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -15,16 +16,15 @@ import java.util.*;
  * <p>
  * Responsible for reading and writing alarm rules from/to Redis,
  * used by Kafka consumers for real-time evaluation.
- * Redis key: alarm:rules (Hash)
- *   field: point path
- *   value: JSON array [AlarmRule, ...]
+ * Redis key is configurable via {@code alarm.redis.rules-key}.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AlarmRuleService {
 
-    private static final String REDIS_KEY = "alarm:rules";
+    @Value("${alarm.redis.rules-key:alarm:rules}")
+    private String rulesRedisKey;
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -33,7 +33,7 @@ public class AlarmRuleService {
      * Save all rules to Redis in batch (overwrites existing data).
      */
     public void saveAllRules(Map<String, List<AlarmRule>> allRules) {
-        redisTemplate.delete(REDIS_KEY);
+        redisTemplate.delete(rulesRedisKey);
 
         Map<String, String> redisData = new HashMap<>();
         for (Map.Entry<String, List<AlarmRule>> entry : allRules.entrySet()) {
@@ -45,16 +45,16 @@ public class AlarmRuleService {
         }
 
         if (!redisData.isEmpty()) {
-            redisTemplate.opsForHash().putAll(REDIS_KEY, redisData);
+            redisTemplate.opsForHash().putAll(rulesRedisKey, redisData);
         }
-        log.info("Stored {} point rules to Redis key '{}'", redisData.size(), REDIS_KEY);
+        log.info("Stored {} point rules to Redis key '{}'", redisData.size(), rulesRedisKey);
     }
 
     /**
      * Load all rules from Redis into memory.
      */
     public Map<String, List<AlarmRule>> loadAllRules() {
-        Map<Object, Object> raw = redisTemplate.opsForHash().entries(REDIS_KEY);
+        Map<Object, Object> raw = redisTemplate.opsForHash().entries(rulesRedisKey);
         Map<String, List<AlarmRule>> rules = new HashMap<>();
 
         for (Map.Entry<Object, Object> entry : raw.entrySet()) {
@@ -76,7 +76,7 @@ public class AlarmRuleService {
      * Get rules for a single point.
      */
     public List<AlarmRule> getRules(String path) {
-        String json = (String) redisTemplate.opsForHash().get(REDIS_KEY, path);
+        String json = (String) redisTemplate.opsForHash().get(rulesRedisKey, path);
         if (json == null) return Collections.emptyList();
         try {
             return objectMapper.readValue(json, new TypeReference<>() {});
@@ -90,7 +90,7 @@ public class AlarmRuleService {
      * Check if rule data already exists in Redis.
      */
     public boolean hasRules() {
-        Long size = redisTemplate.opsForHash().size(REDIS_KEY);
+        Long size = redisTemplate.opsForHash().size(rulesRedisKey);
         return size != null && size > 0;
     }
 }

@@ -3,12 +3,14 @@ package com.n4monitor.alarm.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 
+import java.io.Serializable;
+
 /**
  * Point data from Kafka message (value JSON deserialization).
  */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class PointData {
+public class PointData implements Serializable {
 
     private String name;
     private String displayName;

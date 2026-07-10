@@ -24,40 +24,62 @@ import java.util.*;
 /**
  * Flink alarm processing job.
  * <p>
- * Consumes device point data from Kafka (obix-mqtt-points),
- * loads alarm rules from Redis, evaluates each message in real-time,
- * outputs to console and writes latest state to Redis (alarm:latest).
+ * Consumes device point data from Kafka, loads alarm rules from Redis,
+ * evaluates each message in real-time, and writes latest state to Redis.
+ * <p>
+ * Alarm evaluation uses simple threshold comparison:
+ * - Boolean rules: value equals configured alarm value
+ * - Numeric rules: value >= threshold for High/High-High, value <= threshold for Low/Low-Low
+ * <p>
+ * When an alarm is triggered, the state is published to notification and realtime channels.
+ * When no alarm is triggered, only the latest state is written to Redis without publishing.
+ * <p>
+ * Redis keys and channel names are passed in via {@link #run} so they can be configured
+ * externally (e.g. from application.yaml).
  * <p>
  * Can run standalone via main method, or auto-started by FlinkJobRunner with Spring Boot.
  */
 public class AlarmProcessingJob {
 
-    /** Redis key for alarm rules */
-    private static final String REDIS_RULES_KEY = "alarm:rules";
+    /** Default Redis key for alarm rules */
+    private static final String DEFAULT_RULES_KEY = "alarm:rules";
 
-    /** Redis key for latest point state */
-    private static final String REDIS_LATEST_KEY = "alarm:latest";
+    /** Default Redis key for latest point state */
+    private static final String DEFAULT_LATEST_KEY = "alarm:latest";
+
+    /** Default Redis channel for WebSocket alarm notifications */
+    private static final String DEFAULT_NOTIFICATIONS_CHANNEL = "alarm:notifications";
+
+    /** Default Redis channel for real-time alarm persistence */
+    private static final String DEFAULT_REALTIME_CHANNEL = "alarm:realtime";
 
     /**
      * Standalone entry point (IDE or command line).
      */
     public static void main(String[] args) throws Exception {
         run("47.121.30.136:9092", "obix-mqtt-points",
-            "n4-flink-alarm-processor", "localhost", 6379);
+            "n4-flink-alarm-processor", "localhost", 6379,
+            DEFAULT_RULES_KEY, DEFAULT_LATEST_KEY,
+            DEFAULT_NOTIFICATIONS_CHANNEL, DEFAULT_REALTIME_CHANNEL);
     }
 
     /**
      * Start Flink job (blocking method, should be called in a separate thread).
      *
-     * @param kafkaBroker Kafka address
-     * @param kafkaTopic  Kafka topic
-     * @param groupId     Consumer group ID
-     * @param redisHost   Redis address
-     * @param redisPort   Redis port
+     * @param kafkaBroker          Kafka address
+     * @param kafkaTopic           Kafka topic
+     * @param groupId              Consumer group ID
+     * @param redisHost            Redis address
+     * @param redisPort            Redis port
+     * @param rulesRedisKey        Redis hash key for alarm rules
+     * @param latestRedisKey       Redis hash key for latest point state
+     * @param notificationChannel  Redis pub/sub channel for WebSocket notifications
+     * @param realtimeChannel      Redis pub/sub channel for realtime TDengine persistence
      */
     public static void run(String kafkaBroker, String kafkaTopic,
-                           String groupId, String redisHost,
-                           int redisPort) throws Exception {
+                           String groupId, String redisHost, int redisPort,
+                           String rulesRedisKey, String latestRedisKey,
+                           String notificationChannel, String realtimeChannel) throws Exception {
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(1);
@@ -77,7 +99,8 @@ public class AlarmProcessingJob {
         );
 
         DataStream<String> alarmStream = kafkaStream.map(
-                new AlarmProcessFunction(redisHost, redisPort));
+                new AlarmProcessFunction(redisHost, redisPort, rulesRedisKey,
+                        latestRedisKey, notificationChannel, realtimeChannel));
 
         alarmStream.print();
 
@@ -85,13 +108,17 @@ public class AlarmProcessingJob {
     }
 
     /**
-     * Flink ProcessFunction: load rules from Redis, evaluate each Kafka message,
+     * Flink MapFunction: load rules from Redis, evaluate each Kafka message,
      * output to console and write latest state to Redis.
      */
     public static class AlarmProcessFunction extends RichMapFunction<String, String> {
 
         private final String redisHost;
         private final int redisPort;
+        private final String rulesRedisKey;
+        private final String latestRedisKey;
+        private final String notificationChannel;
+        private final String realtimeChannel;
 
         private transient Jedis jedis;
         private transient Map<String, List<AlarmRule>> rulesCache;
@@ -103,9 +130,15 @@ public class AlarmProcessingJob {
         private static final List<String> NUMERIC_PRIORITY_ORDER =
                 List.of("High-High", "High", "Low-Low", "Low");
 
-        public AlarmProcessFunction(String redisHost, int redisPort) {
+        public AlarmProcessFunction(String redisHost, int redisPort,
+                                    String rulesRedisKey, String latestRedisKey,
+                                    String notificationChannel, String realtimeChannel) {
             this.redisHost = redisHost;
             this.redisPort = redisPort;
+            this.rulesRedisKey = rulesRedisKey;
+            this.latestRedisKey = latestRedisKey;
+            this.notificationChannel = notificationChannel;
+            this.realtimeChannel = realtimeChannel;
         }
 
         @Override
@@ -115,7 +148,7 @@ public class AlarmProcessingJob {
             rulesCache = new HashMap<>();
 
             // Load alarm rules from Redis
-            Map<String, String> raw = jedis.hgetAll(REDIS_RULES_KEY);
+            Map<String, String> raw = jedis.hgetAll(rulesRedisKey);
             for (Map.Entry<String, String> entry : raw.entrySet()) {
                 try {
                     List<AlarmRule> rules = objectMapper.readValue(
@@ -129,7 +162,8 @@ public class AlarmProcessingJob {
             }
 
             System.out.println("[FLINK] Alarm processor started, loaded " + rulesCache.size() + " point rules");
-            System.out.println("[FLINK] Latest state will be written to Redis key: " + REDIS_LATEST_KEY);
+            System.out.println("[FLINK] Rules Redis key: " + rulesRedisKey);
+            System.out.println("[FLINK] Latest state Redis key: " + latestRedisKey);
         }
 
         @Override
@@ -155,48 +189,13 @@ public class AlarmProcessingJob {
             String ts = formatTimestamp(point.getTimestamp());
 
             // 3. Build latest state and write to Redis
-            PointAlarmState state = new PointAlarmState();
-            // Copy all PointData fields
-            state.setName(point.getName());
-            state.setDisplayName(point.getDisplayName());
-            state.setPath(point.getPath());
-            state.setValue(point.getValue());
-            state.setType(point.getType());
-            state.setUnit(point.getUnit());
-            state.setMax(point.getMax());
-            state.setMin(point.getMin());
-            state.setIp(point.getIp());
-            state.setPort(point.getPort());
-            state.setOther(point.getOther());
-            state.setTimestamp(point.getTimestamp());
-            // Alarm evaluation result
-            if (triggered != null) {
-                state.setLevel(triggered.getLevel());
-                state.setSeverity(triggered.getSeverity());
-                state.setMessage(triggered.getMessage());
-            } else {
-                state.setLevel("Normal");
-//                state.setSeverity("Normal");
-//                state.setMessage("within normal range");
-            }
-            // Additional fields
-            state.setAckBy("-");
-            state.setStatus("Unack");
-            state.setSource("");
-            state.setLocation("");
+            PointAlarmState state = buildState(point, triggered);
+            writeLatestState(state);
 
-            // Write to Redis hash: alarm:latest, field=path, value=JSON
-            // Also publish to Redis channel to notify WebSocket push
-            try {
-                String json = objectMapper.writeValueAsString(state);
-                jedis.hset(REDIS_LATEST_KEY, path, json);
-                jedis.publish("alarm:notifications", json);
-            } catch (Exception e) {
-                System.err.println("[FLINK] Failed to write latest state to Redis: " + path + " - " + e.getMessage());
-            }
-
-            // 4. Console output
+            // 4. If alarm triggered, publish to notification and realtime channels
             if (triggered != null) {
+                publishAlarm(state);
+
                 String color = switch (triggered.getSeverity()) {
                     case "Critical" -> "\033[91m";
                     case "Major"    -> "\033[93m";
@@ -218,6 +217,60 @@ public class AlarmProcessingJob {
             if (jedis != null) jedis.close();
         }
 
+        // ── State construction ──────────────────────────────────────────────────────
+
+        private PointAlarmState buildState(PointData point, AlarmRule triggered) {
+            PointAlarmState state = new PointAlarmState();
+            state.setName(point.getName());
+            state.setDisplayName(point.getDisplayName());
+            state.setPath(point.getPath());
+            state.setValue(point.getValue());
+            state.setType(point.getType());
+            state.setUnit(point.getUnit());
+            state.setMax(point.getMax());
+            state.setMin(point.getMin());
+            state.setIp(point.getIp());
+            state.setPort(point.getPort());
+            state.setOther(point.getOther());
+            state.setTimestamp(point.getTimestamp());
+
+            if (triggered != null) {
+                state.setLevel(triggered.getLevel());
+                state.setSeverity(triggered.getSeverity());
+                state.setMessage(triggered.getMessage());
+                state.setHysteresis(triggered.getHysteresis());
+            }
+            // If not triggered, level/severity/message/hysteresis remain null
+
+            state.setAckBy("-");
+            state.setStatus("Unack");
+            state.setSource("");
+            state.setLocation("");
+
+            return state;
+        }
+
+        // ── Redis writers ───────────────────────────────────────────────────────────
+
+        private void writeLatestState(PointAlarmState state) {
+            try {
+                String json = objectMapper.writeValueAsString(state);
+                jedis.hset(latestRedisKey, state.getPath(), json);
+            } catch (Exception e) {
+                System.err.println("[FLINK] Failed to write latest state to Redis: " + state.getPath() + " - " + e.getMessage());
+            }
+        }
+
+        private void publishAlarm(PointAlarmState state) {
+            try {
+                String json = objectMapper.writeValueAsString(state);
+                jedis.publish(notificationChannel, json);
+                jedis.publish(realtimeChannel, json);
+            } catch (Exception e) {
+                System.err.println("[FLINK] Failed to publish alarm: " + state.getPath() + " - " + e.getMessage());
+            }
+        }
+
         // ── Threshold evaluation ────────────────────────────────────────────────────
 
         private AlarmRule evaluate(String pointValue, List<AlarmRule> rules) {
@@ -234,7 +287,7 @@ public class AlarmProcessingJob {
                 }
             }
 
-            // Numeric rules: evaluate High / High-High / Low / Low-Low with hysteresis
+            // Numeric rules: simple threshold comparison
             Double numVal = null;
             try {
                 numVal = Double.parseDouble(normalizedValue);
@@ -254,11 +307,10 @@ public class AlarmProcessingJob {
             for (AlarmRule rule : numericRules) {
                 try {
                     double threshold = Double.parseDouble(rule.getValue());
-                    double hysteresis = parseHysteresis(rule.getHysteresis());
 
                     boolean triggered = switch (rule.getLevel()) {
-                        case "High", "High-High" -> numVal >= threshold + hysteresis;
-                        case "Low", "Low-Low" -> numVal <= threshold - hysteresis;
+                        case "High", "High-High" -> numVal >= threshold;
+                        case "Low", "Low-Low" -> numVal <= threshold;
                         default -> false;
                     };
 
@@ -268,15 +320,6 @@ public class AlarmProcessingJob {
             }
 
             return null;
-        }
-
-        private double parseHysteresis(String hysteresis) {
-            if (hysteresis == null || hysteresis.isBlank()) return 0.0;
-            try {
-                return Double.parseDouble(hysteresis);
-            } catch (NumberFormatException e) {
-                return 0.0;
-            }
         }
 
         private String formatTimestamp(Long epochMs) {
