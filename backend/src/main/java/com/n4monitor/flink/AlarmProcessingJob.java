@@ -244,10 +244,40 @@ public class AlarmProcessingJob {
 
             state.setAckBy("-");
             state.setStatus("Unack");
-            state.setSource("");
-            state.setLocation("");
+            state.setSource(extractSource(point.getPath()));
+            state.setLocation(extractLocation(point.getPath()));
+            state.setDuration("");
 
             return state;
+        }
+
+        /**
+         * Extract location from path: remove leading slash, split by '/',
+         * and return the third segment (index 2).
+         */
+        private String extractLocation(String path) {
+            if (path == null || path.isEmpty()) {
+                return "";
+            }
+            String normalized = path.startsWith("/") ? path.substring(1) : path;
+            String[] parts = normalized.split("/");
+            return parts.length >= 3 ? parts[2] : "";
+        }
+
+        /**
+         * Extract source from path: remove leading slash, split by '/',
+         * and join the last two segments with '_'.
+         */
+        private String extractSource(String path) {
+            if (path == null || path.isEmpty()) {
+                return "";
+            }
+            String normalized = path.startsWith("/") ? path.substring(1) : path;
+            String[] parts = normalized.split("/");
+            if (parts.length >= 2) {
+                return parts[parts.length - 2] + "_" + parts[parts.length - 1];
+            }
+            return parts.length == 1 ? parts[0] : "";
         }
 
         // ── Redis writers ───────────────────────────────────────────────────────────

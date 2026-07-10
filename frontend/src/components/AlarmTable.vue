@@ -56,6 +56,11 @@
           <span :class="['status-text', row.status.toLowerCase()]">{{ row.status }}</span>
         </template>
       </el-table-column>
+      <el-table-column prop="duration" label="Duration" width="100">
+        <template #default="{ row }">
+          <ElapsedDuration :time="row.time" />
+        </template>
+      </el-table-column>
       <el-table-column prop="ackBy" label="Ack. By" width="100" />
     </el-table>
   </div>
@@ -65,6 +70,8 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { alarmApi } from '@/api/alarm'
 import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
+import { normalizeRecord, severityTagType } from '@/utils/alarm'
+import ElapsedDuration from '@/components/ElapsedDuration.vue'
 import type { AlarmRecord } from '@/api/types'
 
 const loading = ref(false)
@@ -143,21 +150,11 @@ const cellStyle = {
   borderBottom: '1px solid #1f2937',
 }
 
-function severityTagType(severity: string): string {
-  switch (severity) {
-    case 'Critical': return 'danger'
-    case 'Major': return 'warning'
-    case 'Minor': return 'info'
-    case 'Warning': return 'primary'
-    default: return 'info'
-  }
-}
-
 async function fetchData() {
   loading.value = true
   try {
     const raw = await alarmApi.getActiveAlarms('active')
-    tableData.value = raw.map(normalizeRecord) // TODO: Temporarily assign a value to the "location" field.
+    tableData.value = raw.map(normalizeRecord)
   } catch (e) {
     console.error('Failed to fetch alarm data:', e)
   } finally {
@@ -168,37 +165,6 @@ async function fetchData() {
 function onTabChange(tab: string) {
   activeTab.value = tab
   selectedIds.value.clear()
-}
-
-/**
- * Normalize a raw alarm record from any source (REST API or WebSocket).
- * Extracts location from path (3rd segment) and ensures all fields have defaults.
- */
-function normalizeRecord(alarm: any): AlarmRecord {
-  const extractLocation = (path?: string) => {
-    if (!path) return ''
-    const parts = path.split('/')
-    return parts.length > 2 ? parts[2] : ''
-  }
-
-  const formatTime = (ts: number) => {
-    const d = new Date(ts)
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-  }
-
-  const source = alarm.name || alarm.source || ''
-
-  return {
-    id: source || `${Date.now()}-${Math.random()}`,
-    time: alarm.timestamp ? formatTime(alarm.timestamp) : (alarm.time || '-'),
-    severity: alarm.severity || 'Normal',
-    source: source,
-    message: alarm.message || '',
-    location: extractLocation(alarm.path) || alarm.location || '',
-    status: alarm.status || 'Unack',
-    ackBy: alarm.ackBy || '-',
-  }
 }
 
 // Handle real-time WebSocket updates

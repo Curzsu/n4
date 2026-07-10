@@ -61,12 +61,13 @@ public class AlarmService {
                 }
 
                 dto.setSeverity(getTextField(node, "severity", "Normal"));
-                dto.setSource(getTextField(node, "name", ""));
+                dto.setSource(getTextField(node, "source", ""));
                 dto.setMessage(getTextField(node, "message", ""));
                 dto.setLocation(getTextField(node, "location", ""));
                 dto.setPath(getTextField(node, "path", ""));
                 dto.setStatus(getTextField(node, "status", "Unack"));
                 dto.setAckBy(getTextField(node, "ackBy", "-"));
+                dto.setDuration(getTextField(node, "duration", ""));
 
                 alarms.add(dto);
             } catch (Exception e) {

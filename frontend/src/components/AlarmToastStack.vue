@@ -36,6 +36,10 @@
             <span :class="['toast-value', 'status-' + toast.status.toLowerCase()]">{{ toast.status }}</span>
           </div>
           <div class="toast-row">
+            <span class="toast-label">Duration:</span>
+            <ElapsedDuration :time="toast.time" />
+          </div>
+          <div class="toast-row">
             <span class="toast-label">Ack. By:</span>
             <span class="toast-value">{{ toast.ackBy }}</span>
           </div>
@@ -50,6 +54,8 @@ import { ref, watch } from 'vue'
 import { Close } from '@element-plus/icons-vue'
 import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
 import { alarmAudioConfig } from '@/config/alarmAudio'
+import { normalizeRecord, severityTagType } from '@/utils/alarm'
+import ElapsedDuration from '@/components/ElapsedDuration.vue'
 import type { AlarmRecord } from '@/api/types'
 
 interface ToastItem extends AlarmRecord {
@@ -113,47 +119,6 @@ function toastStyle(index: number) {
     bottom: '64px',
     right: '16px',
     zIndex: 1000 + index,
-  }
-}
-
-function severityTagType(severity: string): string {
-  switch (severity) {
-    case 'Critical': return 'danger'
-    case 'Major': return 'warning'
-    case 'Minor': return 'info'
-    case 'Warning': return 'primary'
-    default: return 'info'
-  }
-}
-
-/**
- * Normalize a raw alarm record from WebSocket payload.
- * Mirrors the logic in AlarmTable.vue to keep displayed fields consistent.
- */
-function normalizeRecord(alarm: any): AlarmRecord {
-  const extractLocation = (path?: string) => {
-    if (!path) return ''
-    const parts = path.split('/')
-    return parts.length > 2 ? parts[2] : ''
-  }
-
-  const formatTime = (ts: number) => {
-    const d = new Date(ts)
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-  }
-
-  const source = alarm.name || alarm.source || ''
-
-  return {
-    id: source || `${Date.now()}-${Math.random()}`,
-    time: alarm.timestamp ? formatTime(alarm.timestamp) : (alarm.time || '-'),
-    severity: alarm.severity || 'Normal',
-    source: source,
-    message: alarm.message || '',
-    location: extractLocation(alarm.path) || alarm.location || '',
-    status: alarm.status || 'Unack',
-    ackBy: alarm.ackBy || '-',
   }
 }
 </script>

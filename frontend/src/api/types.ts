@@ -85,6 +85,7 @@ export interface AlarmRecord {
   location: string
   status: string
   ackBy: string
+  duration: string
 }
 
 export interface SeverityItem {

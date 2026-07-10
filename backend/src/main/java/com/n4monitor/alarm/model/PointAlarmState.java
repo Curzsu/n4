@@ -34,9 +34,12 @@ public class PointAlarmState extends PointData implements Serializable {
     /** Alarm status: Unack / Ack (default "Unack") */
     private String status;
 
-    /** Source (currently empty) */
+    /** Source derived from the last two segments of path */
     private String source;
 
-    /** Location (currently empty) */
+    /** Location derived from the third segment of path */
     private String location;
+
+    /** Alarm duration (default empty) */
+    private String duration;
 }

@@ -129,7 +129,8 @@ public class TdengineSyncService {
                 + "ack_by NCHAR(32), "
                 + "alarm_status NCHAR(32), "
                 + "alarm_source NCHAR(64), "
-                + "alarm_location NCHAR(128)"
+                + "alarm_location NCHAR(128), "
+                + "alarm_duration NCHAR(32)"
                 + ") TAGS ("
                 + "name NCHAR(128), "
                 + "display_name NCHAR(128), "
@@ -164,7 +165,8 @@ public class TdengineSyncService {
                 + "ack_by NCHAR(32), "
                 + "alarm_status NCHAR(32), "
                 + "alarm_source NCHAR(64), "
-                + "alarm_location NCHAR(128)"
+                + "alarm_location NCHAR(128), "
+                + "alarm_duration NCHAR(32)"
                 + ") TAGS ("
                 + "name NCHAR(128), "
                 + "display_name NCHAR(128), "
@@ -271,7 +273,7 @@ public class TdengineSyncService {
         String subtable = sanitizeTableName(path);
 
         String sql = "INSERT INTO " + subtable + " USING " + supertable
-                + " TAGS (?, ?, ?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                + " TAGS (?, ?, ?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, state.getName());
@@ -295,6 +297,7 @@ public class TdengineSyncService {
             pstmt.setString(18, state.getStatus());
             pstmt.setString(19, state.getSource());
             pstmt.setString(20, state.getLocation());
+            pstmt.setString(21, state.getDuration());
 
             pstmt.executeUpdate();
         }
@@ -309,7 +312,7 @@ public class TdengineSyncService {
         String subtable = sanitizeTableName(path) + "_rt";
 
         String sql = "INSERT INTO " + subtable + " USING " + supertable
-                + " TAGS (?, ?, ?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                + " TAGS (?, ?, ?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, state.getName());
@@ -334,6 +337,7 @@ public class TdengineSyncService {
             pstmt.setString(19, state.getStatus());
             pstmt.setString(20, state.getSource());
             pstmt.setString(21, state.getLocation());
+            pstmt.setString(22, state.getDuration());
 
             pstmt.executeUpdate();
         }
