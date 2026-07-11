@@ -30,6 +30,7 @@
       :header-cell-style="headerCellStyle"
       :cell-style="cellStyle"
       size="small"
+      border
       v-loading="loading"
     >
       <el-table-column width="48" align="center">
@@ -40,7 +41,7 @@
           />
         </template>
       </el-table-column>
-      <el-table-column prop="time" label="Time" width="180" />
+      <el-table-column prop="time" label="Time" width="180" show-overflow-tooltip />
       <el-table-column prop="severity" label="Severity" width="100">
         <template #default="{ row }">
           <el-tag :type="severityTagType(row.severity)" size="small" effect="dark">
@@ -48,9 +49,9 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="source" label="Source" width="120" />
-      <el-table-column prop="message" label="Message" min-width="200" />
-      <el-table-column prop="location" label="Location" width="150" />
+      <el-table-column prop="source" label="Source" width="120" show-overflow-tooltip />
+      <el-table-column prop="message" label="Message" min-width="200" show-overflow-tooltip />
+      <el-table-column prop="location" label="Location" width="150" show-overflow-tooltip />
       <el-table-column prop="status" label="Status" width="100">
         <template #default="{ row }">
           <span :class="['status-text', row.status.toLowerCase()]">{{ row.status }}</span>
@@ -61,7 +62,7 @@
           <ElapsedDuration :time="row.time" :duration="row.duration" />
         </template>
       </el-table-column>
-      <el-table-column prop="ackBy" label="Ack. By" width="100" />
+      <el-table-column prop="ackBy" label="Ack. By" width="100" show-overflow-tooltip />
     </el-table>
   </div>
 </template>
@@ -311,5 +312,11 @@ onBeforeUnmount(() => {
 
 :deep(.el-loading-mask) {
   background-color: rgba(10, 14, 23, 0.7);
+}
+
+:deep(.el-table .cell) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>
