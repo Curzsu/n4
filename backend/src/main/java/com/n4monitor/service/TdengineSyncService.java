@@ -130,6 +130,7 @@ public class TdengineSyncService {
                 + "alarm_status NCHAR(32), "
                 + "alarm_source NCHAR(64), "
                 + "alarm_location NCHAR(128), "
+                + "alarm_stage NCHAR(16), "
                 + "alarm_duration NCHAR(32)"
                 + ") TAGS ("
                 + "name NCHAR(128), "
@@ -166,6 +167,7 @@ public class TdengineSyncService {
                 + "alarm_status NCHAR(32), "
                 + "alarm_source NCHAR(64), "
                 + "alarm_location NCHAR(128), "
+                + "alarm_stage NCHAR(16), "
                 + "alarm_duration NCHAR(32)"
                 + ") TAGS ("
                 + "name NCHAR(128), "
@@ -273,7 +275,7 @@ public class TdengineSyncService {
         String subtable = sanitizeTableName(path);
 
         String sql = "INSERT INTO " + subtable + " USING " + supertable
-                + " TAGS (?, ?, ?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                + " TAGS (?, ?, ?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, state.getName());
@@ -281,7 +283,8 @@ public class TdengineSyncService {
             pstmt.setString(3, path);
 
             pstmt.setTimestamp(4, new Timestamp(System.currentTimeMillis()));
-            pstmt.setTimestamp(5, new Timestamp(state.getTimestamp()));
+            Long dataTimestamp = state.getTimestamp();
+            pstmt.setTimestamp(5, dataTimestamp != null ? new Timestamp(dataTimestamp) : new Timestamp(System.currentTimeMillis()));
             pstmt.setString(6, state.getValue());
             pstmt.setString(7, state.getType());
             pstmt.setString(8, state.getUnit());
@@ -297,7 +300,8 @@ public class TdengineSyncService {
             pstmt.setString(18, state.getStatus());
             pstmt.setString(19, state.getSource());
             pstmt.setString(20, state.getLocation());
-            pstmt.setString(21, state.getDuration());
+            pstmt.setString(21, state.getStage());
+            pstmt.setString(22, state.getDuration());
 
             pstmt.executeUpdate();
         }
@@ -312,7 +316,7 @@ public class TdengineSyncService {
         String subtable = sanitizeTableName(path) + "_rt";
 
         String sql = "INSERT INTO " + subtable + " USING " + supertable
-                + " TAGS (?, ?, ?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                + " TAGS (?, ?, ?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, state.getName());
@@ -320,7 +324,8 @@ public class TdengineSyncService {
             pstmt.setString(3, path);
 
             pstmt.setTimestamp(4, new Timestamp(System.currentTimeMillis()));
-            pstmt.setTimestamp(5, new Timestamp(state.getTimestamp()));
+            Long dataTimestamp = state.getTimestamp();
+            pstmt.setTimestamp(5, dataTimestamp != null ? new Timestamp(dataTimestamp) : new Timestamp(System.currentTimeMillis()));
             pstmt.setString(6, state.getValue());
             pstmt.setString(7, state.getType());
             pstmt.setString(8, state.getUnit());
@@ -337,7 +342,8 @@ public class TdengineSyncService {
             pstmt.setString(19, state.getStatus());
             pstmt.setString(20, state.getSource());
             pstmt.setString(21, state.getLocation());
-            pstmt.setString(22, state.getDuration());
+            pstmt.setString(22, state.getStage());
+            pstmt.setString(23, state.getDuration());
 
             pstmt.executeUpdate();
         }

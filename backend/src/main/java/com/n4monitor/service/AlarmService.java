@@ -60,7 +60,8 @@ public class AlarmService {
                     dto.setTime("-");
                 }
 
-                dto.setSeverity(getTextField(node, "severity", "Normal"));
+                dto.setLevel(getTextField(node, "level", ""));
+                dto.setSeverity(getTextField(node, "severity", ""));
                 dto.setSource(getTextField(node, "source", ""));
                 dto.setMessage(getTextField(node, "message", ""));
                 dto.setLocation(getTextField(node, "location", ""));
@@ -68,6 +69,7 @@ public class AlarmService {
                 dto.setStatus(getTextField(node, "status", "Unack"));
                 dto.setAckBy(getTextField(node, "ackBy", "-"));
                 dto.setDuration(getTextField(node, "duration", ""));
+                dto.setStage(getTextField(node, "stage", ""));
 
                 alarms.add(dto);
             } catch (Exception e) {
@@ -90,9 +92,12 @@ public class AlarmService {
 
     /**
      * Get active alarms filtered by tab.
+     * Non-alarm records (severity = Normal) are excluded.
      */
     public List<AlarmRecordDto> getActiveAlarms(String tab) {
-        List<AlarmRecordDto> allAlarms = readAllAlarms();
+        List<AlarmRecordDto> allAlarms = readAllAlarms().stream()
+                .filter(a -> a.getLevel() != null && !"".equals(a.getLevel()))
+                .collect(Collectors.toList());
 
         return switch (tab != null ? tab : "active") {
             case "unacknowledged" -> allAlarms.stream()

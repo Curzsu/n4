@@ -37,7 +37,7 @@
           </div>
           <div class="toast-row">
             <span class="toast-label">Duration:</span>
-            <ElapsedDuration :time="toast.time" />
+            <ElapsedDuration :time="toast.time" :duration="toast.duration" />
           </div>
           <div class="toast-row">
             <span class="toast-label">Ack. By:</span>

@@ -3,7 +3,7 @@
     <TopNavbar />
     <div class="layout-body">
       <!-- Conditional left sidebar -->
-      <AlarmSidebar v-if="isAlarmRoute" />
+      <AlarmSidebar v-if="isAlarmRoute" :default-collapsed="isAlarmRoute" />
       <LeftSidebar v-else />
 
       <div class="layout-content">
@@ -42,7 +42,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Fold, Expand } from '@element-plus/icons-vue'
 import TopNavbar from '@/components/TopNavbar.vue'
@@ -58,7 +58,14 @@ import AlarmQuickActions from '@/components/AlarmQuickActions.vue'
 
 const route = useRoute()
 const isAlarmRoute = computed(() => route.path === '/alarm')
-const isRightPanelCollapsed = ref(false)
+const isRightPanelCollapsed = ref(isAlarmRoute.value)
+
+// When entering the Alarms route, default both side panels to collapsed
+watch(isAlarmRoute, (alarm) => {
+  if (alarm) {
+    isRightPanelCollapsed.value = true
+  }
+})
 </script>
 
 <style scoped lang="scss">

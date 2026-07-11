@@ -1,4 +1,4 @@
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, unref } from 'vue'
 import { formatDuration, parseAlarmTime } from '@/utils/time'
 
 // Shared reactive timestamp updated every second
@@ -21,13 +21,21 @@ function stopTimer() {
   }
 }
 
+type TimeInput = string | (() => string)
+
+function resolveTime(input: TimeInput): string {
+  return typeof input === 'function' ? input() : unref(input)
+}
+
 /**
- * Returns a live-formatted duration string representing the elapsed time
- * since the given alarm time. Updates automatically every second.
+ * Returns the elapsed seconds since the given alarm time. Updates automatically every second.
+ *
+ * The input can be a string or a getter function. Use a getter when the time value
+ * may change during the component lifecycle (e.g., table rows that are reused).
  *
  * Multiple consumers share a single timer to avoid performance issues.
  */
-export function useElapsedDuration(alarmTime: string) {
+export function useElapsedSeconds(alarmTime: TimeInput) {
   onMounted(() => {
     listenerCount++
     startTimer()
@@ -39,9 +47,19 @@ export function useElapsedDuration(alarmTime: string) {
   })
 
   return computed(() => {
-    const start = parseAlarmTime(alarmTime)
-    if (!start) return '-'
-    const elapsedSeconds = (now.value - start.getTime()) / 1000
-    return formatDuration(elapsedSeconds)
+    const start = parseAlarmTime(resolveTime(alarmTime))
+    if (!start) return 0
+    return Math.max(0, (now.value - start.getTime()) / 1000)
   })
+}
+
+/**
+ * Returns a live-formatted duration string representing the elapsed time
+ * since the given alarm time. Updates automatically every second.
+ *
+ * Multiple consumers share a single timer to avoid performance issues.
+ */
+export function useElapsedDuration(alarmTime: TimeInput) {
+  const elapsedSeconds = useElapsedSeconds(alarmTime)
+  return computed(() => formatDuration(elapsedSeconds.value))
 }

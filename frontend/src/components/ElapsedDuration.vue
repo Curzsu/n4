@@ -3,13 +3,25 @@
 </template>
 
 <script setup lang="ts">
-import { useElapsedDuration } from '@/composables/useElapsedDuration'
+import { computed } from 'vue'
+import { useElapsedSeconds } from '@/composables/useElapsedDuration'
+import { formatDuration } from '@/utils/time'
 
 const props = defineProps<{
   time: string
+  duration?: string
 }>()
 
-const display = useElapsedDuration(props.time)
+const elapsedSeconds = useElapsedSeconds(() => props.time)
+
+const display = computed(() => {
+  let totalSeconds = elapsedSeconds.value
+  const baseSeconds = Number(props.duration)
+  if (!Number.isNaN(baseSeconds)) {
+    totalSeconds += baseSeconds
+  }
+  return formatDuration(totalSeconds)
+})
 </script>
 
 <style scoped lang="scss">

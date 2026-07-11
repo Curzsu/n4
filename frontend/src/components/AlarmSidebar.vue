@@ -43,7 +43,11 @@
 import { ref } from 'vue'
 import { Location, Fold, Expand } from '@element-plus/icons-vue'
 
-const isCollapsed = ref(false)
+const props = defineProps<{
+  defaultCollapsed?: boolean
+}>()
+
+const isCollapsed = ref(props.defaultCollapsed ?? false)
 
 interface NavChild {
   label: string

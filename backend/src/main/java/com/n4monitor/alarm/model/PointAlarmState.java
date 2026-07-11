@@ -40,6 +40,9 @@ public class PointAlarmState extends PointData implements Serializable {
     /** Location derived from the third segment of path */
     private String location;
 
-    /** Alarm duration (default empty) */
+    /** Alarm duration in seconds (default "0") */
     private String duration;
+
+    /** Alarm phase: start / continue / end (empty for non-alarm) */
+    private String stage;
 }

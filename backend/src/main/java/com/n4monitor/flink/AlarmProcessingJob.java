@@ -186,15 +186,47 @@ public class AlarmProcessingJob {
             if (pointRules == null || pointRules.isEmpty()) return "[SKIP] Rules not found: " + path;
 
             AlarmRule triggered = evaluate(point.getValue(), pointRules);
+            boolean isAlarm = triggered != null;
             String ts = formatTimestamp(point.getTimestamp());
 
-            // 3. Build latest state and write to Redis
-            PointAlarmState state = buildState(point, triggered);
-            writeLatestState(state);
+            // 3. Build current state and resolve stage / duration against history
+            PointAlarmState current = buildState(point, triggered);
+            PointAlarmState history = readHistory(path);
+            long intervalSeconds = computeIntervalSeconds(history, current);
 
-            // 4. If alarm triggered, publish to notification and realtime channels
-            if (triggered != null) {
-                publishAlarm(state);
+            if (history == null || isBlank(history.getLevel())) {
+                // No history or history is non-alarm data
+                if (isAlarm) {
+                    current.setStage("start");
+                    current.setDuration("0");
+                } else {
+                    current.setStage("");
+                    current.setDuration("0");
+                }
+            } else {
+                // History is alarm data
+                if (isAlarm) {
+                    if (history.getLevel().equals(current.getLevel())) {
+                        current.setStage("continue");
+                        current.setDuration(String.valueOf(intervalSeconds));
+                    } else {
+                        current.setStage("start");
+                        current.setDuration("0");
+                        publishHistoryEnd(history, intervalSeconds);
+                    }
+                } else {
+                    current.setStage("");
+                    current.setDuration("0");
+                    publishHistoryEnd(history, intervalSeconds);
+                }
+            }
+
+            // 4. Update Redis latest state
+            writeLatestState(current);
+
+            // 5. If alarm triggered, publish to notification and realtime channels
+            if (isAlarm) {
+                publishAlarm(current);
 
                 String color = switch (triggered.getSeverity()) {
                     case "Critical" -> "\033[91m";
@@ -203,8 +235,8 @@ public class AlarmProcessingJob {
                     case "Warning"  -> "\033[94m";
                     default         -> "";
                 };
-                return String.format("%s[%s] [%8s] %-40s | value=%s | level=%s | %s\033[0m",
-                        color, ts, triggered.getSeverity(), point.getName(),
+                return String.format("%s[%s] [%8s] [%-8s] %-40s | value=%s | level=%s | %s\033[0m",
+                        color, ts, triggered.getSeverity(), current.getStage(), point.getName(),
                         point.getValue(), triggered.getLevel(), triggered.getMessage());
             } else {
                 return String.format("\033[92m[%s] [%8s] %-40s | value=%s | normal\033[0m",
@@ -246,7 +278,8 @@ public class AlarmProcessingJob {
             state.setStatus("Unack");
             state.setSource(extractSource(point.getPath()));
             state.setLocation(extractLocation(point.getPath()));
-            state.setDuration("");
+            state.setDuration("0");
+            state.setStage("");
 
             return state;
         }
@@ -299,6 +332,55 @@ public class AlarmProcessingJob {
             } catch (Exception e) {
                 System.err.println("[FLINK] Failed to publish alarm: " + state.getPath() + " - " + e.getMessage());
             }
+        }
+
+        // ── History helpers ─────────────────────────────────────────────────────────
+
+        private PointAlarmState readHistory(String path) {
+            try {
+                String json = jedis.hget(latestRedisKey, path);
+                if (json == null || json.isBlank()) {
+                    return null;
+                }
+                return objectMapper.readValue(json, PointAlarmState.class);
+            } catch (Exception e) {
+                System.err.println("[FLINK] Failed to read history for path: " + path + " - " + e.getMessage());
+                return null;
+            }
+        }
+
+        private long computeIntervalSeconds(PointAlarmState history, PointAlarmState current) {
+            if (history == null || history.getTimestamp() == null || current.getTimestamp() == null) {
+                return 0;
+            }
+            long diff = current.getTimestamp() - history.getTimestamp();
+            long baseSeconds = Math.max(0, diff / 1000);
+
+            long historyDuration = 0;
+            try {
+                String d = history.getDuration();
+                if (d != null && !d.isBlank()) {
+                    historyDuration = Long.parseLong(d);
+                }
+            } catch (NumberFormatException ignored) {
+            }
+
+            return baseSeconds + historyDuration;
+        }
+
+        private void publishHistoryEnd(PointAlarmState history, long seconds) {
+            try {
+                history.setStage("end");
+                history.setDuration(String.valueOf(seconds));
+                String json = objectMapper.writeValueAsString(history);
+                jedis.publish(realtimeChannel, json);
+            } catch (Exception e) {
+                System.err.println("[FLINK] Failed to publish history end: " + history.getPath() + " - " + e.getMessage());
+            }
+        }
+
+        private boolean isBlank(String value) {
+            return value == null || value.isBlank();
         }
 
         // ── Threshold evaluation ────────────────────────────────────────────────────

@@ -58,7 +58,7 @@
       </el-table-column>
       <el-table-column prop="duration" label="Duration" width="100">
         <template #default="{ row }">
-          <ElapsedDuration :time="row.time" />
+          <ElapsedDuration :time="row.time" :duration="row.duration" />
         </template>
       </el-table-column>
       <el-table-column prop="ackBy" label="Ack. By" width="100" />

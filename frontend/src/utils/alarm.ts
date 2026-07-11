@@ -28,7 +28,8 @@ export function normalizeRecord(alarm: any): AlarmRecord {
     location: alarm.location || '',
     status: alarm.status || 'Unack',
     ackBy: alarm.ackBy || '-',
-    duration: alarm.duration || '',
+    duration: alarm.duration || '0',
+    stage: alarm.stage || '',
   }
 }
 
