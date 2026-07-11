@@ -8,6 +8,12 @@ const router = createRouter({
       name: 'dashboard',
       component: () => import('@/views/DashboardView.vue'),
     },
+    {
+      path: '/devices/:deviceId/monitor',
+      name: 'fuxa-monitor',
+      component: () => import('@/views/FuxaMonitorView.vue'),
+      meta: { fullWidth: true },
+    },
   ],
 })
 
