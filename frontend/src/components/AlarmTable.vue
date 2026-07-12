@@ -46,6 +46,7 @@
         <template #default="{ row }">
           <el-checkbox
             :model-value="selectedIds.has(row.id)"
+            :disabled="row.status === 'Ack'"
             @change="(val: boolean) => toggleSelection(row.id, val)"
           />
         </template>
@@ -131,8 +132,9 @@ function updateVisibleRows() {
     const visibleHeight = Math.max(0, overlapBottom - overlapTop)
     const visibleRatio = rect.height > 0 ? visibleHeight / rect.height : 0
     const isMostlyVisible = visibleRatio >= 0.6
-    if (isMostlyVisible && filteredData.value[index]) {
-      ids.add(filteredData.value[index].id)
+    const data = filteredData.value[index]
+    if (isMostlyVisible && data && data.status !== 'Ack') {
+      ids.add(data.id)
     }
   })
 
