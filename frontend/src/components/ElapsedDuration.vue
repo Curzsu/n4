@@ -10,11 +10,18 @@ import { formatDuration } from '@/utils/time'
 const props = defineProps<{
   time: string
   duration?: string
+  stage?: string
 }>()
 
 const elapsedSeconds = useElapsedSeconds(() => props.time)
 
 const display = computed(() => {
+  // stage === 'end' means the alarm has recovered: freeze the duration at the
+  // final value passed in, stop the live elapsed-time accumulation.
+  if (props.stage === 'end') {
+    const baseSeconds = Number(props.duration)
+    return formatDuration(Number.isNaN(baseSeconds) ? 0 : baseSeconds)
+  }
   let totalSeconds = elapsedSeconds.value
   const baseSeconds = Number(props.duration)
   if (!Number.isNaN(baseSeconds)) {

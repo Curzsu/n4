@@ -43,6 +43,9 @@ public class FlinkJobRunner implements CommandLineRunner {
     @Value("${alarm.redis.latest-key:alarm:latest}")
     private String latestRedisKey;
 
+    @Value("${alarm.redis.active-key:alarm:active}")
+    private String activeRedisKey;
+
     @Value("${alarm.redis.notification-channel:alarm:notifications}")
     private String notificationChannel;
 
@@ -63,11 +66,12 @@ public class FlinkJobRunner implements CommandLineRunner {
                 log.info("  Redis: {}:{}", redisHost, redisPort);
                 log.info("  Rules key: {}", rulesRedisKey);
                 log.info("  Latest key: {}", latestRedisKey);
+                log.info("  Active key: {}", activeRedisKey);
                 log.info("  Notification channel: {}", notificationChannel);
                 log.info("  Realtime channel: {}", realtimeChannel);
 
                 AlarmProcessingJob.run(kafkaBroker, kafkaTopic, groupId,
-                        redisHost, redisPort, rulesRedisKey, latestRedisKey,
+                        redisHost, redisPort, rulesRedisKey, latestRedisKey, activeRedisKey,
                         notificationChannel, realtimeChannel);
             } catch (InterruptedException e) {
                 log.info("Flink job thread interrupted, stopping...");

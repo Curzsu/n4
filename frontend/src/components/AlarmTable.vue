@@ -69,7 +69,7 @@
       </el-table-column>
       <el-table-column prop="duration" label="Duration" width="100">
         <template #default="{ row }">
-          <ElapsedDuration :time="row.time" :duration="row.duration" />
+          <ElapsedDuration :time="row.time" :duration="row.duration" :stage="row.stage" />
         </template>
       </el-table-column>
       <el-table-column prop="ackBy" label="Ack. By" width="100" show-overflow-tooltip />
@@ -266,7 +266,31 @@ onUpdate((data: any) => {
 
   const newRecord = normalizeRecord(data.alarm)
 
-  // Remove existing record if present (to re-insert at top)
+  // Cleared signal: an acknowledged alarm has recovered (stage=end + Ack).
+  // Remove it from the list entirely.
+  const isCleared = newRecord.stage === 'end' && newRecord.status === 'Ack'
+  if (isCleared) {
+    const idx = tableData.value.findIndex(r => r.source === newRecord.source)
+    if (idx >= 0) {
+      selectedIds.value.delete(tableData.value[idx].id)
+      tableData.value.splice(idx, 1)
+    }
+    return
+  }
+
+  // Frozen recovery (unack): alarm recovered but not yet acknowledged. Update the
+  // existing row in place (freeze duration via stage=end) without re-inserting at top.
+  if (newRecord.stage === 'end' && newRecord.status === 'Unack') {
+    const idx = tableData.value.findIndex(r => r.source === newRecord.source)
+    if (idx >= 0) {
+      tableData.value[idx] = newRecord
+    } else {
+      tableData.value.unshift(newRecord)
+    }
+    return
+  }
+
+  // Normal alarm update: remove existing record (to re-insert at top)
   const existingIndex = tableData.value.findIndex(r => r.source === newRecord.source)
   if (existingIndex >= 0) {
     const replaced = tableData.value[existingIndex]

@@ -47,6 +47,9 @@ public class AlarmProcessingJob {
     /** Default Redis key for latest point state */
     private static final String DEFAULT_LATEST_KEY = "alarm:latest";
 
+    /** Default Redis key for active alarm records (with ack state) */
+    private static final String DEFAULT_ACTIVE_KEY = "alarm:active";
+
     /** Default Redis channel for WebSocket alarm notifications */
     private static final String DEFAULT_NOTIFICATIONS_CHANNEL = "alarm:notifications";
 
@@ -59,7 +62,7 @@ public class AlarmProcessingJob {
     public static void main(String[] args) throws Exception {
         run("47.121.30.136:9092", "obix-mqtt-points",
             "n4-flink-alarm-processor", "localhost", 6379,
-            DEFAULT_RULES_KEY, DEFAULT_LATEST_KEY,
+            DEFAULT_RULES_KEY, DEFAULT_LATEST_KEY, DEFAULT_ACTIVE_KEY,
             DEFAULT_NOTIFICATIONS_CHANNEL, DEFAULT_REALTIME_CHANNEL);
     }
 
@@ -72,13 +75,14 @@ public class AlarmProcessingJob {
      * @param redisHost            Redis address
      * @param redisPort            Redis port
      * @param rulesRedisKey        Redis hash key for alarm rules
-     * @param latestRedisKey       Redis hash key for latest point state
+     * @param latestRedisKey       Redis hash key for latest point state (real-time values)
+     * @param activeRedisKey       Redis hash key for active alarm records (with ack state)
      * @param notificationChannel  Redis pub/sub channel for WebSocket notifications
      * @param realtimeChannel      Redis pub/sub channel for realtime TDengine persistence
      */
     public static void run(String kafkaBroker, String kafkaTopic,
                            String groupId, String redisHost, int redisPort,
-                           String rulesRedisKey, String latestRedisKey,
+                           String rulesRedisKey, String latestRedisKey, String activeRedisKey,
                            String notificationChannel, String realtimeChannel) throws Exception {
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -100,7 +104,7 @@ public class AlarmProcessingJob {
 
         DataStream<String> alarmStream = kafkaStream.map(
                 new AlarmProcessFunction(redisHost, redisPort, rulesRedisKey,
-                        latestRedisKey, notificationChannel, realtimeChannel));
+                        latestRedisKey, activeRedisKey, notificationChannel, realtimeChannel));
 
         alarmStream.print();
 
@@ -117,6 +121,7 @@ public class AlarmProcessingJob {
         private final int redisPort;
         private final String rulesRedisKey;
         private final String latestRedisKey;
+        private final String activeRedisKey;
         private final String notificationChannel;
         private final String realtimeChannel;
 
@@ -131,12 +136,13 @@ public class AlarmProcessingJob {
                 List.of("High-High", "High", "Low-Low", "Low");
 
         public AlarmProcessFunction(String redisHost, int redisPort,
-                                    String rulesRedisKey, String latestRedisKey,
+                                    String rulesRedisKey, String latestRedisKey, String activeRedisKey,
                                     String notificationChannel, String realtimeChannel) {
             this.redisHost = redisHost;
             this.redisPort = redisPort;
             this.rulesRedisKey = rulesRedisKey;
             this.latestRedisKey = latestRedisKey;
+            this.activeRedisKey = activeRedisKey;
             this.notificationChannel = notificationChannel;
             this.realtimeChannel = realtimeChannel;
         }
@@ -164,6 +170,7 @@ public class AlarmProcessingJob {
             System.out.println("[FLINK] Alarm processor started, loaded " + rulesCache.size() + " point rules");
             System.out.println("[FLINK] Rules Redis key: " + rulesRedisKey);
             System.out.println("[FLINK] Latest state Redis key: " + latestRedisKey);
+            System.out.println("[FLINK] Active alarm Redis key: " + activeRedisKey);
         }
 
         @Override
@@ -189,45 +196,88 @@ public class AlarmProcessingJob {
             boolean isAlarm = triggered != null;
             String ts = formatTimestamp(point.getTimestamp());
 
-            // 3. Build current state and resolve stage / duration against history
+            // 3. Build current state and resolve stage / duration against active history
+            //    alarm:latest  -> real-time point value (always overwritten, for TDengine sync)
+            //    alarm:active  -> alarm record + ack state (only changes on alarm/recovery/ack)
             PointAlarmState current = buildState(point, triggered);
-            PointAlarmState history = readHistory(path);
+            PointAlarmState history = readActive(path);   // alarm record (may be null/normal/frozen)
             long intervalSeconds = computeIntervalSeconds(history, current);
 
+            // 4. Always write the real-time value to alarm:latest (preserves original semantics)
+            writeLatestState(current);
+
+            // 5. Resolve alarm lifecycle and update alarm:active accordingly
             if (history == null || isBlank(history.getLevel())) {
-                // No history or history is non-alarm data
+                // No active alarm record (or last record was non-alarm)
                 if (isAlarm) {
+                    // Fresh alarm start
                     current.setStage("start");
                     current.setDuration("0");
-                } else {
-                    current.setStage("");
-                    current.setDuration("0");
+                    current.setAckBy("-");
+                    current.setStatus("Unack");
+                    writeActiveState(current);
+                    publishAlarm(current);
                 }
+                // else: still normal, nothing to do in alarm:active
+            } else if ("end".equals(history.getStage())) {
+                // History is a frozen (recovered) alarm record
+                if (isAlarm) {
+                    // Re-alarmed after recovery: new start, drop the frozen record
+                    current.setStage("start");
+                    current.setDuration("0");
+                    current.setAckBy("-");
+                    current.setStatus("Unack");
+                    writeActiveState(current);
+                    publishAlarm(current);
+                }
+                // else: still normal after recovery -> idempotent skip (keep frozen record as-is)
             } else {
-                // History is alarm data
+                // History is an ongoing alarm (stage start/continue)
                 if (isAlarm) {
                     if (history.getLevel().equals(current.getLevel())) {
+                        // Same level continues: preserve ack state so it survives across ticks
                         current.setStage("continue");
                         current.setDuration(String.valueOf(intervalSeconds));
+                        current.setStatus(history.getStatus());
+                        current.setAckBy(history.getAckBy());
                     } else {
+                        // Level escalated (e.g. High -> High-High): close old phase, start new
                         current.setStage("start");
                         current.setDuration("0");
-                        publishHistoryEnd(history, intervalSeconds);
+                        current.setAckBy("-");
+                        current.setStatus("Unack");
+                        history.setStage("end");
+                        history.setDuration(String.valueOf(intervalSeconds));
+                        publishRealTimeChannel(history);
                     }
+                    writeActiveState(current);
+                    publishAlarm(current);
                 } else {
-                    current.setStage("");
-                    current.setDuration("0");
-                    publishHistoryEnd(history, intervalSeconds);
+                    // Alarm recovered
+                    if ("Ack".equals(history.getStatus())) {
+                        // Already acknowledged + recovered -> remove from active, signal frontend.
+                        // Persist the end record to TDengine first (publishRealTimeChannel sets stage/duration
+                        // and serializes), then broadcast a cleared signal to the frontend.
+                        removeActive(path);
+                        history.setStage("end");
+                        history.setDuration(String.valueOf(intervalSeconds));
+                        publishRealTimeChannel(history);
+                        publishNotificationChannel(history);
+                    } else {
+                        // Not yet acknowledged -> freeze the alarm record with final duration
+                        history.setStage("end");
+                        history.setDuration(String.valueOf(intervalSeconds));
+                        // history.setTimestamp(current.getTimestamp());
+                        // history.setValue(current.getValue());
+                        writeActiveState(history);
+                        // publishHistoryEnd(history, intervalSeconds);
+                        publishAlarm(history);   // broadcast frozen record (frontend freezes duration)
+                    }
                 }
             }
 
-            // 4. Update Redis latest state
-            writeLatestState(current);
-
-            // 5. If alarm triggered, publish to notification and realtime channels
+            // 6. Console output
             if (isAlarm) {
-                publishAlarm(current);
-
                 String color = switch (triggered.getSeverity()) {
                     case "Critical" -> "\033[91m";
                     case "Major"    -> "\033[93m";
@@ -274,8 +324,7 @@ public class AlarmProcessingJob {
             }
             // If not triggered, level/severity/message/hysteresis remain null
 
-            state.setAckBy("-");
-            state.setStatus("Unack");
+            // status/ackBy are set per-case in map() (preserved on continue, reset on start)
             state.setSource(extractSource(point.getPath()));
             state.setLocation(extractLocation(point.getPath()));
             state.setDuration("0");
@@ -334,18 +383,51 @@ public class AlarmProcessingJob {
             }
         }
 
-        // ── History helpers ─────────────────────────────────────────────────────────
+        // ── Active alarm record helpers (alarm:active) ──────────────────────────────
 
-        private PointAlarmState readHistory(String path) {
+        private PointAlarmState readActive(String path) {
             try {
-                String json = jedis.hget(latestRedisKey, path);
+                String json = jedis.hget(activeRedisKey, path);
                 if (json == null || json.isBlank()) {
                     return null;
                 }
                 return objectMapper.readValue(json, PointAlarmState.class);
             } catch (Exception e) {
-                System.err.println("[FLINK] Failed to read history for path: " + path + " - " + e.getMessage());
+                System.err.println("[FLINK] Failed to read active alarm for path: " + path + " - " + e.getMessage());
                 return null;
+            }
+        }
+
+        private void writeActiveState(PointAlarmState state) {
+            try {
+                String json = objectMapper.writeValueAsString(state);
+                jedis.hset(activeRedisKey, state.getPath(), json);
+            } catch (Exception e) {
+                System.err.println("[FLINK] Failed to write active alarm to Redis: " + state.getPath() + " - " + e.getMessage());
+            }
+        }
+
+        private void removeActive(String path) {
+            try {
+                jedis.hdel(activeRedisKey, path);
+            } catch (Exception e) {
+                System.err.println("[FLINK] Failed to remove active alarm for path: " + path + " - " + e.getMessage());
+            }
+        }
+
+        /**
+         * Broadcast a "cleared" signal for an acknowledged alarm that has recovered.
+         * The record carries stage=end + status=Ack + blank level so the frontend
+         * can remove it from the alarm list. Only published to the notification
+         * channel (no TDengine realtime write needed — the end record was already
+         * persisted via publishHistoryEnd when recovery was detected).
+         */
+        private void publishNotificationChannel(PointAlarmState history) {
+            try {
+                String json = objectMapper.writeValueAsString(history);
+                jedis.publish(notificationChannel, json);
+            } catch (Exception e) {
+                System.err.println("[FLINK] Failed to publish cleared signal: " + history.getPath() + " - " + e.getMessage());
             }
         }
 
@@ -368,14 +450,12 @@ public class AlarmProcessingJob {
             return baseSeconds + historyDuration;
         }
 
-        private void publishHistoryEnd(PointAlarmState history, long seconds) {
+        private void publishRealTimeChannel(PointAlarmState history) {
             try {
-                history.setStage("end");
-                history.setDuration(String.valueOf(seconds));
                 String json = objectMapper.writeValueAsString(history);
                 jedis.publish(realtimeChannel, json);
             } catch (Exception e) {
-                System.err.println("[FLINK] Failed to publish history end: " + history.getPath() + " - " + e.getMessage());
+                System.err.println("[FLINK] Failed to publish real-time signal: " + history.getPath() + " - " + e.getMessage());
             }
         }
 

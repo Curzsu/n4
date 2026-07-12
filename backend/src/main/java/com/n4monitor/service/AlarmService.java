@@ -24,8 +24,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AlarmService {
 
-    @Value("${alarm.redis.latest-key:alarm:latest}")
-    private String latestRedisKey;
+    @Value("${alarm.redis.active-key:alarm:active}")
+    private String activeRedisKey;
+
+    @Value("${alarm.redis.notification-channel:alarm:notifications}")
+    private String notificationChannel;
 
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final DateTimeFormatter HOUR_FORMAT = DateTimeFormatter.ofPattern("HH:00");
@@ -37,7 +40,7 @@ public class AlarmService {
      * Read all alarm states from Redis and convert to AlarmRecordDto list.
      */
     private List<AlarmRecordDto> readAllAlarms() {
-        Map<Object, Object> rawData = redisTemplate.opsForHash().entries(latestRedisKey);
+        Map<Object, Object> rawData = redisTemplate.opsForHash().entries(activeRedisKey);
         if (rawData == null || rawData.isEmpty()) {
             return Collections.emptyList();
         }
@@ -122,13 +125,14 @@ public class AlarmService {
             return 0;
         }
 
-        Map<Object, Object> rawData = redisTemplate.opsForHash().entries(latestRedisKey);
+        Map<Object, Object> rawData = redisTemplate.opsForHash().entries(activeRedisKey);
         if (rawData == null || rawData.isEmpty()) {
             return 0;
         }
 
         Set<String> pathSet = new HashSet<>(paths);
         int updated = 0;
+        List<String> ackedJsons = new ArrayList<>();
 
         for (Map.Entry<Object, Object> entry : rawData.entrySet()) {
             String key = (String) entry.getKey();
@@ -146,11 +150,19 @@ public class AlarmService {
                         .put("status", "Ack")
                         .put("ackBy", ackBy);
 
-                redisTemplate.opsForHash().put(latestRedisKey, key, objectMapper.writeValueAsString(node));
+                String updatedJson = objectMapper.writeValueAsString(node);
+                redisTemplate.opsForHash().put(activeRedisKey, key, updatedJson);
+                ackedJsons.add(updatedJson);
                 updated++;
             } catch (Exception e) {
                 log.warn("Failed to acknowledge alarm for key: {}", key, e);
             }
+        }
+
+        // Broadcast each acked record so connected WebSocket clients update immediately.
+        // A recovered+acked alarm carries stage=end; the frontend will remove it.
+        for (String ackedJson : ackedJsons) {
+            redisTemplate.convertAndSend(notificationChannel, ackedJson);
         }
 
         return updated;
@@ -209,7 +221,7 @@ public class AlarmService {
         }
 
         // Read raw data to get timestamps
-        Map<Object, Object> rawData = redisTemplate.opsForHash().entries(latestRedisKey);
+        Map<Object, Object> rawData = redisTemplate.opsForHash().entries(activeRedisKey);
         if (rawData != null) {
             for (Object value : rawData.values()) {
                 try {
@@ -251,7 +263,7 @@ public class AlarmService {
      * Get alarm distribution by hour.
      */
     public AlarmHourChartDto getAlarmByHour() {
-        Map<Object, Object> rawData = redisTemplate.opsForHash().entries(latestRedisKey);
+        Map<Object, Object> rawData = redisTemplate.opsForHash().entries(activeRedisKey);
 
         // Count by hour
         Map<String, Integer> hourCount = new TreeMap<>();
@@ -292,7 +304,7 @@ public class AlarmService {
      * Get alarm distribution by system (using point name prefix).
      */
     public AlarmSystemChartDto getAlarmBySystem() {
-        Map<Object, Object> rawData = redisTemplate.opsForHash().entries(latestRedisKey);
+        Map<Object, Object> rawData = redisTemplate.opsForHash().entries(activeRedisKey);
         Map<String, Integer> systemCount = new HashMap<>();
 
         if (rawData != null) {
@@ -327,7 +339,7 @@ public class AlarmService {
      * Get top alarm sources.
      */
     public AlarmSourceChartDto getAlarmTopSources() {
-        Map<Object, Object> rawData = redisTemplate.opsForHash().entries(latestRedisKey);
+        Map<Object, Object> rawData = redisTemplate.opsForHash().entries(activeRedisKey);
         Map<String, Integer> sourceCount = new HashMap<>();
 
         if (rawData != null) {

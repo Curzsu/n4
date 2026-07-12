@@ -30,8 +30,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AlarmNotificationListener implements MessageListener {
 
-    @Value("${alarm.redis.latest-key:alarm:latest}")
-    private String latestRedisKey;
+    @Value("${alarm.redis.active-key:alarm:active}")
+    private String activeRedisKey;
 
     private static final DateTimeFormatter HOUR_FORMAT = DateTimeFormatter.ofPattern("HH:00");
 
@@ -47,25 +47,26 @@ public class AlarmNotificationListener implements MessageListener {
             String alarmJson = new String(message.getBody());
             log.debug("Alarm notification body: {}", alarmJson.substring(0, Math.min(100, alarmJson.length())));
 
-            // Read all current alarm states from Redis
-            Map<Object, Object> allAlarms = redisTemplate.opsForHash().entries(latestRedisKey);
-            if (allAlarms == null || allAlarms.isEmpty()) {
-                return;
-            }
-
             // Build aggregated data
             ObjectNode root = objectMapper.createObjectNode();
             root.put("type", "alarm_update");
 
-            // The individual alarm that triggered this update
+            // The individual alarm that triggered this update. This must be sent
+            // even when alarm:active is empty: a "cleared" signal (stage=end +
+            // status=Ack) is published AFTER the record was removed from Redis,
+            // so the active hash may be empty at this point.
             root.set("alarm", objectMapper.readTree(alarmJson));
 
-            // Compute summary and chart data
+            // Read all current alarm states from Redis (active alarm records)
+            Map<Object, Object> allAlarms = redisTemplate.opsForHash().entries(activeRedisKey);
+
             ObjectNode summary = objectMapper.createObjectNode();
             ObjectNode severityData = objectMapper.createObjectNode();
             ObjectNode hourlyData = objectMapper.createObjectNode();
 
-            computeAggregations(allAlarms, summary, severityData, hourlyData);
+            if (allAlarms != null && !allAlarms.isEmpty()) {
+                computeAggregations(allAlarms, summary, severityData, hourlyData);
+            }
 
             root.set("summary", summary);
             root.set("severityData", severityData);
