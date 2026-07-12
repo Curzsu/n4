@@ -8,54 +8,23 @@
         :class="toast.severity.toLowerCase()"
         :style="toastStyle(index)"
       >
-        <div class="toast-header">
-          <el-tag :type="severityTagType(toast.severity)" size="small" effect="dark">
-            {{ toast.severity }}
-          </el-tag>
-          <el-icon class="close-btn" @click="removeToast(toast.toastId)"><Close /></el-icon>
-        </div>
-        <div class="toast-body">
-          <div class="toast-row">
-            <span class="toast-label">Time:</span>
-            <span class="toast-value">{{ toast.time }}</span>
-          </div>
-          <div class="toast-row">
-            <span class="toast-label">Source:</span>
-            <span class="toast-value">{{ toast.source }}</span>
-          </div>
-          <div class="toast-row">
-            <span class="toast-label">Message:</span>
-            <span class="toast-value">{{ toast.message }}</span>
-          </div>
-          <div class="toast-row">
-            <span class="toast-label">Location:</span>
-            <span class="toast-value">{{ toast.location }}</span>
-          </div>
-          <div class="toast-row">
-            <span class="toast-label">Status:</span>
-            <span :class="['toast-value', 'status-' + toast.status.toLowerCase()]">{{ toast.status }}</span>
-          </div>
-          <div class="toast-row">
-            <span class="toast-label">Duration:</span>
-            <ElapsedDuration :time="toast.time" :duration="toast.duration" />
-          </div>
-          <div class="toast-row">
-            <span class="toast-label">Ack. By:</span>
-            <span class="toast-value">{{ toast.ackBy }}</span>
-          </div>
-        </div>
+        <span class="toast-time">{{ toast.time }}</span>
+        <el-tag class="severity-tag" :type="severityTagType(toast.severity)" size="small" effect="dark">
+          {{ toast.severity }}
+        </el-tag>
+        <span class="toast-source" :title="toast.source">{{ toast.source }}</span>
+        <el-icon class="close-btn" @click="removeToast(toast.toastId)"><Close /></el-icon>
       </div>
     </TransitionGroup>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { Close } from '@element-plus/icons-vue'
 import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
 import { alarmAudioConfig } from '@/config/alarmAudio'
 import { normalizeRecord, severityTagType } from '@/utils/alarm'
-import ElapsedDuration from '@/components/ElapsedDuration.vue'
 import type { AlarmRecord } from '@/api/types'
 
 interface ToastItem extends AlarmRecord {
@@ -65,7 +34,29 @@ interface ToastItem extends AlarmRecord {
 const toasts = ref<ToastItem[]>([])
 const { onUpdate } = useAlarmWebSocket()
 
-const MAX_TOASTS = 5
+// Layout constants for the single-line toast stack.
+// Each toast occupies TOAST_HEIGHT px of vertical space; the stack grows upward
+// from BOTTOM_OFFSET so the newest toast (last in the array) sits at the top.
+const TOAST_HEIGHT = 48
+const TOAST_GAP = 8
+const BOTTOM_OFFSET = 64
+const TOP_MARGIN = 16
+
+// Maximum number of toasts that fit on screen at the current viewport height.
+const maxToasts = ref(computeMaxToasts())
+
+function computeMaxToasts() {
+  const available = window.innerHeight - BOTTOM_OFFSET - TOP_MARGIN
+  return Math.max(1, Math.floor(available / (TOAST_HEIGHT + TOAST_GAP)))
+}
+
+function handleResize() {
+  maxToasts.value = computeMaxToasts()
+  // Shrink the stack if the viewport got smaller
+  while (toasts.value.length > maxToasts.value) {
+    toasts.value.shift()
+  }
+}
 
 // Shared Audio instance for alarm sound alerts
 const alarmAudio = new Audio(alarmAudioConfig.value.src)
@@ -92,8 +83,8 @@ onUpdate((data: any) => {
 
   toasts.value.push(toast)
 
-  // Keep only the newest toasts to avoid excessive stacking
-  if (toasts.value.length > MAX_TOASTS) {
+  // Keep the stack within the on-screen capacity: drop the oldest (bottom) toast.
+  if (toasts.value.length > maxToasts.value) {
     toasts.value.shift()
   }
 
@@ -114,16 +105,27 @@ function playAlarmSound() {
 }
 
 function toastStyle(index: number) {
-  // All toasts share the same fixed position; only z-index varies so the newest is on top
+  // index 0 is the oldest toast (bottom of the stack); the last index is the
+  // newest (top). Each toast is offset upward by its position in the array so
+  // newer toasts appear above older ones instead of overlapping them.
   return {
-    bottom: '64px',
+    bottom: `${BOTTOM_OFFSET + index * (TOAST_HEIGHT + TOAST_GAP)}px`,
     right: '16px',
-    zIndex: 1000 + index,
   }
 }
+
+onMounted(() => {
+  window.addEventListener('resize', handleResize)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize)
+})
 </script>
 
 <style scoped lang="scss">
+$toast-height: 48px;
+
 .alarm-toast-stack {
   position: fixed;
   bottom: 0;
@@ -134,12 +136,17 @@ function toastStyle(index: number) {
 
 .alarm-toast {
   position: fixed;
-  width: 320px;
+  width: 420px;
+  height: $toast-height;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   background-color: $bg-card;
   border: 1px solid $border-card;
   border-left: 4px solid $text-muted;
   border-radius: 8px;
-  padding: 12px;
+  padding: 0 12px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   pointer-events: auto;
 
@@ -149,16 +156,34 @@ function toastStyle(index: number) {
   &.warning { border-left-color: $accent-blue; }
 }
 
-.toast-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
+.toast-time {
+  font-size: 12px;
+  color: $text-muted;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.severity-tag {
+  width: 70px;
+  display: inline-flex;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.toast-source {
+  font-size: 12px;
+  color: $text-primary;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .close-btn {
   width: 22px;
   height: 22px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -171,35 +196,6 @@ function toastStyle(index: number) {
     color: $text-primary;
     background-color: $bg-card-hover;
   }
-}
-
-.toast-body {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.toast-row {
-  display: flex;
-  gap: 8px;
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-.toast-label {
-  color: $text-muted;
-  flex-shrink: 0;
-  width: 64px;
-}
-
-.toast-value {
-  color: $text-primary;
-  flex: 1;
-  word-break: break-word;
-
-  &.status-unack { color: $accent-red; }
-  &.status-ack { color: $accent-green; }
-  &.status-cleared { color: $text-muted; }
 }
 
 .toast-enter-active,

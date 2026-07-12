@@ -51,15 +51,15 @@
           />
         </template>
       </el-table-column>
-      <el-table-column prop="time" label="Time" width="180" show-overflow-tooltip />
-      <el-table-column prop="severity" label="Severity" width="100">
+      <el-table-column prop="time" label="Time" width="130" show-overflow-tooltip />
+      <el-table-column prop="severity" label="Severity" width="90">
         <template #default="{ row }">
-          <el-tag :type="severityTagType(row.severity)" size="small" effect="dark">
+          <el-tag class="severity-tag" :type="severityTagType(row.severity)" size="small" effect="dark">
             {{ row.severity }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="source" label="Source" width="120" show-overflow-tooltip />
+      <el-table-column prop="source" label="Source" min-width="200" show-overflow-tooltip />
       <el-table-column prop="message" label="Message" min-width="200" show-overflow-tooltip />
       <el-table-column prop="location" label="Location" width="150" show-overflow-tooltip />
       <el-table-column prop="status" label="Status" width="100">
@@ -213,6 +213,10 @@ async function ackSelected() {
       row.ackBy = 'admin'
     })
     selectedIds.value.clear()
+    // Acked rows are now excluded from selectable visible rows. Recompute the
+    // visible set so stale acked ids are dropped — otherwise toggleSelectAll
+    // would re-select acked (disabled) rows and re-enable the Ack button.
+    nextTick(updateVisibleRows)
   } catch (e) {
     console.error('Failed to acknowledge alarms:', e)
   }
@@ -265,6 +269,11 @@ onUpdate((data: any) => {
   // Remove existing record if present (to re-insert at top)
   const existingIndex = tableData.value.findIndex(r => r.source === newRecord.source)
   if (existingIndex >= 0) {
+    const replaced = tableData.value[existingIndex]
+    // Records share the same id (= source). When an alarm is replaced by a new
+    // occurrence (e.g. High escalates to High-High), drop the stale selection
+    // so the new record is not silently treated as the one the user picked.
+    selectedIds.value.delete(replaced.id)
     tableData.value.splice(existingIndex, 1)
   }
 
@@ -420,5 +429,11 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.severity-tag {
+  width: 70px;
+  display: inline-flex;
+  justify-content: center;
 }
 </style>
