@@ -17,13 +17,22 @@
           size="small"
           @click="toggleSelectAll"
         >
-          {{ isAllSelected ? 'Deselect All' : 'Select All' }}
+          {{ isAllSelected ? 'Deselect All (Current)' : 'Select All (Current)' }}
+        </el-button>
+        <el-button
+          type="success"
+          size="small"
+          :disabled="selectedIds.size === 0"
+          @click="ackSelected"
+        >
+          Ack
         </el-button>
       </div>
     </div>
 
     <!-- Table with fixed height for internal scrolling -->
     <el-table
+      ref="tableRef"
       :data="filteredData"
       :height="tableHeight"
       style="width: 100%"
@@ -68,7 +77,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { alarmApi } from '@/api/alarm'
 import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
 import { normalizeRecord, severityTagType } from '@/utils/alarm'
@@ -80,7 +89,9 @@ const tableData = ref<AlarmRecord[]>([])
 const activeTab = ref('active')
 const selectedIds = ref<Set<string>>(new Set())
 const tablePanelRef = ref<HTMLDivElement>()
+const tableRef = ref<any>()
 const tableHeight = ref(400)
+const visibleRowIds = ref<Set<string>>(new Set())
 
 // Connect to WebSocket
 const { latestAlarm, onUpdate } = useAlarmWebSocket()
@@ -94,6 +105,78 @@ function updateTableHeight() {
 
 let resizeObserver: ResizeObserver | null = null
 
+function getScrollBody(): HTMLElement | null {
+  if (!tableRef.value) return null
+  const wrapper = tableRef.value.$el?.querySelector('.el-table__body-wrapper')
+  if (!wrapper) return null
+  // Element Plus uses el-scrollbar internally; the actual scroll element is .el-scrollbar__wrap
+  return wrapper.querySelector('.el-scrollbar__wrap') ?? wrapper
+}
+
+function updateVisibleRows() {
+  const scrollBody = getScrollBody()
+  if (!scrollBody) {
+    visibleRowIds.value = new Set()
+    return
+  }
+
+  const bodyRect = scrollBody.getBoundingClientRect()
+  const rows = scrollBody.querySelectorAll('.el-table__row')
+  const ids = new Set<string>()
+
+  rows.forEach((row, index) => {
+    const rect = row.getBoundingClientRect()
+    const overlapTop = Math.max(rect.top, bodyRect.top)
+    const overlapBottom = Math.min(rect.bottom, bodyRect.bottom)
+    const visibleHeight = Math.max(0, overlapBottom - overlapTop)
+    const visibleRatio = rect.height > 0 ? visibleHeight / rect.height : 0
+    const isMostlyVisible = visibleRatio >= 0.6
+    if (isMostlyVisible && filteredData.value[index]) {
+      ids.add(filteredData.value[index].id)
+    }
+  })
+
+  visibleRowIds.value = ids
+}
+
+function handleWheel(e: WheelEvent) {
+  const scrollBody = getScrollBody()
+  if (!scrollBody) return
+
+  e.preventDefault()
+  const row = scrollBody.querySelector('.el-table__row') as HTMLElement | null
+  const rowHeight = row?.offsetHeight ?? 32
+  const direction = e.deltaY > 0 ? 1 : -1
+  scrollBody.scrollTop += direction * rowHeight * 3
+}
+
+const isAllSelected = computed(() => {
+  if (visibleRowIds.value.size === 0) return false
+  return Array.from(visibleRowIds.value).every(id => selectedIds.value.has(id))
+})
+
+function toggleSelection(id: string, selected: boolean) {
+  if (selected) {
+    selectedIds.value.add(id)
+  } else {
+    selectedIds.value.delete(id)
+  }
+}
+
+function toggleSelectAll() {
+  const ids = Array.from(visibleRowIds.value)
+  if (ids.length === 0) {
+    selectedIds.value.clear()
+    return
+  }
+
+  if (isAllSelected.value) {
+    ids.forEach(id => selectedIds.value.delete(id))
+  } else {
+    selectedIds.value.clear()
+    ids.forEach(id => selectedIds.value.add(id))
+  }
+}
 const tabs = computed(() => [
   { key: 'active', label: 'Active Alarms', count: String(tableData.value.length) },
   { key: 'unacknowledged', label: 'Unacknowledged', count: String(tableData.value.filter(a => a.status === 'Unack').length) },
@@ -114,25 +197,22 @@ const filteredData = computed(() => {
   }
 })
 
-const isAllSelected = computed(() => {
-  if (filteredData.value.length === 0) return false
-  return filteredData.value.every(row => selectedIds.value.has(row.id))
-})
+async function ackSelected() {
+  if (selectedIds.value.size === 0) return
 
-function toggleSelection(id: string, selected: boolean) {
-  if (selected) {
-    selectedIds.value.add(id)
-  } else {
-    selectedIds.value.delete(id)
-  }
-}
+  const selectedRows = tableData.value.filter(row => selectedIds.value.has(row.id))
+  const paths = selectedRows.map(row => row.path).filter((p): p is string => !!p)
+  if (paths.length === 0) return
 
-function toggleSelectAll() {
-  const ids = filteredData.value.map(row => row.id)
-  if (isAllSelected.value) {
-    ids.forEach(id => selectedIds.value.delete(id))
-  } else {
-    ids.forEach(id => selectedIds.value.add(id))
+  try {
+    await alarmApi.ackAlarms(paths, 'admin')
+    selectedRows.forEach(row => {
+      row.status = 'Ack'
+      row.ackBy = 'admin'
+    })
+    selectedIds.value.clear()
+  } catch (e) {
+    console.error('Failed to acknowledge alarms:', e)
   }
 }
 
@@ -151,11 +231,16 @@ const cellStyle = {
   borderBottom: '1px solid #1f2937',
 }
 
+watch(filteredData, () => {
+  nextTick(updateVisibleRows)
+}, { flush: 'post' })
+
 async function fetchData() {
   loading.value = true
   try {
     const raw = await alarmApi.getActiveAlarms('active')
     tableData.value = raw.map(normalizeRecord)
+    nextTick(updateVisibleRows)
   } catch (e) {
     console.error('Failed to fetch alarm data:', e)
   } finally {
@@ -166,6 +251,7 @@ async function fetchData() {
 function onTabChange(tab: string) {
   activeTab.value = tab
   selectedIds.value.clear()
+  nextTick(updateVisibleRows)
 }
 
 // Handle real-time WebSocket updates
@@ -195,11 +281,25 @@ onMounted(() => {
   if (tablePanelRef.value) {
     resizeObserver.observe(tablePanelRef.value)
   }
-  fetchData()
+  fetchData().then(() => {
+    nextTick(() => {
+      updateVisibleRows()
+      const scrollBody = getScrollBody()
+      if (scrollBody) {
+        scrollBody.addEventListener('scroll', updateVisibleRows)
+        scrollBody.addEventListener('wheel', handleWheel, { passive: false })
+      }
+    })
+  })
 })
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
+  const scrollBody = getScrollBody()
+  if (scrollBody) {
+    scrollBody.removeEventListener('scroll', updateVisibleRows)
+    scrollBody.removeEventListener('wheel', handleWheel)
+  }
 })
 </script>
 

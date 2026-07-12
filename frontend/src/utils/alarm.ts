@@ -30,6 +30,7 @@ export function normalizeRecord(alarm: any): AlarmRecord {
     ackBy: alarm.ackBy || '-',
     duration: alarm.duration || '0',
     stage: alarm.stage || '',
+    path: alarm.path || '',
   }
 }
 

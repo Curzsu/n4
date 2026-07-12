@@ -87,6 +87,7 @@ export interface AlarmRecord {
   ackBy: string
   duration: string
   stage?: string
+  path?: string
 }
 
 export interface SeverityItem {

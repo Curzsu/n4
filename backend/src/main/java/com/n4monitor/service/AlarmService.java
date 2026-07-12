@@ -111,6 +111,52 @@ public class AlarmService {
     }
 
     /**
+     * Acknowledge alarms by updating their status and ackBy in Redis.
+     *
+     * @param paths point paths to acknowledge
+     * @param ackBy user who acknowledges the alarms
+     * @return number of alarms updated
+     */
+    public int acknowledgeAlarms(List<String> paths, String ackBy) {
+        if (paths == null || paths.isEmpty()) {
+            return 0;
+        }
+
+        Map<Object, Object> rawData = redisTemplate.opsForHash().entries(latestRedisKey);
+        if (rawData == null || rawData.isEmpty()) {
+            return 0;
+        }
+
+        Set<String> pathSet = new HashSet<>(paths);
+        int updated = 0;
+
+        for (Map.Entry<Object, Object> entry : rawData.entrySet()) {
+            String key = (String) entry.getKey();
+            String json = (String) entry.getValue();
+            try {
+                var node = objectMapper.readTree(json);
+                String path = node.has("path") && !node.get("path").isNull()
+                        ? node.get("path").asText()
+                        : key;
+                if (!pathSet.contains(path)) {
+                    continue;
+                }
+
+                ((com.fasterxml.jackson.databind.node.ObjectNode) node)
+                        .put("status", "Ack")
+                        .put("ackBy", ackBy);
+
+                redisTemplate.opsForHash().put(latestRedisKey, key, objectMapper.writeValueAsString(node));
+                updated++;
+            } catch (Exception e) {
+                log.warn("Failed to acknowledge alarm for key: {}", key, e);
+            }
+        }
+
+        return updated;
+    }
+
+    /**
      * Get alarm summary counts by severity.
      */
     public AlarmSummaryDto getAlarmSummary() {

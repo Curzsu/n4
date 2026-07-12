@@ -3,6 +3,8 @@ package com.n4monitor.controller;
 import com.n4monitor.dto.*;
 import com.n4monitor.service.AlarmService;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -53,5 +55,11 @@ public class AlarmController {
     @GetMapping("/top-sources")
     public ApiResponse<AlarmSourceChartDto> getAlarmTopSources() {
         return ApiResponse.success(alarmService.getAlarmTopSources());
+    }
+
+    @PostMapping("/ack")
+    public ApiResponse<Integer> ackAlarms(@RequestBody AlarmAckRequestDto request) {
+        int updated = alarmService.acknowledgeAlarms(request.getPaths(), request.getAckBy());
+        return ApiResponse.success(updated);
     }
 }

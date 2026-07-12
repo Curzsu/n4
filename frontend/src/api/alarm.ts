@@ -31,4 +31,7 @@ export const alarmApi = {
   getAlarmTopSources(): Promise<AlarmSourceData> {
     return request.get('/api/alarms/top-sources')
   },
+  ackAlarms(paths: string[], ackBy: string): Promise<number> {
+    return request.post('/api/alarms/ack', { paths, ackBy })
+  },
 }
