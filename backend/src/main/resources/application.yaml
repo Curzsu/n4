@@ -50,10 +50,10 @@ alarm:
   # Redis keys and channels used by alarm processing
   redis:
     rules-key: alarm:rules
-    latest-key: alarm:latest          # 实时点位值（每条数据覆盖，供 TDengine 同步与图表）
-    active-key: alarm:active          # 报警记录 + ack 状态（报警时写、恢复时冻结/删除、Ack 时改 status）
-    notification-channel: alarm:notifications
-    realtime-channel: alarm:realtime
+    latest-key: alarm:latest                  # Real-time point values (each piece of data is overwritten, for TDengine synchronization and charts)
+    active-key: alarm:active                  # Alarm records + ack status (written when alarm is triggered, frozen/deleted when recovered, status updated when Acked)
+    notification-channel: alarm:notifications # Queue for sending alarm notifications
+    realtime-channel: alarm:realtime          # Queue for writing to TDengine database
 
 #logging:
 #  level:

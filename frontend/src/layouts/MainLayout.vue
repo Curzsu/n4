@@ -57,7 +57,7 @@ import AlarmSourcesChart from '@/components/charts/AlarmSourcesChart.vue'
 import AlarmQuickActions from '@/components/AlarmQuickActions.vue'
 
 const route = useRoute()
-const isAlarmRoute = computed(() => route.path === '/alarm')
+const isAlarmRoute = computed(() => route.path.startsWith('/alarm'))
 const isRightPanelCollapsed = ref(isAlarmRoute.value)
 
 // When entering the Alarms route, default both side panels to collapsed

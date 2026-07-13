@@ -13,6 +13,11 @@ const router = createRouter({
       name: 'alarm',
       component: () => import('@/views/AlarmView.vue'),
     },
+    {
+      path: '/alarm/config',
+      name: 'alarm-config',
+      component: () => import('@/views/AlarmConfigView.vue'),
+    },
   ],
 })
 

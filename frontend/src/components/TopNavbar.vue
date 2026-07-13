@@ -41,8 +41,7 @@ const router = useRouter()
 const alarmSummary = computed(() => store.alarmSummary)
 
 const navTabs = [
-  'Dashboard', 'Electrical', 'Cooling', 'Mechanical',
-  'Data Hall', 'Alarms', 'Trend', 'Report', 'System',
+  'Dashboard', 'Alarms', 'Trend', 'Report', 'System',
 ]
 
 const routeMap: Record<string, string> = {
@@ -59,7 +58,7 @@ function onTabClick(tab: string) {
 
 function isActive(tab: string): boolean {
   if (tab === 'Dashboard') return route.path === '/'
-  if (tab === 'Alarms') return route.path === '/alarm'
+  if (tab === 'Alarms') return route.path.startsWith('/alarm')
   return false
 }
 </script>

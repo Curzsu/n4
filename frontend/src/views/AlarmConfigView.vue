@@ -1,0 +1,640 @@
+<template>
+  <div class="alarm-config-view">
+    <!-- Header with title and Add button -->
+    <div class="config-header">
+      <span class="config-title">Alarm Rule Configuration</span>
+      <el-button type="primary" size="small" @click="openCreateDialog">
+        <el-icon><Plus /></el-icon>
+        <span>Add Rule</span>
+      </el-button>
+    </div>
+
+    <!-- Rules table -->
+    <div class="config-table-wrapper">
+      <el-table
+        :data="tableData"
+        :height="tableHeight"
+        style="width: 100%"
+        :header-cell-style="headerCellStyle"
+        :cell-style="cellStyle"
+        size="small"
+        border
+        v-loading="loading"
+      >
+        <el-table-column prop="alarmName" label="Alarm Name" width="200" show-overflow-tooltip />
+        <el-table-column prop="pointType" label="Type" width="80" align="center" />
+
+        <el-table-column label="Boolean" align="center">
+          <el-table-column prop="booleanValue" label="Value" width="70" />
+          <el-table-column prop="booleanSeverity" label="Severity" width="80" />
+          <el-table-column prop="booleanMessage" label="Message" width="120" show-overflow-tooltip />
+        </el-table-column>
+
+        <el-table-column label="High" align="center">
+          <el-table-column prop="highValue" label="Value" width="70" />
+          <el-table-column prop="highSeverity" label="Severity" width="80" />
+          <el-table-column prop="highMessage" label="Message" width="120" show-overflow-tooltip />
+          <el-table-column prop="highHysteresis" label="Hyst." width="70" />
+          
+        </el-table-column>
+
+        <el-table-column label="High-High" align="center">
+          <el-table-column prop="highHighValue" label="Value" width="70" />
+          <el-table-column prop="highHighSeverity" label="Severity" width="80" />
+          <el-table-column prop="highHighMessage" label="Message" width="120" show-overflow-tooltip />
+          <el-table-column prop="highHighHysteresis" label="Hyst." width="70" />
+        </el-table-column>
+
+        <el-table-column label="Low" align="center">
+          <el-table-column prop="lowValue" label="Value" width="70" />
+          <el-table-column prop="lowSeverity" label="Severity" width="80" />
+          <el-table-column prop="lowMessage" label="Message" width="120" show-overflow-tooltip />
+          <el-table-column prop="lowHysteresis" label="Hyst." width="70" />
+        </el-table-column>
+
+        <el-table-column label="Low-Low" align="center">
+          <el-table-column prop="lowLowValue" label="Value" width="70" />
+          <el-table-column prop="lowLowSeverity" label="Severity" width="80" />
+          <el-table-column prop="lowLowMessage" label="Message" width="120" show-overflow-tooltip />
+          <el-table-column prop="lowLowHysteresis" label="Hyst." width="70" />
+        </el-table-column>
+
+        <el-table-column label="Actions" width="120" align="center" fixed="right">
+          <template #default="{ row }">
+            <el-button type="primary" link size="small" @click="openEditDialog(row)">Edit</el-button>
+            <el-button type="danger" link size="small" @click="handleDelete(row)">Delete</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
+
+    <!-- Create / Edit dialog -->
+    <el-dialog
+      v-model="dialogVisible"
+      :title="isEdit ? 'Edit Alarm Rule' : 'Add Alarm Rule'"
+      width="720px"
+      :close-on-click-modal="false"
+      @closed="resetForm"
+    >
+      <el-form :model="formData" label-width="90px" size="small" label-position="right">
+        <!-- Basic fields: Point Name + Point Type on the same row -->
+        <div class="basic-row">
+          <el-form-item v-if="isEdit" label="Alarm Name" class="basic-name">
+            <el-input v-model="formData.alarmName" disabled />
+          </el-form-item>
+          <el-form-item v-else label="Point Name" required class="basic-name">
+            <el-input
+              v-model="formData.pointName"
+              placeholder="e.g. Available_physical_memory"
+            />
+          </el-form-item>
+          <el-form-item label="Point Type" required class="basic-type">
+            <el-select v-model="formData.pointType" placeholder="Select type" style="width: 140px" popper-class="alarm-config-popper">
+              <el-option label="BOOL" value="BOOL" />
+              <el-option label="NUMERIC" value="NUMERIC" />
+            </el-select>
+          </el-form-item>
+        </div>
+
+        <!-- Placeholder before type selection -->
+        <div v-if="!formData.pointType" class="type-hint">
+          Please select a Point Type to configure alarm rules.
+        </div>
+
+        <!-- Boolean rules (BOOL only) -->
+        <template v-if="formData.pointType === 'BOOL'">
+          <el-divider content-position="left">Boolean</el-divider>
+          <div class="level-row">
+            <el-form-item label="Value" required class="field-third">
+              <el-select v-model="formData.booleanValue" placeholder="—" popper-class="alarm-config-popper">
+                <el-option label="true" value="true" />
+                <el-option label="false" value="false" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="Severity" required class="field-third">
+              <el-select v-model="formData.booleanSeverity" placeholder="—" popper-class="alarm-config-popper">
+                <el-option v-for="s in severityOptions" :key="s" :label="s" :value="s" />
+              </el-select>
+            </el-form-item>
+          </div>
+          <div class="level-row">
+            <el-form-item label="Message" class="field-full">
+              <el-input v-model="formData.booleanMessage" placeholder="Alarm message" />
+            </el-form-item>
+          </div>
+        </template>
+
+        <!-- Numeric rules (NUMERIC only) -->
+        <template v-if="formData.pointType === 'NUMERIC'">
+          <el-divider content-position="left">High</el-divider>
+          <div class="level-row">
+            <el-form-item label="Value" required class="field-third">
+              <el-input v-model="formData.highValue" placeholder=">= threshold" />
+            </el-form-item>
+            <el-form-item label="Severity" required class="field-third">
+              <el-select v-model="formData.highSeverity" placeholder="—" popper-class="alarm-config-popper">
+                <el-option v-for="s in severityOptions" :key="s" :label="s" :value="s" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="Hysteresis" class="field-third">
+              <el-input v-model="formData.highHysteresis" placeholder="0.00" />
+            </el-form-item>
+          </div>
+          <div class="level-row">
+            <el-form-item label="Message" class="field-full">
+              <el-input v-model="formData.highMessage" placeholder="Alarm message" />
+            </el-form-item>
+          </div>
+
+          <el-divider content-position="left">High-High</el-divider>
+          <div class="level-row">
+            <el-form-item label="Value" required class="field-third">
+              <el-input v-model="formData.highHighValue" placeholder=">= threshold" />
+            </el-form-item>
+            <el-form-item label="Severity" required class="field-third">
+              <el-select v-model="formData.highHighSeverity" placeholder="—" popper-class="alarm-config-popper">
+                <el-option v-for="s in severityOptions" :key="s" :label="s" :value="s" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="Hysteresis" class="field-third">
+              <el-input v-model="formData.highHighHysteresis" placeholder="0.00" />
+            </el-form-item>
+          </div>
+          <div class="level-row">
+            <el-form-item label="Message" class="field-full">
+              <el-input v-model="formData.highHighMessage" placeholder="Alarm message" />
+            </el-form-item>
+          </div>
+
+          <el-divider content-position="left">Low</el-divider>
+          <div class="level-row">
+            <el-form-item label="Value" required class="field-third">
+              <el-input v-model="formData.lowValue" placeholder="<= threshold" />
+            </el-form-item>
+            <el-form-item label="Severity" required class="field-third">
+              <el-select v-model="formData.lowSeverity" placeholder="—" popper-class="alarm-config-popper">
+                <el-option v-for="s in severityOptions" :key="s" :label="s" :value="s" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="Hysteresis" class="field-third">
+              <el-input v-model="formData.lowHysteresis" placeholder="0.00" />
+            </el-form-item>
+          </div>
+          <div class="level-row">
+            <el-form-item label="Message" class="field-full">
+              <el-input v-model="formData.lowMessage" placeholder="Alarm message" />
+            </el-form-item>
+          </div>
+
+          <el-divider content-position="left">Low-Low</el-divider>
+          <div class="level-row">
+            <el-form-item label="Value" required class="field-third">
+              <el-input v-model="formData.lowLowValue" placeholder="<= threshold" />
+            </el-form-item>
+            <el-form-item label="Severity" required class="field-third">
+              <el-select v-model="formData.lowLowSeverity" placeholder="—" popper-class="alarm-config-popper">
+                <el-option v-for="s in severityOptions" :key="s" :label="s" :value="s" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="Hysteresis" class="field-third">
+              <el-input v-model="formData.lowLowHysteresis" placeholder="0.00" />
+            </el-form-item>
+          </div>
+          <div class="level-row">
+            <el-form-item label="Message" class="field-full">
+              <el-input v-model="formData.lowLowMessage" placeholder="Alarm message" />
+            </el-form-item>
+          </div>
+        </template>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="dialogVisible = false">Cancel</el-button>
+        <el-button type="primary" :loading="saving" @click="handleSave">Save</el-button>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
+import { alarmApi } from '@/api/alarm'
+import type { AlarmRuleItem } from '@/api/types'
+
+const loading = ref(false)
+const saving = ref(false)
+const tableData = ref<AlarmRuleItem[]>([])
+const tableHeight = ref(400)
+const dialogVisible = ref(false)
+const isEdit = ref(false)
+
+const severityOptions = ['Critical', 'Major', 'Minor', 'Warning']
+
+// Empty form template
+function emptyForm(): AlarmRuleItem {
+  return {
+    alarmName: '',
+    pointName: '',
+    pointType: '',
+    booleanValue: 'false', booleanSeverity: '', booleanMessage: '',
+    highValue: '', highSeverity: '', highMessage: '', highHysteresis: '',
+    highHighValue: '', highHighSeverity: '', highHighMessage: '', highHighHysteresis: '',
+    lowValue: '', lowSeverity: '', lowMessage: '', lowHysteresis: '',
+    lowLowValue: '', lowLowSeverity: '', lowLowMessage: '', lowLowHysteresis: '',
+  }
+}
+
+// Field groups for cross-type cleanup: only one of Boolean / Numeric is allowed
+const numericFields = [
+  'highValue', 'highSeverity', 'highMessage', 'highHysteresis',
+  'highHighValue', 'highHighSeverity', 'highHighMessage', 'highHighHysteresis',
+  'lowValue', 'lowSeverity', 'lowMessage', 'lowHysteresis',
+  'lowLowValue', 'lowLowSeverity', 'lowLowMessage', 'lowLowHysteresis',
+] as const
+
+const booleanFields = [
+  'booleanValue', 'booleanSeverity', 'booleanMessage',
+] as const
+
+// Numeric level groups: each has [value, severity, message, hysteresis]
+const numericLevels = [
+  ['highValue', 'highSeverity', 'highMessage', 'highHysteresis'] as const,
+  ['highHighValue', 'highHighSeverity', 'highHighMessage', 'highHighHysteresis'] as const,
+  ['lowValue', 'lowSeverity', 'lowMessage', 'lowHysteresis'] as const,
+  ['lowLowValue', 'lowLowSeverity', 'lowLowMessage', 'lowLowHysteresis'] as const,
+]
+
+const formData = ref<AlarmRuleItem>(emptyForm())
+
+const headerCellStyle = {
+  backgroundColor: '#0d1117',
+  color: '#e5e7eb',
+  fontSize: '12px',
+  fontWeight: '600',
+  borderBottom: '1px solid #2d3748',
+}
+
+const cellStyle = {
+  backgroundColor: '#111827',
+  color: '#e5e7eb',
+  fontSize: '12px',
+  borderBottom: '1px solid #1f2937',
+}
+
+async function fetchRules() {
+  loading.value = true
+  try {
+    tableData.value = await alarmApi.getAlarmRules()
+  } catch (e) {
+    console.error('Failed to fetch alarm rules:', e)
+    ElMessage.error('Failed to load alarm rules')
+  } finally {
+    loading.value = false
+  }
+}
+
+function openCreateDialog() {
+  isEdit.value = false
+  formData.value = emptyForm()
+  dialogVisible.value = true
+}
+
+function openEditDialog(row: AlarmRuleItem) {
+  isEdit.value = true
+  // Deep copy the row into the form
+  formData.value = { ...emptyForm(), ...JSON.parse(JSON.stringify(row)) }
+  dialogVisible.value = true
+}
+
+function resetForm() {
+  formData.value = emptyForm()
+}
+
+async function handleSave() {
+  const f = formData.value
+
+  // Create mode: pointName is required (backend generates alarm_name from it)
+  if (!isEdit.value && !f.pointName?.trim()) {
+    ElMessage.warning('Point Name is required')
+    return
+  }
+  if (!f.pointType) {
+    ElMessage.warning('Point Type is required')
+    return
+  }
+
+  // Build the payload, clearing fields that don't belong to the selected type
+  // and applying hysteresis defaults for numeric levels.
+  const payload: AlarmRuleItem = { ...f }
+
+  if (f.pointType === 'BOOL') {
+    // Clear all numeric fields
+    numericFields.forEach(key => { (payload as any)[key] = '' })
+    // Validate Boolean value + severity
+    if (!payload.booleanValue) {
+      ElMessage.warning('Boolean Value is required')
+      return
+    }
+    if (!payload.booleanSeverity) {
+      ElMessage.warning('Boolean Severity is required')
+      return
+    }
+  } else if (f.pointType === 'NUMERIC') {
+    // Clear Boolean fields
+    booleanFields.forEach(key => { (payload as any)[key] = '' })
+    // Validate each numeric level that has a value: severity is required alongside
+    for (const [valKey, sevKey, _msgKey, hystKey] of numericLevels) {
+      const val = (payload as any)[valKey]
+      if (val !== undefined && val !== null && String(val).trim() !== '') {
+        if (!(payload as any)[sevKey]) {
+          ElMessage.warning(`Severity is required when ${valKey} is filled`)
+          return
+        }
+      }
+      // Hysteresis defaults to 0.00 if left blank on a filled level
+      if (val && !(payload as any)[hystKey]?.trim()) {
+        (payload as any)[hystKey] = '0.00'
+      }
+    }
+    // At least one numeric level must have a value
+    const hasAnyValue = numericLevels.some(
+      ([v]) => (payload as any)[v]?.toString().trim() !== ''
+    )
+    if (!hasAnyValue) {
+      ElMessage.warning('At least one numeric threshold Value is required')
+      return
+    }
+  }
+
+  saving.value = true
+  try {
+    if (isEdit.value && payload.id) {
+      await alarmApi.updateAlarmRule(payload.id, payload)
+      ElMessage.success('Rule updated')
+    } else {
+      await alarmApi.createAlarmRule(payload)
+      ElMessage.success('Rule created')
+    }
+    dialogVisible.value = false
+    await fetchRules()
+  } catch (e) {
+    console.error('Failed to save alarm rule:', e)
+    ElMessage.error(isEdit.value ? 'Failed to update rule' : 'Failed to create rule')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function handleDelete(row: AlarmRuleItem) {
+  if (!row.id) return
+  try {
+    await ElMessageBox.confirm(
+      `Delete rule "${row.alarmName}"? This action cannot be undone.`,
+      'Confirm Delete',
+      { type: 'warning', confirmButtonText: 'Delete', cancelButtonText: 'Cancel' }
+    )
+  } catch {
+    return // user cancelled
+  }
+
+  try {
+    await alarmApi.deleteAlarmRule(row.id)
+    ElMessage.success('Rule deleted')
+    await fetchRules()
+  } catch (e) {
+    console.error('Failed to delete alarm rule:', e)
+    ElMessage.error('Failed to delete rule')
+  }
+}
+
+function updateTableHeight() {
+  // Account for header + bottom toolbar + padding
+  tableHeight.value = Math.max(300, window.innerHeight - 180)
+}
+
+onMounted(() => {
+  updateTableHeight()
+  window.addEventListener('resize', updateTableHeight)
+  fetchRules()
+})
+</script>
+
+<style scoped lang="scss">
+.alarm-config-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 100%;
+}
+
+.config-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.config-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: $text-primary;
+}
+
+.config-table-wrapper {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+// Point Name + Point Type on the same row
+.basic-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+
+  .basic-name {
+    flex: 1 1 auto;
+    .el-input { width: 100%; }
+  }
+  .basic-type {
+    flex: 0 0 auto;
+  }
+}
+
+// Alarm level rows: first row = Value/Severity/Hysteresis (equal thirds),
+// second row = Message (full width)
+.level-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding-left: 4px;
+
+  .el-form-item {
+    margin-bottom: 12px;
+  }
+
+  // Each field on the first row takes 1/3 of the row width
+  .field-third {
+    flex: 1 1 0;
+    min-width: 0;
+    .el-input,
+    .el-select {
+      width: 100%;
+    }
+  }
+
+  // Message field: full width on its own row
+  .field-full {
+    flex: 1 1 100%;
+    .el-input { width: 100%; }
+  }
+}
+
+.type-hint {
+  padding: 24px 12px;
+  color: $text-muted;
+  font-size: 13px;
+  text-align: center;
+}
+
+:deep(.el-table) {
+  background-color: #111827;
+  color: #e5e7eb;
+
+  --el-table-bg-color: #111827;
+  --el-table-tr-bg-color: #111827;
+  --el-table-row-hover-bg-color: #1a2332;
+  --el-table-border-color: #1f2937;
+  --el-table-header-bg-color: #0d1117;
+  --el-table-text-color: #e5e7eb;
+  --el-table-header-text-color: #e5e7eb;
+
+  .el-table__inner-wrapper {
+    background-color: #111827;
+  }
+
+  .el-table__body-wrapper {
+    background-color: #111827;
+  }
+
+  .el-table__header-wrapper {
+    background-color: #0d1117;
+  }
+
+  .el-table__row {
+    background-color: #111827;
+  }
+
+  .el-table__row:hover > td {
+    background-color: #1a2332 !important;
+  }
+
+  td, th {
+    border-bottom: 1px solid #1f2937;
+  }
+}
+
+:deep(.el-table__empty-block) {
+  background-color: #111827;
+}
+
+:deep(.el-loading-mask) {
+  background-color: rgba(10, 14, 23, 0.7);
+}
+
+:deep(.el-table .cell) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// ── Dialog dark theme overrides ───────────────────────────────────────────
+:deep(.el-dialog) {
+  background-color: $bg-card;
+  .el-dialog__title {
+    color: $text-primary;
+  }
+  .el-dialog__body {
+    color: $text-primary;
+  }
+}
+
+:deep(.el-divider__text) {
+  background-color: $bg-card;
+  color: $text-secondary;
+}
+
+:deep(.el-form-item__label) {
+  color: $text-secondary;
+}
+
+// Inputs: white text for entered values, gray for placeholders
+:deep(.el-input__wrapper) {
+  background-color: $bg-dark;
+  box-shadow: 0 0 0 1px $border-card inset;
+  &:hover { box-shadow: 0 0 0 1px $text-muted inset; }
+}
+:deep(.el-input.is-disabled .el-input__wrapper) {
+  background-color: $bg-card-hover;
+}
+:deep(.el-input__inner) {
+  color: $text-primary;              // entered values: white
+  &::placeholder {
+    color: $text-muted;              // empty placeholders: gray
+    -webkit-text-fill-color: $text-muted;
+  }
+}
+:deep(.el-input.is-disabled .el-input__inner) {
+  color: $text-primary;              // edit-mode alarm_name: still white
+  -webkit-text-fill-color: $text-primary;
+  &::placeholder {
+    color: $text-muted;
+    -webkit-text-fill-color: $text-muted;
+  }
+}
+
+// Selects: dark background + white text, matching system theme
+:deep(.el-select__wrapper) {
+  background-color: $bg-dark;
+  box-shadow: 0 0 0 1px $border-card inset;
+  &:hover { box-shadow: 0 0 0 1px $text-muted inset; }
+}
+:deep(.el-select__placeholder) {
+  color: $text-muted;                // "—" placeholder: gray
+}
+:deep(.el-select__selected-item) {
+  color: $text-primary;              // selected value: white
+}
+:deep(.el-select__caret) {
+  color: $text-secondary;
+}
+</style>
+
+<!-- Global (non-scoped) styles for teleported dropdown poppers.
+     el-select__popper is teleported to <body>, so scoped :deep() cannot reach it. -->
+<style lang="scss">
+.el-select__popper.alarm-config-popper {
+  .el-select-dropdown {
+    background-color: #111827;
+    border: 1px solid #2d3748;
+  }
+  .el-select-dropdown__item {
+    color: #9ca3af;
+    &:hover, &.is-hovering {
+      background-color: #1a2332;
+      color: #e5e7eb;
+    }
+    &.is-selected {
+      color: #10b981;
+      font-weight: 600;
+    }
+  }
+  .el-popper__arrow::before {
+    background-color: #111827;
+    border-color: #2d3748;
+  }
+}
+</style>

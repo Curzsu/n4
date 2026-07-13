@@ -7,6 +7,7 @@ import type {
   AlarmHourData,
   AlarmSystemData,
   AlarmSourceData,
+  AlarmRuleItem,
 } from './types'
 
 export const alarmApi = {
@@ -33,5 +34,19 @@ export const alarmApi = {
   },
   ackAlarms(paths: string[], ackBy: string): Promise<number> {
     return request.post('/api/alarms/ack', { paths, ackBy })
+  },
+
+  // ── Alarm rule CRUD (alarm_rule table) ──
+  getAlarmRules(): Promise<AlarmRuleItem[]> {
+    return request.get('/api/alarm-rules')
+  },
+  createAlarmRule(data: AlarmRuleItem): Promise<AlarmRuleItem> {
+    return request.post('/api/alarm-rules', data)
+  },
+  updateAlarmRule(id: number, data: AlarmRuleItem): Promise<AlarmRuleItem> {
+    return request.put(`/api/alarm-rules/${id}`, data)
+  },
+  deleteAlarmRule(id: number): Promise<void> {
+    return request.delete(`/api/alarm-rules/${id}`)
   },
 }

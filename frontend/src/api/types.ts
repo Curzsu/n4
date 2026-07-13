@@ -135,3 +135,33 @@ export interface AlarmSourceData {
   items: SourceItem[]
 }
 
+// ===== Alarm Rule (alarm_rule table) =====
+
+export interface AlarmRuleItem {
+  id?: number
+  alarmName: string
+  pointName?: string
+  pointType?: string
+  booleanValue?: string
+  booleanSeverity?: string
+  booleanMessage?: string
+  highValue?: string
+  highSeverity?: string
+  highMessage?: string
+  highHysteresis?: string
+  highHighValue?: string
+  highHighSeverity?: string
+  highHighMessage?: string
+  highHighHysteresis?: string
+  lowValue?: string
+  lowSeverity?: string
+  lowMessage?: string
+  lowHysteresis?: string
+  lowLowValue?: string
+  lowLowSeverity?: string
+  lowLowMessage?: string
+  lowLowHysteresis?: string
+  createTime?: string
+  updateTime?: string
+}
+

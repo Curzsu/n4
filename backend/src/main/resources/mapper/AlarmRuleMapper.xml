@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.n4monitor.mapper.AlarmRuleMapper">
+
+    <select id="findAll" resultType="com.n4monitor.entity.AlarmRuleEntity">
+        SELECT * FROM alarm_rule WHERE is_deleted = 0 ORDER BY id
+    </select>
+
+    <select id="findById" resultType="com.n4monitor.entity.AlarmRuleEntity">
+        SELECT * FROM alarm_rule WHERE id = #{id} AND is_deleted = 0
+    </select>
+
+    <!-- Include deleted rows: their alarm_name still occupies the unique index,
+         so the sequence generator must treat those numbers as in-use to avoid
+         DuplicateKeyException when reusing a deleted rule's number. -->
+    <select id="findAlarmNamesByPointNamePrefix" resultType="java.lang.String">
+        SELECT alarm_name FROM alarm_rule
+        WHERE alarm_name LIKE CONCAT(#{prefix}, '_%')
+    </select>
+
+    <insert id="insert" parameterType="com.n4monitor.entity.AlarmRuleEntity"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO alarm_rule (
+            alarm_name, point_type,
+            boolean_value, boolean_severity, boolean_message,
+            high_value, high_severity, high_message, high_hysteresis,
+            high_high_value, high_high_severity, high_high_message, high_high_hysteresis,
+            low_value, low_severity, low_message, low_hysteresis,
+            low_low_value, low_low_severity, low_low_message, low_low_hysteresis
+        ) VALUES (
+            #{alarmName}, #{pointType},
+            #{booleanValue}, #{booleanSeverity}, #{booleanMessage},
+            #{highValue}, #{highSeverity}, #{highMessage}, #{highHysteresis},
+            #{highHighValue}, #{highHighSeverity}, #{highHighMessage}, #{highHighHysteresis},
+            #{lowValue}, #{lowSeverity}, #{lowMessage}, #{lowHysteresis},
+            #{lowLowValue}, #{lowLowSeverity}, #{lowLowMessage}, #{lowLowHysteresis}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.n4monitor.entity.AlarmRuleEntity">
+        UPDATE alarm_rule SET
+            alarm_name      = #{alarmName},
+            point_type      = #{pointType},
+            boolean_value   = #{booleanValue},
+            boolean_severity= #{booleanSeverity},
+            boolean_message = #{booleanMessage},
+            high_value      = #{highValue},
+            high_severity   = #{highSeverity},
+            high_message    = #{highMessage},
+            high_hysteresis = #{highHysteresis},
+            high_high_value     = #{highHighValue},
+            high_high_severity  = #{highHighSeverity},
+            high_high_message   = #{highHighMessage},
+            high_high_hysteresis= #{highHighHysteresis},
+            low_value       = #{lowValue},
+            low_severity    = #{lowSeverity},
+            low_message     = #{lowMessage},
+            low_hysteresis  = #{lowHysteresis},
+            low_low_value       = #{lowLowValue},
+            low_low_severity    = #{lowLowSeverity},
+            low_low_message     = #{lowLowMessage},
+            low_low_hysteresis  = #{lowLowHysteresis}
+        WHERE id = #{id} AND is_deleted = 0
+    </update>
+
+    <delete id="deleteById">
+        UPDATE alarm_rule SET is_deleted = 1 WHERE id = #{id}
+    </delete>
+
+</mapper>
