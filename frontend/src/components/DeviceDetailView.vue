@@ -17,15 +17,6 @@
         </el-tag>
       </div>
       <div class="header-right">
-        <el-button
-          type="primary"
-          size="small"
-          :icon="Monitor"
-          class="monitor-btn"
-          @click="openGraphicalMonitor"
-        >
-          图形监控
-        </el-button>
         <div class="refresh-control">
           <span class="refresh-label">实时轮询 (3s)</span>
           <el-switch 
@@ -72,6 +63,8 @@
         </div>
       </div>
     </div>
+
+    <FuxaMonitorPanel />
 
     <!-- Monitor Points Table Card -->
     <div class="table-card">
@@ -134,14 +127,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { ArrowLeft, Cpu, CircleCheck, Warning, List, Search, Monitor } from '@element-plus/icons-vue'
+import { ArrowLeft, Cpu, CircleCheck, Warning, List, Search } from '@element-plus/icons-vue'
+import FuxaMonitorPanel from '@/components/FuxaMonitorPanel.vue'
 import { useDashboardStore } from '@/stores/dashboard'
 import { deviceApi } from '@/api/device'
 import type { MonitorPoint } from '@/api/types'
 
 const store = useDashboardStore()
-const router = useRouter()
 const loading = ref(false)
 const points = ref<MonitorPoint[]>([])
 const searchQuery = ref('')
@@ -191,17 +183,6 @@ function stopPolling() {
 function goBack() {
   // Clear selected node to go back to site dashboard or system level
   store.selectedNode = null
-}
-
-function openGraphicalMonitor() {
-  const device = store.selectedNode
-  if (!device?.id) return
-
-  router.push({
-    name: 'fuxa-monitor',
-    params: { deviceId: String(device.id) },
-    query: { deviceName: device.label },
-  })
 }
 
 function getDeviceStatusText(status: number | undefined): string {
@@ -332,20 +313,6 @@ $accent-purple: #a855f7;
   display: flex;
   align-items: center;
   gap: 20px;
-}
-
-.monitor-btn {
-  border-radius: 4px;
-  background-color: $accent-green;
-  border-color: $accent-green;
-  color: #07130f;
-
-  &:hover,
-  &:focus {
-    background-color: #20c98b;
-    border-color: #20c98b;
-    color: #07130f;
-  }
 }
 
 .refresh-control {

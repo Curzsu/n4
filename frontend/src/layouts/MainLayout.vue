@@ -2,30 +2,25 @@
   <div class="main-layout">
     <TopNavbar />
     <div class="layout-body">
-      <LeftSidebar v-if="!isFullWidthView" />
-      <div :class="['layout-content', { 'layout-content--wide': isFullWidthView }]">
+      <LeftSidebar />
+      <div class="layout-content">
         <slot />
       </div>
-      <div v-if="!isFullWidthView" class="layout-right-panel">
+      <div class="layout-right-panel">
         <AlarmSummary />
         <SystemStatus />
       </div>
     </div>
-    <BottomToolbar v-if="!isFullWidthView" />
+    <BottomToolbar />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
 import TopNavbar from '@/components/TopNavbar.vue'
 import LeftSidebar from '@/components/LeftSidebar.vue'
 import BottomToolbar from '@/components/BottomToolbar.vue'
 import AlarmSummary from '@/components/AlarmSummary.vue'
 import SystemStatus from '@/components/SystemStatus.vue'
-
-const route = useRoute()
-const isFullWidthView = computed(() => route.meta.fullWidth === true)
 </script>
 
 <style scoped lang="scss">
@@ -47,12 +42,6 @@ const isFullWidthView = computed(() => route.meta.fullWidth === true)
   flex: 1;
   overflow-y: auto;
   padding: 16px;
-}
-
-.layout-content--wide {
-  min-width: 0;
-  overflow: hidden;
-  padding: 12px;
 }
 
 .layout-right-panel {
