@@ -1,6 +1,7 @@
 package com.n4monitor.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.n4monitor.alarm.model.PointAlarmState;
 import com.n4monitor.dto.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +35,7 @@ public class AlarmService {
     private static final DateTimeFormatter HOUR_FORMAT = DateTimeFormatter.ofPattern("HH:00");
 
     private final StringRedisTemplate redisTemplate;
+    private final TdengineSyncService tdengineSyncService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -148,6 +150,7 @@ public class AlarmService {
 
                 String stage = node.has("stage") ? node.get("stage").asText() : "";
 
+                String finalJson;
                 if ("end".equals(stage)) {
                     // Already recovered (stage=end): mark as Ack and remove from Redis
                     // so a page refresh does not resurrect it. The cleared signal is
@@ -155,19 +158,28 @@ public class AlarmService {
                     ((com.fasterxml.jackson.databind.node.ObjectNode) node)
                             .put("status", "Ack")
                             .put("ackBy", ackBy);
-                    String clearedJson = objectMapper.writeValueAsString(node);
+                    finalJson = objectMapper.writeValueAsString(node);
                     redisTemplate.opsForHash().delete(activeRedisKey, key);
-                    ackedJsons.add(clearedJson);
                 } else {
                     // Still alarming (stage=start/continue): update status in place,
                     // the record stays in alarm:active for continued display.
                     ((com.fasterxml.jackson.databind.node.ObjectNode) node)
                             .put("status", "Ack")
                             .put("ackBy", ackBy);
-                    String updatedJson = objectMapper.writeValueAsString(node);
-                    redisTemplate.opsForHash().put(activeRedisKey, key, updatedJson);
-                    ackedJsons.add(updatedJson);
+                    finalJson = objectMapper.writeValueAsString(node);
+                    redisTemplate.opsForHash().put(activeRedisKey, key, finalJson);
                 }
+                ackedJsons.add(finalJson);
+
+                // Persist the acked record to TDengine alarm_realtime so the ack
+                // event (status=Ack, ackBy) is captured in the historical record.
+                try {
+                    PointAlarmState ackedState = objectMapper.readValue(finalJson, PointAlarmState.class);
+                    tdengineSyncService.writeRealtimeAlarm(ackedState);
+                } catch (Exception te) {
+                    log.warn("Failed to persist acked alarm to TDengine for key: {}", key, te);
+                }
+
                 updated++;
             } catch (Exception e) {
                 log.warn("Failed to acknowledge alarm for key: {}", key, e);
