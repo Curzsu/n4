@@ -25,10 +25,10 @@ public class AlarmRuleInitializer implements ApplicationRunner {
     private final AlarmRuleService alarmRuleService;
     private final AlarmRuleLoader alarmRuleLoader;
 
-    @Value("${alarm.rule.excel-file:../材料/alarm_rules_config.xlsx}")
+    @Value("${alarm.rule.excel-file}")
     private String excelFilePath;
 
-    @Value("${alarm.rule.log-file:../材料/points-2.log}")
+    @Value("${alarm.rule.log-file}")
     private String logFilePath;
 
     @Override

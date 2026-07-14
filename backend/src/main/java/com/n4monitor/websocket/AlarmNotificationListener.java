@@ -30,7 +30,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AlarmNotificationListener implements MessageListener {
 
-    @Value("${alarm.redis.active-key:alarm:active}")
+    @Value("${alarm.redis.active-key}")
     private String activeRedisKey;
 
     private static final DateTimeFormatter HOUR_FORMAT = DateTimeFormatter.ofPattern("HH:00");

@@ -25,10 +25,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AlarmService {
 
-    @Value("${alarm.redis.active-key:alarm:active}")
+    @Value("${alarm.redis.active-key}")
     private String activeRedisKey;
 
-    @Value("${alarm.redis.notification-channel:alarm:notifications}")
+    @Value("${alarm.redis.notification-channel}")
     private String notificationChannel;
 
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");

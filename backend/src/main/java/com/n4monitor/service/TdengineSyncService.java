@@ -38,7 +38,7 @@ import java.util.concurrent.Executors;
 @RequiredArgsConstructor
 public class TdengineSyncService {
 
-    @Value("${alarm.redis.latest-key:alarm:latest}")
+    @Value("${alarm.redis.latest-key}")
     private String latestRedisKey;
 
     private final TdengineConfig tdengineConfig;

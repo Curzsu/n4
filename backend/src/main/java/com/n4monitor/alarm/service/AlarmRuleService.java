@@ -23,7 +23,7 @@ import java.util.*;
 @RequiredArgsConstructor
 public class AlarmRuleService {
 
-    @Value("${alarm.redis.rules-key:alarm:rules}")
+    @Value("${alarm.redis.rules-key}")
     private String rulesRedisKey;
 
     private final StringRedisTemplate redisTemplate;

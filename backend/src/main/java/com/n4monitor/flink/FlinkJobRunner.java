@@ -22,10 +22,10 @@ public class FlinkJobRunner implements CommandLineRunner {
     @Value("${spring.kafka.bootstrap-servers}")
     private String kafkaBroker;
 
-    @Value("${alarm.flink.topic:obix-mqtt-points}")
+    @Value("${alarm.flink.topic}")
     private String kafkaTopic;
 
-    @Value("${alarm.flink.group-id:n4-flink-alarm-processor}")
+    @Value("${alarm.flink.group-id}")
     private String groupId;
 
     @Value("${spring.data.redis.host}")
@@ -34,22 +34,22 @@ public class FlinkJobRunner implements CommandLineRunner {
     @Value("${spring.data.redis.port:6379}")
     private int redisPort;
 
-    @Value("${alarm.flink.enabled:true}")
+    @Value("${alarm.flink.enabled}")
     private boolean enabled;
 
-    @Value("${alarm.redis.rules-key:alarm:rules}")
+    @Value("${alarm.redis.rules-key}")
     private String rulesRedisKey;
 
-    @Value("${alarm.redis.latest-key:alarm:latest}")
+    @Value("${alarm.redis.latest-key}")
     private String latestRedisKey;
 
-    @Value("${alarm.redis.active-key:alarm:active}")
+    @Value("${alarm.redis.active-key}")
     private String activeRedisKey;
 
-    @Value("${alarm.redis.notification-channel:alarm:notifications}")
+    @Value("${alarm.redis.notification-channel}")
     private String notificationChannel;
 
-    @Value("${alarm.redis.realtime-channel:alarm:realtime}")
+    @Value("${alarm.redis.realtime-channel}")
     private String realtimeChannel;
 
     @Override
