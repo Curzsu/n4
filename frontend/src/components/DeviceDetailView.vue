@@ -66,68 +66,16 @@
 
     <FuxaMonitorPanel />
 
-    <!-- Monitor Points Table Card -->
-    <div class="table-card">
-      <div class="table-card-header">
-        <div class="header-title">
-          <el-icon><List /></el-icon>
-          <h3>监控测点列表</h3>
-        </div>
-        <el-input
-          v-model="searchQuery"
-          placeholder="搜索测点名称或编码..."
-          size="small"
-          :prefix-icon="Search"
-          class="table-search"
-          clearable
-        />
-      </div>
-
-      <el-table 
-        :data="filteredPoints" 
-        style="width: 100%" 
-        class="points-table"
-        :header-cell-style="{ background: '#111827', color: '#9ca3af', borderColor: '#1f2937' }"
-        :cell-style="{ borderColor: '#1f2937' }"
-      >
-        <el-table-column prop="pointCode" label="测点编码" width="160" show-overflow-tooltip />
-        <el-table-column prop="registerId" label="寄存器地址" width="120">
-          <template #default="{ row }">
-            <code class="addr-code">{{ row.registerId || 'N/A' }}</code>
-          </template>
-        </el-table-column>
-        <el-table-column prop="pointName" label="测点名称" min-width="180" />
-        <el-table-column prop="pointType" label="测点类型" width="130">
-          <template #default="{ row }">
-            <span :class="['type-badge', getPointTypeClass(row.pointType)]">
-              {{ getPointTypeText(row.pointType) }}
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="pointValue" label="实时读数" width="160">
-          <template #default="{ row }">
-            <span class="point-value">
-              <span class="val-num">{{ row.pointValue !== null ? row.pointValue : '--' }}</span>
-              <span class="val-unit" v-if="row.unit">&nbsp;{{ row.unit }}</span>
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="pointStatus" label="通信状态" width="120" fixed="right">
-          <template #default="{ row }">
-            <span :class="['status-badge', row.pointStatus === 1 ? 'status-ok' : 'status-err']">
-              <span class="dot"></span>
-              {{ row.pointStatus === 1 ? '正常' : '告警' }}
-            </span>
-          </template>
-        </el-table-column>
-      </el-table>
+    <div class="device-alarm-table">
+      <AlarmTable />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { ArrowLeft, Cpu, CircleCheck, Warning, List, Search } from '@element-plus/icons-vue'
+import { ArrowLeft, Cpu, CircleCheck, Warning } from '@element-plus/icons-vue'
+import AlarmTable from '@/components/AlarmTable.vue'
 import FuxaMonitorPanel from '@/components/FuxaMonitorPanel.vue'
 import { useDashboardStore } from '@/stores/dashboard'
 import { deviceApi } from '@/api/device'
@@ -136,7 +84,6 @@ import type { MonitorPoint } from '@/api/types'
 const store = useDashboardStore()
 const loading = ref(false)
 const points = ref<MonitorPoint[]>([])
-const searchQuery = ref('')
 const autoRefresh = ref(true)
 const lastUpdateTime = ref('--:--:--')
 let refreshIntervalId: number | null = null
@@ -195,36 +142,6 @@ function getDeviceStatusText(status: number | undefined): string {
   }
 }
 
-function getPointTypeText(type: number): string {
-  switch (type) {
-    case 1: return 'DI - 数字输入'
-    case 2: return 'DO - 数字输出'
-    case 3: return 'AI - 模拟输入'
-    case 4: return 'AO - 模拟输出'
-    default: return '未知'
-  }
-}
-
-function getPointTypeClass(type: number): string {
-  switch (type) {
-    case 1: return 'type-di'
-    case 2: return 'type-do'
-    case 3: return 'type-ai'
-    case 4: return 'type-ao'
-    default: return ''
-  }
-}
-
-// Filtered points search
-const filteredPoints = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return points.value
-  return points.value.filter(p => 
-    (p.pointName && p.pointName.toLowerCase().includes(q)) ||
-    (p.pointCode && p.pointCode.toLowerCase().includes(q))
-  )
-})
-
 // Calculate statistics
 const pointStats = computed(() => {
   const list = points.value
@@ -262,13 +179,15 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
-$accent-purple: #a855f7;
-
 .device-detail-view {
   display: flex;
   flex-direction: column;
+  flex: 0 0 auto;
   gap: 16px;
+  width: 100%;
+  min-width: 0;
   min-height: 100%;
+  box-sizing: border-box;
 }
 
 .view-header {
@@ -404,135 +323,10 @@ $accent-purple: #a855f7;
 .text-green { color: $accent-green; }
 .text-red { color: $accent-red; }
 
-.table-card {
-  background-color: $bg-card;
-  border: 1px solid $border-card;
-  border-radius: 8px;
-  padding: 16px;
+.device-alarm-table {
+  height: 520px;
+  min-height: 360px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-}
-
-.table-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.header-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: $text-primary;
-  
-  .el-icon {
-    font-size: 16px;
-    color: $accent-green;
-  }
-
-  h3 {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-  }
-}
-
-.table-search {
-  width: 240px;
-  .el-input__wrapper {
-    background-color: $bg-dark !important;
-  }
-}
-
-.points-table {
-  background-color: transparent !important;
-  --el-table-bg-color: transparent;
-  --el-table-tr-bg-color: transparent;
-  --el-table-row-hover-bg-color: #1a2332;
-  color: $text-primary;
-}
-
-.addr-code {
-  background-color: rgba($text-muted, 0.1);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: monospace;
-  color: $text-secondary;
-  font-size: 12px;
-}
-
-.type-badge {
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 500;
-  
-  &.type-di {
-    background-color: rgba($accent-blue, 0.1);
-    border: 1px solid rgba($accent-blue, 0.2);
-    color: $accent-blue;
-  }
-  &.type-do {
-    background-color: rgba($accent-purple, 0.1);
-    border: 1px solid rgba($accent-purple, 0.2);
-    color: $accent-purple;
-  }
-  &.type-ai {
-    background-color: rgba($accent-green, 0.1);
-    border: 1px solid rgba($accent-green, 0.2);
-    color: $accent-green;
-  }
-  &.type-ao {
-    background-color: rgba($accent-yellow, 0.1);
-    border: 1px solid rgba($accent-yellow, 0.2);
-    color: $accent-yellow;
-  }
-}
-
-.point-value {
-  display: inline-flex;
-  align-items: baseline;
-  
-  .val-num {
-    font-weight: 600;
-    font-size: 14px;
-    color: $text-primary;
-    font-family: monospace;
-  }
-  .val-unit {
-    font-size: 11px;
-    color: $text-muted;
-  }
-}
-
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: 500;
-  
-  .dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-  }
-  
-  &.status-ok {
-    background-color: rgba($accent-green, 0.1);
-    color: $accent-green;
-    .dot { background-color: $accent-green; }
-  }
-  &.status-err {
-    background-color: rgba($accent-red, 0.1);
-    color: $accent-red;
-    .dot { 
-      background-color: $accent-red; 
-      box-shadow: 0 0 6px $accent-red;
-    }
-  }
 }
 </style>

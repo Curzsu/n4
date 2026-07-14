@@ -11,8 +11,52 @@ spring:
     password: zs156987
     driver-class-name: com.mysql.cj.jdbc.Driver
 
+  kafka:
+    bootstrap-servers: 47.121.30.136:9092
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
 mybatis:
   mapper-locations: classpath:mapper/*.xml
   type-aliases-package: com.n4monitor.entity
   configuration:
     map-underscore-to-camel-case: true
+
+# TDengine configuration (REST mode, port 6041)
+tdengine:
+  url: jdbc:TAOS-RS://47.121.30.136:6041/n4
+  username: root
+  password: taosdata
+  database: n4
+  supertable: alarm
+  realtime-supertable: alarm_realtime
+  # Periodic snapshot sync interval from Redis to TDengine
+  sync-fixed-rate-ms: 5000 # The time interval for storing the latest status of the location points.
+  sync-initial-delay-ms: 15000 # The initial execution delay time of the scheduled synchronization task
+
+# Alarm configuration
+alarm:
+  rule:
+    excel-file: materials/alarm_rules_config.xlsx
+    log-file: materials/points-2.log
+  flink:
+    enabled: true
+#    topic: mqtt-push-kafka
+    topic: obix-mqtt-points
+    group-id: n4-flink-alarm-processor
+  # Redis keys and channels used by alarm processing
+  redis:
+    rules-key: alarm:rules
+    latest-key: alarm:latest          # 实时点位值（每条数据覆盖，供 TDengine 同步与图表）
+    active-key: alarm:active          # 报警记录 + ack 状态（报警时写、恢复时冻结/删除、Ack 时改 status）
+    notification-channel: alarm:notifications
+    realtime-channel: alarm:realtime
+
+#logging:
+#  level:
+#    org.apache.flink: WARN
+#    org.apache.kafka: WARN
+#    org.apache.pekko: WARN

@@ -43,11 +43,11 @@ const loading = ref(true)
 const frameShell = ref<HTMLElement | null>(null)
 const frameScale = ref(1)
 const stageLeft = ref(0)
-const stageTop = ref(-40)
+const stageTop = ref(-100)
 
 const FUXA_CANVAS_WIDTH = 1220
 const FUXA_CANVAS_HEIGHT = 680
-const TOP_CROP = 40
+const TOP_CROP = 100
 let resizeObserver: ResizeObserver | null = null
 
 const displayHeight = computed(() => {
@@ -89,7 +89,7 @@ function updateScale() {
 
   frameScale.value = Math.min(1, shellWidth / FUXA_CANVAS_WIDTH)
   stageLeft.value = 0
-  stageTop.value = -TOP_CROP
+  stageTop.value = -TOP_CROP * frameScale.value
 }
 
 onMounted(() => {
@@ -107,6 +107,7 @@ onBeforeUnmount(() => {
 
 <style scoped lang="scss">
 .graphical-monitor-card {
+  flex-shrink: 0;
   overflow: hidden;
   background-color: $bg-card;
   border: 1px solid $border-card;

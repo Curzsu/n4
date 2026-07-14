@@ -9,13 +9,13 @@
           @click="goBack" 
           class="back-btn"
         >
-          返回大屏
+          Return to Dashboard
         </el-button>
         <span class="system-title">{{ currentNodeName }}</span>
         <el-tag size="small" type="info" class="system-tag">{{ currentNodeType }}</el-tag>
       </div>
       <div class="header-right">
-        <span class="update-time">数据刷新时间: {{ currentTime }}</span>
+        <span class="update-time">Data refresh time: {{ currentTime }}</span>
       </div>
     </div>
 
@@ -27,7 +27,7 @@
           <el-icon><Monitor /></el-icon>
         </div>
         <div class="card-info">
-          <span class="card-label">总设备数</span>
+          <span class="card-label">Total Devices</span>
           <span class="card-value">{{ deviceStats.total }}</span>
         </div>
       </div>
@@ -37,7 +37,7 @@
           <el-icon><CircleCheck /></el-icon>
         </div>
         <div class="card-info">
-          <span class="card-label">在线设备</span>
+          <span class="card-label">Online Devices</span>
           <span class="card-value text-green">{{ deviceStats.online }}</span>
         </div>
       </div>
@@ -47,7 +47,7 @@
           <el-icon><CircleClose /></el-icon>
         </div>
         <div class="card-info">
-          <span class="card-label">离线设备</span>
+          <span class="card-label">Offline Devices</span>
           <span class="card-value text-gray">{{ deviceStats.offline }}</span>
         </div>
       </div>
@@ -57,7 +57,7 @@
           <el-icon><Warning /></el-icon>
         </div>
         <div class="card-info">
-          <span class="card-label">异常设备</span>
+          <span class="card-label">Fault Devices</span>
           <span class="card-value text-red">{{ deviceStats.fault }}</span>
         </div>
       </div>
@@ -66,10 +66,10 @@
     <!-- Main Content Area: Device Table -->
     <div class="content-card">
       <div class="content-card-header">
-        <h3>设备列表</h3>
+        <h3>Device List</h3>
         <el-input
           v-model="searchQuery"
-          placeholder="搜索设备名称或编码..."
+          placeholder="Search device name or code..."
           size="small"
           :prefix-icon="Search"
           class="table-search"
@@ -84,14 +84,14 @@
         :header-cell-style="{ background: '#111827', color: '#9ca3af', borderColor: '#1f2937' }"
         :cell-style="{ borderColor: '#1f2937' }"
       >
-        <el-table-column prop="id" label="设备 ID / 编码" width="140" />
-        <el-table-column prop="label" label="设备名称" min-width="180" />
-        <el-table-column prop="type" label="设备类型" width="120">
+        <el-table-column prop="id" label="Device ID / Code" width="140" />
+        <el-table-column prop="label" label="Device Name" min-width="180" />
+        <el-table-column prop="type" label="Device Type" width="120">
           <template #default="{ row }">
             <span class="type-badge">{{ row.type }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="运行状态" width="120">
+        <el-table-column prop="status" label="Status" width="120">
           <template #default="{ row }">
             <span :class="['status-badge', getStatusClass(row.status)]">
               <span class="dot"></span>
@@ -99,7 +99,7 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="140" fixed="right">
+        <el-table-column label="Action" width="140" fixed="right">
           <template #default="{ row }">
             <el-button 
               type="primary" 
@@ -108,7 +108,7 @@
               @click="viewMonitorPoints(row)"
               class="action-btn"
             >
-              查看测点
+              View Points
             </el-button>
           </template>
         </el-table-column>
@@ -118,7 +118,7 @@
     <!-- Monitor Points Drawer (Prepping for Phase 2) -->
     <el-drawer
       v-model="drawerVisible"
-      :title="`设备监控测点 - ${selectedDevice?.label || ''}`"
+      :title="`Device Monitor Points - ${selectedDevice?.label || ''}`"
       size="45%"
       destroy-on-close
       class="custom-drawer"
@@ -130,21 +130,21 @@
           :header-cell-style="{ background: '#111827', color: '#9ca3af', borderColor: '#1f2937' }"
           :cell-style="{ borderColor: '#1f2937' }"
         >
-          <el-table-column prop="pointCode" label="测点编码" width="120" />
-          <el-table-column prop="pointName" label="测点名称" min-width="140" />
-          <el-table-column prop="pointValue" label="当前值" width="100">
+          <el-table-column prop="pointCode" label="Point Code" width="120" />
+          <el-table-column prop="pointName" label="Point Name" min-width="140" />
+          <el-table-column prop="pointValue" label="Current Value" width="100">
             <template #default="{ row }">
               <span class="point-value">{{ row.pointValue }} {{ row.unit || '' }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="pointStatus" label="状态" width="90">
+          <el-table-column prop="pointStatus" label="Status" width="90">
             <template #default="{ row }">
               <el-tag 
                 size="small" 
                 :type="row.pointStatus === 1 ? 'success' : 'danger'"
                 effect="dark"
               >
-                {{ row.pointStatus === 1 ? '正常' : '告警' }}
+                {{ row.pointStatus === 1 ? 'Normal' : 'Alarm' }}
               </el-tag>
             </template>
           </el-table-column>
@@ -175,14 +175,14 @@ const currentTime = computed(() => {
   return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}`
 })
 
-const currentNodeName = computed(() => store.selectedNode?.label || '系统设备')
+const currentNodeName = computed(() => store.selectedNode?.label || 'System Devices')
 const currentNodeType = computed(() => {
   const t = store.selectedNode?.type || ''
   switch (t) {
-    case 'building': return '区域层级'
-    case 'system': return '系统层级'
-    case 'device': return '设备层级'
-    default: return '未知层级'
+    case 'building': return 'Region Level'
+    case 'system': return 'System Level'
+    case 'device': return 'Device Level'
+    default: return 'Unknown Level'
   }
 })
 
@@ -237,11 +237,11 @@ function goBack() {
 
 function getStatusText(status: number): string {
   switch (status) {
-    case 1: return '在线'
-    case 2: return '离线'
-    case 3: return '维护'
-    case 4: return '故障'
-    default: return '未知'
+    case 1: return 'Online'
+    case 2: return 'Offline'
+    case 3: return 'Maintenance'
+    case 4: return 'Fault'
+    default: return 'Unknown'
   }
 }
 

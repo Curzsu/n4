@@ -8,7 +8,8 @@
         <span
           v-for="tab in navTabs"
           :key="tab"
-          :class="['nav-tab', { active: tab === 'Dashboard' }]"
+          :class="['nav-tab', { active: isActive(tab) }]"
+          @click="onTabClick(tab)"
         >{{ tab }}</span>
       </div>
     </div>
@@ -30,16 +31,37 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { Search, UserFilled } from '@element-plus/icons-vue'
 import { useDashboardStore } from '@/stores/dashboard'
 
 const store = useDashboardStore()
+const route = useRoute()
+const router = useRouter()
 const alarmSummary = computed(() => store.alarmSummary)
 
 const navTabs = [
   'Dashboard', 'Electrical', 'Cooling', 'Mechanical',
   'Data Hall', 'Alarms', 'Trend', 'Report', 'System',
 ]
+
+const routeMap: Record<string, string> = {
+  Dashboard: '/',
+  Alarms: '/alarm',
+}
+
+function onTabClick(tab: string) {
+  const path = routeMap[tab]
+  if (path) {
+    router.push(path)
+  }
+}
+
+function isActive(tab: string): boolean {
+  if (tab === 'Dashboard') return route.path === '/'
+  if (tab === 'Alarms') return route.path === '/alarm'
+  return false
+}
 </script>
 
 <style scoped lang="scss">

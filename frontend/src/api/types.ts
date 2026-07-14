@@ -74,3 +74,64 @@ export interface MonitorPoint {
   pointStatus: number
 }
 
+// ===== Alarm Page Types =====
+
+export interface AlarmRecord {
+  id: string
+  time: string
+  severity: string
+  source: string
+  message: string
+  location: string
+  status: string
+  ackBy: string
+  duration: string
+  stage?: string
+  path?: string
+}
+
+export interface SeverityItem {
+  name: string
+  value: number
+  percentage: number
+}
+
+export interface AlarmSeverityData {
+  total: number
+  items: SeverityItem[]
+}
+
+export interface TrendSeries {
+  name: string
+  data: number[]
+}
+
+export interface AlarmTrendData {
+  timeLabels: string[]
+  series: TrendSeries[]
+}
+
+export interface AlarmHourData {
+  hours: string[]
+  counts: number[]
+}
+
+export interface SystemItem {
+  name: string
+  value: number
+  percentage: number
+}
+
+export interface AlarmSystemData {
+  items: SystemItem[]
+}
+
+export interface SourceItem {
+  name: string
+  count: number
+}
+
+export interface AlarmSourceData {
+  items: SourceItem[]
+}
+
