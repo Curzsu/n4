@@ -74,3 +74,14 @@ export interface MonitorPoint {
   pointStatus: number
 }
 
+export interface Product {
+  productId?: number
+  productName: string
+  productType: string
+  model?: string
+  manufacturer?: string
+  manuDate?: string
+  isDeleted?: boolean
+}
+
+

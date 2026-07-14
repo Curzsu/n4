@@ -8,12 +8,13 @@
         <span
           v-for="tab in navTabs"
           :key="tab"
-          :class="['nav-tab', { active: tab === 'Dashboard' }]"
+          :class="['nav-tab', { active: tab === activeTab }]"
+          @click="handleTabClick(tab)"
         >{{ tab }}</span>
       </div>
     </div>
     <div class="navbar-right">
-      <div class="alert-badges">
+      <div class="alert-badges" @click="openRightPanel">
         <span class="badge critical">{{ alarmSummary?.critical || 0 }}</span>
         <span class="badge major">{{ alarmSummary?.major || 0 }}</span>
         <span class="badge minor">{{ alarmSummary?.minor || 0 }}</span>
@@ -30,16 +31,43 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { Search, UserFilled } from '@element-plus/icons-vue'
 import { useDashboardStore } from '@/stores/dashboard'
+
+const router = useRouter()
+const route = useRoute()
 
 const store = useDashboardStore()
 const alarmSummary = computed(() => store.alarmSummary)
 
 const navTabs = [
-  'Dashboard', 'Electrical', 'Cooling', 'Mechanical',
-  'Data Hall', 'Alarms', 'Trend', 'Report', 'System',
+  'Dashboard', 'Device Template', 'Device Deployment'
 ]
+
+const activeTab = computed(() => {
+  if (route.path === '/device-template') {
+    return 'Device Template'
+  }
+  if (route.path === '/device-deployment') {
+    return 'Device Deployment'
+  }
+  return 'Dashboard'
+})
+
+function handleTabClick(tab: string) {
+  if (tab === 'Device Template') {
+    router.push('/device-template')
+  } else if (tab === 'Device Deployment') {
+    router.push('/device-deployment')
+  } else if (tab === 'Dashboard') {
+    router.push('/')
+  }
+}
+
+function openRightPanel() {
+  store.isRightCollapsed = false
+}
 </script>
 
 <style scoped lang="scss">
@@ -110,6 +138,11 @@ const navTabs = [
 .alert-badges {
   display: flex;
   gap: 8px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  &:hover {
+    opacity: 0.8;
+  }
 }
 
 .badge {

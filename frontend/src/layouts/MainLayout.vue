@@ -2,7 +2,7 @@
   <div class="main-layout">
     <TopNavbar />
     <div class="layout-body">
-      <LeftSidebar />
+      <LeftSidebar v-if="showSidebar" />
       <div class="layout-content">
         <slot />
       </div>
@@ -12,14 +12,14 @@
           <el-icon class="collapsed-icon"><Setting /></el-icon>
         </div>
         <div class="right-panel-body" v-else>
+          <div class="right-panel-header">
+            <span class="panel-title">系统状态与告警</span>
+            <el-icon class="close-panel-btn" @click="closeRightPanel"><Close /></el-icon>
+          </div>
           <AlarmSummary />
           <SystemStatus />
         </div>
-        <div class="right-panel-footer">
-          <span class="collapse-btn" @click="toggleRightCollapse">
-            {{ isRightCollapsed ? '<<' : 'Collapse >>' }}
-          </span>
-        </div>
+
       </div>
     </div>
     <BottomToolbar />
@@ -27,17 +27,34 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { Bell, Setting } from '@element-plus/icons-vue'
+import { computed } from 'vue'
+import { Bell, Setting, Close } from '@element-plus/icons-vue'
 import TopNavbar from '@/components/TopNavbar.vue'
 import LeftSidebar from '@/components/LeftSidebar.vue'
 import BottomToolbar from '@/components/BottomToolbar.vue'
 import AlarmSummary from '@/components/AlarmSummary.vue'
 import SystemStatus from '@/components/SystemStatus.vue'
+import { useRoute } from 'vue-router'
+import { useDashboardStore } from '@/stores/dashboard'
 
-const isRightCollapsed = ref(false)
+const route = useRoute()
+const store = useDashboardStore()
+
+const showSidebar = computed(() => {
+  return route.path !== '/'
+})
+
+const isRightCollapsed = computed({
+  get: () => store.isRightCollapsed,
+  set: (val) => { store.isRightCollapsed = val }
+})
+
 function toggleRightCollapse() {
   isRightCollapsed.value = !isRightCollapsed.value
+}
+
+function closeRightPanel() {
+  isRightCollapsed.value = true
 }
 </script>
 
@@ -73,7 +90,8 @@ function toggleRightCollapse() {
   overflow: hidden;
 
   &.collapsed {
-    width: $sidebar-collapsed-width;
+    width: 0;
+    border-left: none;
   }
 }
 
@@ -104,6 +122,32 @@ function toggleRightCollapse() {
   gap: 12px;
   padding: 16px 12px;
   overflow-y: auto;
+}
+
+.right-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid $border-color;
+  margin-bottom: 4px;
+}
+
+.panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: $text-primary;
+}
+
+.close-panel-btn {
+  font-size: 16px;
+  color: $text-secondary;
+  cursor: pointer;
+  transition: color 0.2s;
+  
+  &:hover {
+    color: $accent-red;
+  }
 }
 
 .right-panel-footer {

@@ -19,4 +19,7 @@ public interface DeviceMapper {
     List<Device> countByProductType();
 
     Device findByDeviceId(@Param("deviceId") Long deviceId);
+    void insert(Device device);
+    void update(Device device);
+    void logicalDelete(@Param("deviceId") Long deviceId);
 }

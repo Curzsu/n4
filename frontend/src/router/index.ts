@@ -8,6 +8,16 @@ const router = createRouter({
       name: 'dashboard',
       component: () => import('@/views/DashboardView.vue'),
     },
+    {
+      path: '/device-template',
+      name: 'device-template',
+      component: () => import('@/views/device-deploy/ProductManagerView.vue'),
+    },
+    {
+      path: '/device-deployment',
+      name: 'device-deployment',
+      component: () => import('@/views/device-deploy/DeviceDeploymentView.vue'),
+    },
   ],
 })
 

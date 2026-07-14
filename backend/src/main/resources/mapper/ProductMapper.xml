@@ -4,11 +4,32 @@
 <mapper namespace="com.n4monitor.mapper.ProductMapper">
 
     <select id="findAll" resultType="com.n4monitor.entity.Product">
-        SELECT * FROM product
+        SELECT * FROM product WHERE is_deleted = 0
     </select>
 
     <select id="findByProductId" resultType="com.n4monitor.entity.Product">
-        SELECT * FROM product WHERE product_id = #{productId}
+        SELECT * FROM product WHERE product_id = #{productId} AND is_deleted = 0
     </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="productId">
+        INSERT INTO product (product_name, product_type, model, manufacturer, manu_date)
+        VALUES (#{productName}, #{productType}, #{model}, #{manufacturer}, #{manuDate})
+    </insert>
+
+    <update id="update">
+        UPDATE product
+        SET product_name = #{productName},
+            product_type = #{productType},
+            model = #{model},
+            manufacturer = #{manufacturer},
+            manu_date = #{manuDate}
+        WHERE product_id = #{productId}
+    </update>
+
+    <update id="logicalDelete">
+        UPDATE product
+        SET is_deleted = 1
+        WHERE product_id = #{productId}
+    </update>
 
 </mapper>

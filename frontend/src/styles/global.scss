@@ -52,6 +52,99 @@ html, body, #app {
   border: 1px solid $border-color !important;
 }
 
+// Dark dialog styling
+.dark-dialog {
+  --el-dialog-bg-color: #111b27 !important; // $bg-card matching template view
+  --el-dialog-title-font-color: #f8fafc !important;
+  --el-dialog-content-font-size: 14px !important;
+  
+  border: 1px solid #1e293b !important; // $border-color
+  border-radius: 8px !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.6) !important;
+  
+  .el-dialog__title {
+    color: #f8fafc !important;
+    font-weight: 600;
+  }
+  
+  .el-dialog__body {
+    color: #cbd5e1 !important;
+  }
+  
+  .el-form-item__label {
+    color: #cbd5e1 !important;
+    font-weight: 500;
+  }
+  
+  // Custom button overrides within dark dialog
+  .el-button {
+    background-color: transparent !important;
+    border: 1px solid #1e293b !important;
+    color: #cbd5e1 !important;
+    
+    &:hover {
+      background-color: #1e293b !important;
+      color: #f8fafc !important;
+    }
+    
+    &--primary {
+      background-color: #3b82f6 !important;
+      border-color: #3b82f6 !important;
+      color: #ffffff !important;
+      
+      &:hover {
+        background-color: #2563eb !important;
+      }
+      
+      &.is-disabled {
+        background-color: #1e293b !important;
+        border-color: #1e293b !important;
+        color: #64748b !important;
+        cursor: not-allowed;
+      }
+    }
+  }
+
+  // Select dropdown styling
+  .el-select__wrapper {
+    background-color: #0b1119 !important; // $bg-dark
+    border: 1px solid #1e293b !important;
+    box-shadow: none !important;
+    color: #cbd5e1 !important;
+  }
+
+  .el-select__placeholder {
+    color: #64748b !important;
+  }
+
+  .el-select__selected-item {
+    color: #cbd5e1 !important;
+  }
+  
+  // Input Number decrement/increment buttons styling
+  .el-input-number__decrease,
+  .el-input-number__increase {
+    background-color: #0b1119 !important;
+    border-color: #1e293b !important;
+    color: #cbd5e1 !important;
+    
+    &:hover {
+      color: #3b82f6 !important;
+    }
+  }
+
+  // Upload dragger styling
+  .el-upload-dragger {
+    background-color: #0b1119 !important;
+    border: 1px dashed #1e293b !important;
+    transition: border-color 0.25s ease !important;
+    
+    &:hover {
+      border-color: #3b82f6 !important;
+    }
+  }
+}
+
 // Scrollbar styling
 ::-webkit-scrollbar {
   width: 6px;
