@@ -267,10 +267,7 @@ public class AlarmProcessingJob {
                         // Not yet acknowledged -> freeze the alarm record with final duration
                         history.setStage("end");
                         history.setDuration(String.valueOf(intervalSeconds));
-                        // history.setTimestamp(current.getTimestamp());
-                        // history.setValue(current.getValue());
                         writeActiveState(history);
-                        // publishHistoryEnd(history, intervalSeconds);
                         publishAlarm(history);   // broadcast frozen record (frontend freezes duration)
                     }
                 }

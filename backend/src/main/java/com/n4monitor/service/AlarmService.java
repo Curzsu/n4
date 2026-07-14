@@ -146,13 +146,28 @@ public class AlarmService {
                     continue;
                 }
 
-                ((com.fasterxml.jackson.databind.node.ObjectNode) node)
-                        .put("status", "Ack")
-                        .put("ackBy", ackBy);
+                String stage = node.has("stage") ? node.get("stage").asText() : "";
 
-                String updatedJson = objectMapper.writeValueAsString(node);
-                redisTemplate.opsForHash().put(activeRedisKey, key, updatedJson);
-                ackedJsons.add(updatedJson);
+                if ("end".equals(stage)) {
+                    // Already recovered (stage=end): mark as Ack and remove from Redis
+                    // so a page refresh does not resurrect it. The cleared signal is
+                    // still broadcast so the frontend removes the row immediately.
+                    ((com.fasterxml.jackson.databind.node.ObjectNode) node)
+                            .put("status", "Ack")
+                            .put("ackBy", ackBy);
+                    String clearedJson = objectMapper.writeValueAsString(node);
+                    redisTemplate.opsForHash().delete(activeRedisKey, key);
+                    ackedJsons.add(clearedJson);
+                } else {
+                    // Still alarming (stage=start/continue): update status in place,
+                    // the record stays in alarm:active for continued display.
+                    ((com.fasterxml.jackson.databind.node.ObjectNode) node)
+                            .put("status", "Ack")
+                            .put("ackBy", ackBy);
+                    String updatedJson = objectMapper.writeValueAsString(node);
+                    redisTemplate.opsForHash().put(activeRedisKey, key, updatedJson);
+                    ackedJsons.add(updatedJson);
+                }
                 updated++;
             } catch (Exception e) {
                 log.warn("Failed to acknowledge alarm for key: {}", key, e);
@@ -160,7 +175,7 @@ public class AlarmService {
         }
 
         // Broadcast each acked record so connected WebSocket clients update immediately.
-        // A recovered+acked alarm carries stage=end; the frontend will remove it.
+        // A recovered+acked alarm carries stage=end + status=Ack; the frontend removes it.
         for (String ackedJson : ackedJsons) {
             redisTemplate.convertAndSend(notificationChannel, ackedJson);
         }

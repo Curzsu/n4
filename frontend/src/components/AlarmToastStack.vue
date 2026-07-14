@@ -76,6 +76,11 @@ onUpdate((data: any) => {
   if (!data.alarm) return
 
   const record = normalizeRecord(data.alarm)
+
+  // Only toast the first occurrence of an alarm: stage=start + Unack.
+  // Continue/end/ack/recovery updates do not pop a toast.
+  if (record.stage !== 'start' || record.status !== 'Unack') return
+
   const toast: ToastItem = {
     ...record,
     toastId: `${record.id}-${Date.now()}`,

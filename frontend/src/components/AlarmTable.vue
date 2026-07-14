@@ -275,6 +275,7 @@ onUpdate((data: any) => {
       selectedIds.value.delete(tableData.value[idx].id)
       tableData.value.splice(idx, 1)
     }
+    nextTick(updateVisibleRows)
     return
   }
 
@@ -287,10 +288,11 @@ onUpdate((data: any) => {
     } else {
       tableData.value.unshift(newRecord)
     }
+    nextTick(updateVisibleRows)
     return
   }
 
-  // Normal alarm update: remove existing record (to re-insert at top)
+  // Normal alarm update: remove existing record (to re-insert)
   const existingIndex = tableData.value.findIndex(r => r.source === newRecord.source)
   if (existingIndex >= 0) {
     const replaced = tableData.value[existingIndex]
@@ -301,13 +303,18 @@ onUpdate((data: any) => {
     tableData.value.splice(existingIndex, 1)
   }
 
-  // Always insert at the top (newest first)
-  tableData.value.unshift(newRecord)
+  // Insert and re-sort by time descending (newest first)
+  tableData.value.push(newRecord)
+  tableData.value.sort((a, b) => b.time.localeCompare(a.time))
 
   // Keep max 100 rows
   if (tableData.value.length > 100) {
     tableData.value = tableData.value.slice(0, 100)
   }
+
+  // Recompute visible rows so Select All works immediately after a WS push,
+  // not only after a manual page refresh or Ack.
+  nextTick(updateVisibleRows)
 })
 
 onMounted(() => {
@@ -459,5 +466,22 @@ onBeforeUnmount(() => {
   width: 70px;
   display: inline-flex;
   justify-content: center;
+}
+
+// Disabled checkboxes (Ack rows) must be visually obvious — Element Plus's
+// default disabled style is nearly invisible on the dark theme (opacity dimming
+// makes it look identical to a normal unchecked box).
+:deep(.el-checkbox.is-disabled) {
+  .el-checkbox__inner {
+    background-color: #374151;
+    border-color: #6b7280;
+    cursor: not-allowed;
+    opacity: 1;  // override Element Plus's default dimming
+  }
+  .el-checkbox__input.is-checked .el-checkbox__inner {
+    // A checked+disabled box stays grey so it reads as "locked", not "selected"
+    background-color: #4b5563;
+    border-color: #6b7280;
+  }
 }
 </style>
