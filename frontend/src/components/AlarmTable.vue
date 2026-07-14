@@ -95,7 +95,7 @@ const tableHeight = ref(400)
 const visibleRowIds = ref<Set<string>>(new Set())
 
 // Connect to WebSocket
-const { latestAlarm, onUpdate } = useAlarmWebSocket()
+const { onUpdate } = useAlarmWebSocket()
 
 function updateTableHeight() {
   if (!tablePanelRef.value) return

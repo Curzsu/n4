@@ -19,4 +19,8 @@ public interface DeviceMapper {
     List<Device> countByProductType();
 
     Device findByDeviceId(@Param("deviceId") Long deviceId);
+
+    Device findByDeviceCode(@Param("deviceCode") String deviceCode);
+
+    Device findByDeviceName(@Param("deviceName") String deviceName);
 }

@@ -152,4 +152,20 @@ watch(isAlarmRoute, (alarm) => {
   flex-direction: column;
   gap: 12px;
 }
+
+@media (max-width: 1100px) {
+  .layout-right-panel {
+    width: $right-panel-collapsed-width;
+    padding: 12px 4px;
+  }
+
+  .right-panel-header {
+    justify-content: center;
+  }
+
+  .right-panel-title,
+  .right-panel-inner {
+    display: none;
+  }
+}
 </style>

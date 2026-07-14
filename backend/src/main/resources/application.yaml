@@ -6,9 +6,9 @@ spring:
     name: n4-monitor
 
   datasource:
-    url: jdbc:mysql://localhost:3306/n4_monitor?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://localhost:3306/n4_monitor?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
     username: root
-    password: 1234
+    password: zs156987
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   kafka:
@@ -40,8 +40,8 @@ tdengine:
 # Alarm configuration
 alarm:
   rule:
-    excel-file: D:/Apro/N4-monitor/材料/alarm_rules_config.xlsx
-    log-file: D:/Apro/N4-monitor/材料/points-2.log
+    excel-file: materials/alarm_rules_config.xlsx
+    log-file: materials/points-2.log
   flink:
     enabled: true
 #    topic: mqtt-push-kafka
@@ -54,6 +54,17 @@ alarm:
     active-key: alarm:active                  # Alarm records + ack status (written when alarm is triggered, frozen/deleted when recovered, status updated when Acked)
     notification-channel: alarm:notifications # Queue for sending alarm notifications
     realtime-channel: alarm:realtime          # Queue for writing to TDengine database
+
+# Dynamic FUXA template binding. Secrets remain in FUXA's MQTT device configuration.
+fuxa:
+  base-url: ${FUXA_BASE_URL:http://127.0.0.1:1881}
+  enabled: ${FUXA_PROVISIONING_ENABLED:true}
+  template-device-id: ${FUXA_TEMPLATE_DEVICE_ID:d_f1431d5e-58774643}
+  template-topic-device-id: ${FUXA_TEMPLATE_TOPIC_DEVICE_ID:EMSB_03_EM32}
+  template-view-id: ${FUXA_TEMPLATE_VIEW_ID:v_h1_emsb_a4_03_em}
+  template-view-name: ${FUXA_TEMPLATE_VIEW_NAME:H1_EMSB_A4_03_EM}
+  adapter-id: ${FUXA_ADAPTER_ID:d_n4_spm32_adapter}
+  adapter-name: ${FUXA_ADAPTER_NAME:N4 SPM32 Adapter}
 
 #logging:
 #  level:

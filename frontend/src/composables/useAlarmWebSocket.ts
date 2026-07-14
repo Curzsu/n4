@@ -1,4 +1,4 @@
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted } from 'vue'
 import type { AlarmRecord, AlarmSummary, AlarmSeverityData, AlarmHourData } from '@/api/types'
 
 /**

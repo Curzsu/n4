@@ -53,6 +53,7 @@ public class DeviceService {
                     if (isLeaf) {
                         // Leaf node corresponds to the actual device
                         currentNode.setId(device.getDeviceId());
+                        currentNode.setDeviceCode(device.getDeviceCode());
                         currentNode.setLabel(device.getDeviceName());
                         currentNode.setType("device");
                         currentNode.setStatus(device.getStatus());
@@ -77,6 +78,7 @@ public class DeviceService {
                 } else if (isLeaf) {
                     // Update in case duplicate path mappings occur
                     currentNode.setId(device.getDeviceId());
+                    currentNode.setDeviceCode(device.getDeviceCode());
                     currentNode.setLabel(device.getDeviceName());
                     currentNode.setType("device");
                     currentNode.setStatus(device.getStatus());

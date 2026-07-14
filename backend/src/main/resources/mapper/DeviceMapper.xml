@@ -29,4 +29,14 @@
         SELECT * FROM device WHERE device_id = #{deviceId} AND is_deleted = 0
     </select>
 
+    <select id="findByDeviceCode" resultType="com.n4monitor.entity.Device">
+        SELECT * FROM device WHERE device_code = #{deviceCode} AND is_deleted = 0 LIMIT 1
+    </select>
+
+    <select id="findByDeviceName" resultType="com.n4monitor.entity.Device">
+        SELECT * FROM device WHERE device_name = #{deviceName} AND is_deleted = 0
+        ORDER BY device_id
+        LIMIT 1
+    </select>
+
 </mapper>

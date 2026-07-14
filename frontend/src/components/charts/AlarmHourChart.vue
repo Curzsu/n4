@@ -9,7 +9,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { Close } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
@@ -18,7 +18,6 @@ import { GridComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import { alarmApi } from '@/api/alarm'
 import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
-import type { AlarmHourData } from '@/api/types'
 
 use([BarChart, GridComponent, TooltipComponent, CanvasRenderer])
 
