@@ -1,21 +1,25 @@
 """
-Kafka Manual Producer - 根据 path 从 points-2.log 查找模板，手动发送单条数据
+Kafka Manual Producer - 手动发送单条点位数据到 Kafka
+
+无需从 points-2.log 读取模板，数据格式固定：
+  {"name":"...","displayName":"...","path":"...","value":"...",
+   "type":null,"unit":null,"max":null,"min":null,
+   "ip":null,"port":null,"other":null,"timestamp":<毫秒时间戳>}
 
 用法:
     pip install kafka-python
-    python kafka_manual_producer.py
+    python kafka_producer_single.py
 
 交互方式:
-    1. 输入要发送的 path（与 points-2.log 中的 key 一致）
+    1. 输入要发送的 path（如 Drivers/ModbusTcpNetwork/LVP_A4/points/Collector/Communication_status）
     2. 输入要发送的 value
-    3. 脚本会从日志中找到对应模板，填充其余字段，时间戳设为当前时间，发送一条数据
+    3. 脚本按固定格式构造 JSON，时间戳设为当前时间，发送一条数据
 """
 
 import json
 import sys
 import time
 from datetime import datetime
-from pathlib import Path
 
 # 允许控制台使用中文输出（Windows CMD 兼容）
 import io
@@ -35,62 +39,38 @@ except ImportError:
 
 KAFKA_BROKER = "47.121.30.136:9092"
 KAFKA_TOPIC = "obix-mqtt-points"
-LOG_FILE = str(Path(__file__).parent.parent / "材料" / "points-2.log")
 
 
 # ╔═══════════════════════════════════════════════════════════════════╗
-# ║                        日志解析                                     ║
+# ║                        消息构造                                     ║
 # ╚═══════════════════════════════════════════════════════════════════╝
 
-import re
-
-LINE_PATTERN = re.compile(
-    r'timestamp=\[([^\]]+)\]\s*,topic=([^,]+)\s*,key=(.*?)\s*,value=(.*)'
-)
-
-
-def parse_log_line(line: str) -> dict | None:
-    """解析单条日志行，返回模板字典（含 key 和 value JSON）。"""
-    line = line.strip()
-    if not line:
-        return None
-
-    m = LINE_PATTERN.match(line)
-    if not m:
-        return None
-
-    key = m.group(3).strip()
-    value_str = m.group(4).strip()
-
-    try:
-        json.loads(value_str)
-    except json.JSONDecodeError:
-        return None
-
-    return {"key": key, "value": value_str}
+def extract_point_name(path: str) -> str:
+    """从 path 中提取点位名（最后一段，按 / 分隔）。"""
+    if not path:
+        return ""
+    normalized = path.strip("/")
+    parts = normalized.split("/")
+    return parts[-1] if parts else ""
 
 
-def load_templates(log_path: str) -> dict[str, dict]:
-    """加载日志，按 path（即 key）建立模板索引。"""
-    templates = {}
-    path_obj = Path(log_path)
-    if not path_obj.exists():
-        print(f"错误：日志文件不存在: {path_obj}")
-        sys.exit(1)
-
-    with open(path_obj, "r", encoding="utf-8") as f:
-        for line in f:
-            parsed = parse_log_line(line)
-            if not parsed:
-                continue
-            # 以 key（path）作为索引；若日志中有重复 path，保留第一次出现的模板
-            if parsed["key"] not in templates:
-                try:
-                    templates[parsed["key"]] = json.loads(parsed["value"])
-                except json.JSONDecodeError:
-                    pass
-
-    return templates
+def build_payload(path: str, value: str) -> dict:
+    """按固定格式构造消息体。"""
+    point_name = extract_point_name(path)
+    return {
+        "name": point_name,
+        "displayName": point_name,
+        "path": path,
+        "value": value,
+        "type": None,
+        "unit": None,
+        "max": None,
+        "min": None,
+        "ip": None,
+        "port": None,
+        "other": None,
+        "timestamp": int(time.time() * 1000),
+    }
 
 
 # ╔═══════════════════════════════════════════════════════════════════╗
@@ -98,11 +78,9 @@ def load_templates(log_path: str) -> dict[str, dict]:
 # ╚═══════════════════════════════════════════════════════════════════╝
 
 def main():
-    print(f"[INFO] 正在加载日志模板: {LOG_FILE}")
-    templates = load_templates(LOG_FILE)
-    print(f"[INFO] 共加载 {len(templates)} 个不同 path 的模板")
     print(f"[INFO] Kafka broker: {KAFKA_BROKER}")
     print(f"[INFO] Kafka topic : {KAFKA_TOPIC}")
+    print(f"[INFO] 数据格式: 固定（无需日志模板）")
     print("-" * 60)
 
     try:
@@ -121,25 +99,10 @@ def main():
                 print("[INFO] 退出")
                 break
 
-            if path not in templates:
-                print(f"错误：未在日志中找到 path: {path}")
-                print("提示：可输入日志中存在的完整 path，例如:")
-                # 列出前 5 个示例
-                for example in list(templates.keys())[:5]:
-                    print(f"  - {example}")
-                continue
-
             value = input("请输入要发送的 value: ").strip()
 
-            template = templates[path].copy()
-            template["value"] = value
-            template["timestamp"] = int(time.time() * 1000)
-
-            # 如果模板里没有 path（理论上都有），兜底补一个
-            if "path" not in template or not template["path"]:
-                template["path"] = path
-
-            payload = json.dumps(template, ensure_ascii=False)
+            payload_dict = build_payload(path, value)
+            payload = json.dumps(payload_dict, ensure_ascii=False)
 
             future = producer.send(
                 KAFKA_TOPIC,
@@ -151,7 +114,7 @@ def main():
 
             print(f"[OK] 发送成功")
             print(f"     topic={metadata.topic}, partition={metadata.partition}, offset={metadata.offset}")
-            print(f"     send_time={datetime.fromtimestamp(template['timestamp'] / 1000).strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"     send_time={datetime.fromtimestamp(payload_dict['timestamp'] / 1000).strftime('%Y-%m-%d %H:%M:%S')}")
             print(f"     payload={payload}")
 
         except KeyboardInterrupt:

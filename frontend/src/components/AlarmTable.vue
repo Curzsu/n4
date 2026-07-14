@@ -85,6 +85,10 @@ import { normalizeRecord, severityTagType } from '@/utils/alarm'
 import ElapsedDuration from '@/components/ElapsedDuration.vue'
 import type { AlarmRecord } from '@/api/types'
 
+// When deviceName is provided, only alarms whose path contains that device name
+// as a segment are shown. Used by DeviceDetailView to scope the alarm list.
+const props = defineProps<{ deviceName?: string }>()
+
 const loading = ref(false)
 const tableData = ref<AlarmRecord[]>([])
 const activeTab = ref('active')
@@ -96,6 +100,22 @@ const visibleRowIds = ref<Set<string>>(new Set())
 
 // Connect to WebSocket
 const { onUpdate } = useAlarmWebSocket()
+
+/** Check whether an alarm record belongs to the filtered device. */
+function matchesDevice(record: AlarmRecord): boolean {
+  if (!props.deviceName) return true
+  // Path format: Drivers/ModbusTcpNetwork/{area}/points/{deviceName}/{pointName}
+  // Match the device name as a path segment after "points".
+  const path = record.path || ''
+  if (!path) return false
+  const segments = path.split('/')
+  const pointsIdx = segments.indexOf('points')
+  if (pointsIdx >= 0 && pointsIdx + 1 < segments.length) {
+    return segments[pointsIdx + 1] === props.deviceName
+  }
+  // Fallback: substring match
+  return path.includes(props.deviceName)
+}
 
 function updateTableHeight() {
   if (!tablePanelRef.value) return
@@ -187,15 +207,18 @@ const tabs = computed(() => [
 ])
 
 const filteredData = computed(() => {
+  const deviceFiltered = props.deviceName
+    ? tableData.value.filter(a => matchesDevice(a))
+    : tableData.value
   switch (activeTab.value) {
     case 'unacknowledged':
-      return tableData.value.filter(a => a.status === 'Unack')
+      return deviceFiltered.filter(a => a.status === 'Unack')
     case 'acknowledged':
-      return tableData.value.filter(a => a.status === 'Ack')
+      return deviceFiltered.filter(a => a.status === 'Ack')
     case 'cleared':
-      return tableData.value.filter(a => a.status === 'Cleared')
+      return deviceFiltered.filter(a => a.status === 'Cleared')
     default:
-      return tableData.value
+      return deviceFiltered
   }
 })
 
@@ -265,6 +288,22 @@ onUpdate((data: any) => {
   if (!data.alarm) return
 
   const newRecord = normalizeRecord(data.alarm)
+
+  // When scoped to a device, skip records that don't belong to it — but still
+  // process cleared signals so a device's removed alarm disappears.
+  if (props.deviceName && !matchesDevice(newRecord)) {
+    // Only handle removal for records that might already be in the list
+    const isCleared = newRecord.stage === 'end' && newRecord.status === 'Ack'
+    if (isCleared) {
+      const idx = tableData.value.findIndex(r => r.source === newRecord.source)
+      if (idx >= 0) {
+        selectedIds.value.delete(tableData.value[idx].id)
+        tableData.value.splice(idx, 1)
+        nextTick(updateVisibleRows)
+      }
+    }
+    return
+  }
 
   // Cleared signal: an acknowledged alarm has recovered (stage=end + Ack).
   // Remove it from the list entirely.
