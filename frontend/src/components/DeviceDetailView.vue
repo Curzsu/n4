@@ -64,7 +64,7 @@
       </div>
     </div>
 
-    <FuxaMonitorPanel />
+    <FuxaMonitorPanel :device="store.selectedNode" />
 
     <div class="device-alarm-table">
       <AlarmTable />

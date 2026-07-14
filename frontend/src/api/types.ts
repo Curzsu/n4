@@ -54,10 +54,23 @@ export interface TrendData {
 
 export interface DeviceTreeNode {
   id: number
+  deviceCode?: string
   label: string
   type: string
   status: number
   children: DeviceTreeNode[]
+}
+
+export interface FuxaBinding {
+  deviceId?: number
+  deviceCode?: string
+  mqttDeviceId: string
+  modelCode: string
+  fuxaDeviceId: string
+  fuxaDeviceName: string
+  viewName: string
+  iframeUrl: string
+  status: 'READY' | 'ERROR'
 }
 
 export interface MonitorPoint {

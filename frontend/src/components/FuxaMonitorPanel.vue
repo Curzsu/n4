@@ -25,10 +25,12 @@
     >
       <div class="frame-stage" :style="stageStyle">
         <iframe
+          :key="fuxaUrl"
           :src="fuxaUrl"
+          :class="{ 'is-ready': frameReady }"
           title="FUXA 图形监控"
           allow="fullscreen"
-          @load="loading = false"
+          @load="handleFrameLoad"
         />
       </div>
     </div>
@@ -36,10 +38,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { FullScreen, Monitor } from '@element-plus/icons-vue'
+import { deviceApi } from '@/api/device'
+import type { DeviceTreeNode } from '@/api/types'
+
+const props = defineProps<{
+  device: DeviceTreeNode | null
+}>()
 
 const loading = ref(true)
+const frameReady = ref(false)
 const frameShell = ref<HTMLElement | null>(null)
 const frameScale = ref(1)
 const stageLeft = ref(0)
@@ -48,7 +57,9 @@ const stageTop = ref(-100)
 const FUXA_CANVAS_WIDTH = 1220
 const FUXA_CANVAS_HEIGHT = 680
 const TOP_CROP = 100
+const DATA_SETTLE_DELAY = 900
 let resizeObserver: ResizeObserver | null = null
+let frameReadyTimer: ReturnType<typeof setTimeout> | null = null
 
 const displayHeight = computed(() => {
   return Math.round((FUXA_CANVAS_HEIGHT - TOP_CROP) * frameScale.value)
@@ -60,9 +71,54 @@ const stageStyle = computed(() => ({
   transform: `scale(${frameScale.value})`,
 }))
 
-const fuxaUrl = computed(() => {
-  return import.meta.env.VITE_FUXA_URL || 'http://127.0.0.1:1881/home/H1_EMSB_A4_03_EM'
-})
+function buildDefaultFuxaUrl() {
+  const configured = import.meta.env.VITE_FUXA_URL
+    || 'http://127.0.0.1:1881/home?viewName=H1_EMSB_A4_03_EM'
+  const url = new URL(configured, window.location.origin)
+  if (!url.searchParams.has('deviceName')) {
+    url.searchParams.set('deviceName', 'H1_EMSB_A4_03_EM')
+  }
+  return url.toString()
+}
+
+const defaultFuxaUrl = buildDefaultFuxaUrl()
+const fuxaUrl = ref(defaultFuxaUrl)
+
+function handleFrameLoad() {
+  if (frameReadyTimer) clearTimeout(frameReadyTimer)
+  frameReadyTimer = setTimeout(() => {
+    frameReady.value = true
+    loading.value = false
+    frameReadyTimer = null
+  }, DATA_SETTLE_DELAY)
+}
+
+async function loadDeviceBinding(device: DeviceTreeNode | null) {
+  if (!device || device.type !== 'device') {
+    fuxaUrl.value = defaultFuxaUrl
+    return
+  }
+
+  loading.value = true
+  frameReady.value = false
+  if (frameReadyTimer) {
+    clearTimeout(frameReadyTimer)
+    frameReadyTimer = null
+  }
+  try {
+    const binding = await deviceApi.getFuxaBinding(device.id)
+    fuxaUrl.value = binding.iframeUrl
+  } catch (error) {
+    // Node-RED may not have discovered this device yet; keep the template visible.
+    console.warn(`FUXA binding is not ready for device ${device.id}`, error)
+    const willReloadFrame = fuxaUrl.value !== defaultFuxaUrl
+    fuxaUrl.value = defaultFuxaUrl
+    if (!willReloadFrame) {
+      frameReady.value = true
+      loading.value = false
+    }
+  }
+}
 
 async function openFullscreen() {
   if (!frameShell.value) return
@@ -99,7 +155,10 @@ onMounted(() => {
   updateScale()
 })
 
+watch(() => props.device?.id, () => loadDeviceBinding(props.device), { immediate: true })
+
 onBeforeUnmount(() => {
+  if (frameReadyTimer) clearTimeout(frameReadyTimer)
   resizeObserver?.disconnect()
   document.removeEventListener('fullscreenchange', updateScale)
 })
@@ -164,6 +223,14 @@ onBeforeUnmount(() => {
   transition: height 180ms ease;
 }
 
+.frame-shell :deep(.el-loading-mask) {
+  background-color: #050505;
+}
+
+.frame-shell :deep(.el-loading-spinner .path) {
+  stroke: $accent-green;
+}
+
 .frame-stage {
   position: absolute;
   width: 1220px;
@@ -177,6 +244,12 @@ onBeforeUnmount(() => {
   display: block;
   border: 0;
   background: #050505;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.frame-stage iframe.is-ready {
+  opacity: 1;
 }
 
 .frame-shell:fullscreen {

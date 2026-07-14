@@ -55,6 +55,17 @@ alarm:
     notification-channel: alarm:notifications
     realtime-channel: alarm:realtime
 
+# Dynamic FUXA template binding. Secrets remain in FUXA's MQTT device configuration.
+fuxa:
+  base-url: ${FUXA_BASE_URL:http://127.0.0.1:1881}
+  enabled: ${FUXA_PROVISIONING_ENABLED:true}
+  template-device-id: ${FUXA_TEMPLATE_DEVICE_ID:d_f1431d5e-58774643}
+  template-topic-device-id: ${FUXA_TEMPLATE_TOPIC_DEVICE_ID:EMSB_03_EM32}
+  template-view-id: ${FUXA_TEMPLATE_VIEW_ID:v_h1_emsb_a4_03_em}
+  template-view-name: ${FUXA_TEMPLATE_VIEW_NAME:H1_EMSB_A4_03_EM}
+  adapter-id: ${FUXA_ADAPTER_ID:d_n4_spm32_adapter}
+  adapter-name: ${FUXA_ADAPTER_NAME:N4 SPM32 Adapter}
+
 #logging:
 #  level:
 #    org.apache.flink: WARN
