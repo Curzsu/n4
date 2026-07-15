@@ -248,7 +248,7 @@ async function ackSelected() {
 const headerCellStyle = {
   backgroundColor: '#0d1117',
   color: '#e5e7eb',
-  fontSize: '12px',
+  fontSize: '10px',
   fontWeight: '600',
   borderBottom: '1px solid #2d3748',
 }
@@ -256,7 +256,7 @@ const headerCellStyle = {
 const cellStyle = {
   backgroundColor: '#111827',
   color: '#e5e7eb',
-  fontSize: '12px',
+  fontSize: '10px',
   borderBottom: '1px solid #1f2937',
 }
 
@@ -440,7 +440,7 @@ onBeforeUnmount(() => {
 }
 
 .status-text {
-  font-size: 12px;
+  font-size: 10px;
   &.unack { color: $accent-red; }
   &.ack { color: $accent-green; }
   &.cleared { color: $text-muted; }
@@ -481,6 +481,29 @@ onBeforeUnmount(() => {
   td, th {
     border-bottom: 1px solid #1f2937;
   }
+
+  // Compact row height: reduce cell padding + line-height
+  .el-table__cell {
+    padding: 0 4px !important;
+  }
+  .el-table__header-cell {
+    padding: 0 4px !important;
+  }
+  // .cell is the inner div — Element Plus sets line-height: 23px which
+  // dominates the row height. Override with higher specificity + !important.
+  td.el-table__cell .cell,
+  th.el-table__header-cell .cell {
+    padding: 0 4px !important;
+    line-height: 20px !important;
+    height: 20px !important;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+  }
+  // Center-align cells that use text (non-flex content)
+  td.el-table__cell.is-center .cell {
+    justify-content: center;
+  }
 }
 
 :deep(.el-table__empty-block) {
@@ -501,10 +524,15 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
 }
 
+
 .severity-tag {
-  width: 70px;
+  width: 55px;
   display: inline-flex;
   justify-content: center;
+  font-size: 10px !important;
+  padding: 0 4px !important;
+  height: 15px;
+  line-height: 15px;
 }
 
 // Disabled checkboxes (Ack rows) must be visually obvious — Element Plus's
@@ -521,6 +549,20 @@ onBeforeUnmount(() => {
     // A checked+disabled box stays grey so it reads as "locked", not "selected"
     background-color: #4b5563;
     border-color: #6b7280;
+  }
+}
+
+// Shrink checkboxes to fit the compact 20px row height (Element Plus default is 32px)
+:deep(.el-checkbox) {
+  height: 18px;
+  .el-checkbox__inner {
+    width: 14px;
+    height: 14px;
+    border-radius: 2px;
+  }
+  .el-checkbox__label {
+    font-size: 10px;
+    padding-left: 6px;
   }
 }
 </style>
