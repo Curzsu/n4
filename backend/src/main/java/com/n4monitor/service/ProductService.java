@@ -52,20 +52,6 @@ public class ProductService {
         templateDevice.setStatus(1); // 1 = normal
         templateDevice.setIsDeleted(false);
         deviceMapper.insert(templateDevice);
-
-        // Add a default point "通信状态" for this template device
-        com.n4monitor.entity.MonitorPoint defaultPoint = new com.n4monitor.entity.MonitorPoint();
-        defaultPoint.setDeviceId(templateDevice.getDeviceId());
-        defaultPoint.setRegisterId("191001");
-        defaultPoint.setPointName("通信状态");
-        defaultPoint.setPointCode(templateDevice.getDeviceId() + "_191001");
-        defaultPoint.setPointType(1); // DI
-        defaultPoint.setDataType(1);  // int
-        defaultPoint.setUnit("无");
-        defaultPoint.setDisplayPrecision(0);
-        defaultPoint.setPointValue("1");
-        defaultPoint.setPointStatus(1); // normal
-        monitorPointMapper.insert(defaultPoint);
     }
 
     @Transactional
@@ -146,19 +132,6 @@ public class ProductService {
                 }
                 monitorPointMapper.batchInsert(clonedPoints);
             }
-        } else {
-            com.n4monitor.entity.MonitorPoint defaultPoint = new com.n4monitor.entity.MonitorPoint();
-            defaultPoint.setDeviceId(templateDevice.getDeviceId());
-            defaultPoint.setRegisterId("191001");
-            defaultPoint.setPointName("通信状态");
-            defaultPoint.setPointCode(templateDevice.getDeviceId() + "_191001");
-            defaultPoint.setPointType(1); // DI
-            defaultPoint.setDataType(1);  // int
-            defaultPoint.setUnit("无");
-            defaultPoint.setDisplayPrecision(0);
-            defaultPoint.setPointValue("1");
-            defaultPoint.setPointStatus(1);
-            monitorPointMapper.insert(defaultPoint);
         }
         return templateDevice;
     }
