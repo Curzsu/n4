@@ -7,7 +7,9 @@ import type {
   AlarmHourData,
   AlarmSystemData,
   AlarmSourceData,
-  AlarmRuleItem,
+  BooleanRuleItem,
+  NumericRuleItem,
+  EnumRuleItem,
 } from './types'
 
 export const alarmApi = {
@@ -36,17 +38,47 @@ export const alarmApi = {
     return request.post('/api/alarms/ack', { paths, ackBy })
   },
 
-  // ── Alarm rule CRUD (alarm_rule table) ──
-  getAlarmRules(): Promise<AlarmRuleItem[]> {
-    return request.get('/api/alarm-rules')
+  // ── Alarm rule CRUD (three type-specific tables) ──
+
+  // Boolean
+  getBooleanRules(): Promise<BooleanRuleItem[]> {
+    return request.get('/api/alarm-rules/boolean')
   },
-  createAlarmRule(data: AlarmRuleItem): Promise<AlarmRuleItem> {
-    return request.post('/api/alarm-rules', data)
+  createBooleanRule(data: BooleanRuleItem): Promise<BooleanRuleItem> {
+    return request.post('/api/alarm-rules/boolean', data)
   },
-  updateAlarmRule(id: number, data: AlarmRuleItem): Promise<AlarmRuleItem> {
-    return request.put(`/api/alarm-rules/${id}`, data)
+  updateBooleanRule(id: number, data: BooleanRuleItem): Promise<BooleanRuleItem> {
+    return request.put(`/api/alarm-rules/boolean/${id}`, data)
   },
-  deleteAlarmRule(id: number): Promise<void> {
-    return request.delete(`/api/alarm-rules/${id}`)
+  deleteBooleanRule(id: number): Promise<void> {
+    return request.delete(`/api/alarm-rules/boolean/${id}`)
+  },
+
+  // Numeric
+  getNumericRules(): Promise<NumericRuleItem[]> {
+    return request.get('/api/alarm-rules/numeric')
+  },
+  createNumericRule(data: NumericRuleItem): Promise<NumericRuleItem> {
+    return request.post('/api/alarm-rules/numeric', data)
+  },
+  updateNumericRule(id: number, data: NumericRuleItem): Promise<NumericRuleItem> {
+    return request.put(`/api/alarm-rules/numeric/${id}`, data)
+  },
+  deleteNumericRule(id: number): Promise<void> {
+    return request.delete(`/api/alarm-rules/numeric/${id}`)
+  },
+
+  // Enum
+  getEnumRules(): Promise<EnumRuleItem[]> {
+    return request.get('/api/alarm-rules/enum')
+  },
+  createEnumRules(data: EnumRuleItem[]): Promise<EnumRuleItem[]> {
+    return request.post('/api/alarm-rules/enum', data)
+  },
+  updateEnumRules(alarmName: string, data: EnumRuleItem[]): Promise<EnumRuleItem[]> {
+    return request.put(`/api/alarm-rules/enum/${encodeURIComponent(alarmName)}`, data)
+  },
+  deleteEnumRules(alarmName: string): Promise<void> {
+    return request.delete(`/api/alarm-rules/enum/${encodeURIComponent(alarmName)}`)
   },
 }

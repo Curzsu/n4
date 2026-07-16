@@ -54,9 +54,13 @@
       <el-table-column prop="time" label="Time" width="130" show-overflow-tooltip />
       <el-table-column prop="severity" label="Severity" width="90">
         <template #default="{ row }">
-          <el-tag class="severity-tag" :type="severityTagType(row.severity)" size="small" effect="dark">
+          <span
+            class="severity-tag"
+            :class="{ reversed: row.stage === 'end' && row.status === 'Unack' }"
+            :style="severityStyle(row)"
+          >
             {{ row.severity }}
-          </el-tag>
+          </span>
         </template>
       </el-table-column>
       <el-table-column prop="source" label="Source" min-width="200" show-overflow-tooltip />
@@ -81,7 +85,8 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { alarmApi } from '@/api/alarm'
 import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
-import { normalizeRecord, severityTagType } from '@/utils/alarm'
+import { normalizeRecord } from '@/utils/alarm'
+import { getSeverityColor } from '@/config/severityColors'
 import ElapsedDuration from '@/components/ElapsedDuration.vue'
 import type { AlarmRecord } from '@/api/types'
 
@@ -115,6 +120,20 @@ function matchesDevice(record: AlarmRecord): boolean {
   }
   // Fallback: substring match
   return path.includes(props.deviceName)
+}
+
+/** Build inline style for the severity tag.
+ *  - Normal: colored text + semi-transparent bg + colored border
+ *  - Reversed (recovered unack, stage=end + Unack): background = table bg,
+ *    text + border = severity color (inverted effect) */
+function severityStyle(row: AlarmRecord): Record<string, string> {
+  const color = getSeverityColor(row.severity)
+  const isReversed = row.stage === 'end' && row.status === 'Unack'
+  return {
+    color: isReversed ? color : '#111827',
+    backgroundColor: isReversed ? '#111827' : color,
+    borderColor: isReversed ? color : '#111827',
+  }
 }
 
 function updateTableHeight() {
@@ -527,12 +546,16 @@ onBeforeUnmount(() => {
 
 .severity-tag {
   width: 55px;
+  height: 16px;
+  line-height: 16px;
   display: inline-flex;
+  align-items: center;
   justify-content: center;
-  font-size: 10px !important;
-  padding: 0 4px !important;
-  height: 15px;
-  line-height: 15px;
+  font-size: 10px;
+  font-weight: 600;
+  border: 1px solid;
+  border-radius: 3px;
+  /* color / backgroundColor / borderColor set via inline style from severityStyle() */
 }
 
 // Disabled checkboxes (Ack rows) must be visually obvious — Element Plus's

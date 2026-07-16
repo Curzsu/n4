@@ -354,7 +354,7 @@ public class AlarmProcessingJob {
             String normalized = path.startsWith("/") ? path.substring(1) : path;
             String[] parts = normalized.split("/");
             if (parts.length >= 2) {
-                return parts[parts.length - 2] + "_" + parts[parts.length - 1];
+                return parts[parts.length - 2] + "/" + parts[parts.length - 1];
             }
             return parts.length == 1 ? parts[0] : "";
         }
