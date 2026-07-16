@@ -11,7 +11,7 @@
         {{ tab.label }}
         <span v-if="tab.count" class="tab-count">{{ tab.count }}</span>
       </div>
-      <div class="tab-actions">
+      <div v-if="activeTab !== 'cleared'" class="tab-actions">
         <el-button
           :type="isAllSelected ? 'primary' : 'default'"
           size="small"
@@ -42,7 +42,7 @@
       border
       v-loading="loading"
     >
-      <el-table-column width="48" align="center">
+      <el-table-column v-if="activeTab !== 'cleared'" width="48" align="center">
         <template #default="{ row }">
           <el-checkbox
             :model-value="selectedIds.has(row.id)"
@@ -56,7 +56,6 @@
         <template #default="{ row }">
           <span
             class="severity-tag"
-            :class="{ reversed: row.stage === 'end' && row.status === 'Unack' }"
             :style="severityStyle(row)"
           >
             {{ row.severity }}
@@ -96,6 +95,7 @@ const props = defineProps<{ deviceName?: string }>()
 
 const loading = ref(false)
 const tableData = ref<AlarmRecord[]>([])
+const clearedData = ref<AlarmRecord[]>([])
 const activeTab = ref('active')
 const selectedIds = ref<Set<string>>(new Set())
 const tablePanelRef = ref<HTMLDivElement>()
@@ -128,7 +128,7 @@ function matchesDevice(record: AlarmRecord): boolean {
  *    text + border = severity color (inverted effect) */
 function severityStyle(row: AlarmRecord): Record<string, string> {
   const color = getSeverityColor(row.severity)
-  const isReversed = row.stage === 'end' && row.status === 'Unack'
+  const isReversed = row.stage === 'end'
   return {
     color: isReversed ? color : '#111827',
     backgroundColor: isReversed ? '#111827' : color,
@@ -226,18 +226,30 @@ const tabs = computed(() => [
 ])
 
 const filteredData = computed(() => {
-  const deviceFiltered = props.deviceName
-    ? tableData.value.filter(a => matchesDevice(a))
-    : tableData.value
   switch (activeTab.value) {
-    case 'unacknowledged':
+    case 'unacknowledged': {
+      const deviceFiltered = props.deviceName
+        ? tableData.value.filter(a => matchesDevice(a))
+        : tableData.value
       return deviceFiltered.filter(a => a.status === 'Unack')
-    case 'acknowledged':
+    }
+    case 'acknowledged': {
+      const deviceFiltered = props.deviceName
+        ? tableData.value.filter(a => matchesDevice(a))
+        : tableData.value
       return deviceFiltered.filter(a => a.status === 'Ack')
+    }
     case 'cleared':
-      return deviceFiltered.filter(a => a.status === 'Cleared')
-    default:
+      // Cleared data comes from TDengine, not Redis tableData
+      return props.deviceName
+        ? clearedData.value.filter(a => matchesDevice(a))
+        : clearedData.value
+    default: {
+      const deviceFiltered = props.deviceName
+        ? tableData.value.filter(a => matchesDevice(a))
+        : tableData.value
       return deviceFiltered
+    }
   }
 })
 
@@ -296,10 +308,27 @@ async function fetchData() {
   }
 }
 
+async function fetchClearedAlarms() {
+  loading.value = true
+  try {
+    const raw = await alarmApi.getClearedAlarms()
+    clearedData.value = raw.map(normalizeRecord)
+    nextTick(updateVisibleRows)
+  } catch (e) {
+    console.error('Failed to fetch cleared alarms:', e)
+  } finally {
+    loading.value = false
+  }
+}
+
 function onTabChange(tab: string) {
   activeTab.value = tab
   selectedIds.value.clear()
-  nextTick(updateVisibleRows)
+  if (tab === 'cleared') {
+    fetchClearedAlarms()
+  } else {
+    nextTick(updateVisibleRows)
+  }
 }
 
 // Handle real-time WebSocket updates
@@ -308,6 +337,7 @@ onUpdate((data: any) => {
 
   const newRecord = normalizeRecord(data.alarm)
 
+  //TODO: 这个代码是否多余？
   // When scoped to a device, skip records that don't belong to it — but still
   // process cleared signals so a device's removed alarm disappears.
   if (props.deviceName && !matchesDevice(newRecord)) {

@@ -37,8 +37,14 @@ public class FlinkJobRunner implements CommandLineRunner {
     @Value("${alarm.flink.enabled}")
     private boolean enabled;
 
-    @Value("${alarm.redis.rules-key}")
-    private String rulesRedisKey;
+    @Value("${alarm.redis.rules-boolean-key}")
+    private String rulesBooleanKey;
+
+    @Value("${alarm.redis.rules-numeric-key}")
+    private String rulesNumericKey;
+
+    @Value("${alarm.redis.rules-enum-key}")
+    private String rulesEnumKey;
 
     @Value("${alarm.redis.latest-key}")
     private String latestRedisKey;
@@ -64,14 +70,18 @@ public class FlinkJobRunner implements CommandLineRunner {
                 log.info("Starting Flink alarm processing job...");
                 log.info("  Kafka: {} topic={}", kafkaBroker, kafkaTopic);
                 log.info("  Redis: {}:{}", redisHost, redisPort);
-                log.info("  Rules key: {}", rulesRedisKey);
+                log.info("  Rules boolean key: {}", rulesBooleanKey);
+                log.info("  Rules numeric key: {}", rulesNumericKey);
+                log.info("  Rules enum key: {}", rulesEnumKey);
                 log.info("  Latest key: {}", latestRedisKey);
                 log.info("  Active key: {}", activeRedisKey);
                 log.info("  Notification channel: {}", notificationChannel);
                 log.info("  Realtime channel: {}", realtimeChannel);
 
                 AlarmProcessingJob.run(kafkaBroker, kafkaTopic, groupId,
-                        redisHost, redisPort, rulesRedisKey, latestRedisKey, activeRedisKey,
+                        redisHost, redisPort,
+                        rulesBooleanKey, rulesNumericKey, rulesEnumKey,
+                        latestRedisKey, activeRedisKey,
                         notificationChannel, realtimeChannel);
             } catch (InterruptedException e) {
                 log.info("Flink job thread interrupted, stopping...");

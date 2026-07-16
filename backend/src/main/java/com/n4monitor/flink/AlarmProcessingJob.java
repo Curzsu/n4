@@ -1,8 +1,11 @@
 package com.n4monitor.flink;
 
-import com.n4monitor.alarm.model.AlarmRule;
 import com.n4monitor.alarm.model.PointAlarmState;
 import com.n4monitor.alarm.model.PointData;
+import com.n4monitor.entity.AlarmRuleBooleanEntity;
+import com.n4monitor.entity.AlarmRuleEnumEntity;
+import com.n4monitor.entity.AlarmRuleNumericEntity;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.RichMapFunction;
@@ -24,65 +27,40 @@ import java.util.*;
 /**
  * Flink alarm processing job.
  * <p>
- * Consumes device point data from Kafka, loads alarm rules from Redis,
- * evaluates each message in real-time, and writes latest state to Redis.
+ * Consumes device point data from Kafka, reads alarm rules from Redis (three
+ * type-specific hashes keyed by alarm_name), evaluates each message in real-time,
+ * and writes latest state to Redis.
  * <p>
- * Alarm evaluation uses simple threshold comparison:
- * - Boolean rules: value equals configured alarm value
- * - Numeric rules: value >= threshold for High/High-High, value <= threshold for Low/Low-Low
- * <p>
- * When an alarm is triggered, the state is published to notification and realtime channels.
- * When no alarm is triggered, only the latest state is written to Redis without publishing.
- * <p>
- * Redis keys and channel names are passed in via {@link #run} so they can be configured
- * externally (e.g. from application.yaml).
- * <p>
- * Can run standalone via main method, or auto-started by FlinkJobRunner with Spring Boot.
+ * Rule lookup: extracts pointName from the Kafka message path, constructs
+ * alarm_name = "{pointName}_00" (TODO: support multi-rule selection), and
+ * queries the Redis hash corresponding to the message's type field
+ * (boolean/numeric/enum). String-type messages are skipped.
  */
 public class AlarmProcessingJob {
 
-    /** Default Redis key for alarm rules */
-    private static final String DEFAULT_RULES_KEY = "alarm:rules";
-
-    /** Default Redis key for latest point state */
+    private static final String DEFAULT_RULES_BOOLEAN_KEY = "alarm:rules:boolean";
+    private static final String DEFAULT_RULES_NUMERIC_KEY = "alarm:rules:numeric";
+    private static final String DEFAULT_RULES_ENUM_KEY = "alarm:rules:enum";
     private static final String DEFAULT_LATEST_KEY = "alarm:latest";
-
-    /** Default Redis key for active alarm records (with ack state) */
     private static final String DEFAULT_ACTIVE_KEY = "alarm:active";
-
-    /** Default Redis channel for WebSocket alarm notifications */
     private static final String DEFAULT_NOTIFICATIONS_CHANNEL = "alarm:notifications";
-
-    /** Default Redis channel for real-time alarm persistence */
     private static final String DEFAULT_REALTIME_CHANNEL = "alarm:realtime";
 
-    /**
-     * Standalone entry point (IDE or command line).
-     */
     public static void main(String[] args) throws Exception {
         run("47.121.30.136:9092", "obix-mqtt-points",
             "n4-flink-alarm-processor", "localhost", 6379,
-            DEFAULT_RULES_KEY, DEFAULT_LATEST_KEY, DEFAULT_ACTIVE_KEY,
+            DEFAULT_RULES_BOOLEAN_KEY, DEFAULT_RULES_NUMERIC_KEY, DEFAULT_RULES_ENUM_KEY,
+            DEFAULT_LATEST_KEY, DEFAULT_ACTIVE_KEY,
             DEFAULT_NOTIFICATIONS_CHANNEL, DEFAULT_REALTIME_CHANNEL);
     }
 
     /**
      * Start Flink job (blocking method, should be called in a separate thread).
-     *
-     * @param kafkaBroker          Kafka address
-     * @param kafkaTopic           Kafka topic
-     * @param groupId              Consumer group ID
-     * @param redisHost            Redis address
-     * @param redisPort            Redis port
-     * @param rulesRedisKey        Redis hash key for alarm rules
-     * @param latestRedisKey       Redis hash key for latest point state (real-time values)
-     * @param activeRedisKey       Redis hash key for active alarm records (with ack state)
-     * @param notificationChannel  Redis pub/sub channel for WebSocket notifications
-     * @param realtimeChannel      Redis pub/sub channel for realtime TDengine persistence
      */
     public static void run(String kafkaBroker, String kafkaTopic,
                            String groupId, String redisHost, int redisPort,
-                           String rulesRedisKey, String latestRedisKey, String activeRedisKey,
+                           String rulesBooleanKey, String rulesNumericKey, String rulesEnumKey,
+                           String latestRedisKey, String activeRedisKey,
                            String notificationChannel, String realtimeChannel) throws Exception {
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -103,7 +81,8 @@ public class AlarmProcessingJob {
         );
 
         DataStream<String> alarmStream = kafkaStream.map(
-                new AlarmProcessFunction(redisHost, redisPort, rulesRedisKey,
+                new AlarmProcessFunction(redisHost, redisPort,
+                        rulesBooleanKey, rulesNumericKey, rulesEnumKey,
                         latestRedisKey, activeRedisKey, notificationChannel, realtimeChannel));
 
         alarmStream.print();
@@ -112,35 +91,36 @@ public class AlarmProcessingJob {
     }
 
     /**
-     * Flink MapFunction: load rules from Redis, evaluate each Kafka message,
-     * output to console and write latest state to Redis.
+     * Flink MapFunction: reads rules from Redis per-message (so dynamic rule
+     * updates are picked up without restart), evaluates, and manages alarm lifecycle.
      */
     public static class AlarmProcessFunction extends RichMapFunction<String, String> {
 
         private final String redisHost;
         private final int redisPort;
-        private final String rulesRedisKey;
+        private final String rulesBooleanKey;
+        private final String rulesNumericKey;
+        private final String rulesEnumKey;
         private final String latestRedisKey;
         private final String activeRedisKey;
         private final String notificationChannel;
         private final String realtimeChannel;
 
         private transient Jedis jedis;
-        private transient Map<String, List<AlarmRule>> rulesCache;
         private transient ObjectMapper objectMapper;
 
         private static final DateTimeFormatter TS_FORMAT =
                 DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
-        private static final List<String> NUMERIC_PRIORITY_ORDER =
-                List.of("High-High", "High", "Low-Low", "Low");
-
         public AlarmProcessFunction(String redisHost, int redisPort,
-                                    String rulesRedisKey, String latestRedisKey, String activeRedisKey,
+                                    String rulesBooleanKey, String rulesNumericKey, String rulesEnumKey,
+                                    String latestRedisKey, String activeRedisKey,
                                     String notificationChannel, String realtimeChannel) {
             this.redisHost = redisHost;
             this.redisPort = redisPort;
-            this.rulesRedisKey = rulesRedisKey;
+            this.rulesBooleanKey = rulesBooleanKey;
+            this.rulesNumericKey = rulesNumericKey;
+            this.rulesEnumKey = rulesEnumKey;
             this.latestRedisKey = latestRedisKey;
             this.activeRedisKey = activeRedisKey;
             this.notificationChannel = notificationChannel;
@@ -150,33 +130,18 @@ public class AlarmProcessingJob {
         @Override
         public void open(Configuration parameters) {
             jedis = new Jedis(redisHost, redisPort);
-            objectMapper = new ObjectMapper();
-            rulesCache = new HashMap<>();
+            objectMapper = new ObjectMapper().findAndRegisterModules();
 
-            // Load alarm rules from Redis
-            Map<String, String> raw = jedis.hgetAll(rulesRedisKey);
-            for (Map.Entry<String, String> entry : raw.entrySet()) {
-                try {
-                    List<AlarmRule> rules = objectMapper.readValue(
-                            entry.getValue(),
-                            objectMapper.getTypeFactory().constructCollectionType(List.class, AlarmRule.class)
-                    );
-                    rulesCache.put(entry.getKey(), rules);
-                } catch (Exception e) {
-                    System.err.println("[FLINK] Failed to deserialize rules: " + entry.getKey());
-                }
-            }
-
-            System.out.println("[FLINK] Alarm processor started, loaded " + rulesCache.size() + " point rules");
-            System.out.println("[FLINK] Rules Redis key: " + rulesRedisKey);
+            System.out.println("[FLINK] Alarm processor started");
+            System.out.println("[FLINK] Rules boolean key: " + rulesBooleanKey);
+            System.out.println("[FLINK] Rules numeric key: " + rulesNumericKey);
+            System.out.println("[FLINK] Rules enum key: " + rulesEnumKey);
             System.out.println("[FLINK] Latest state Redis key: " + latestRedisKey);
             System.out.println("[FLINK] Active alarm Redis key: " + activeRedisKey);
         }
 
         @Override
         public String map(String message) throws Exception {
-            if (rulesCache == null || rulesCache.isEmpty()) return "[SKIP] Rules not loaded";
-
             // 1. Parse Kafka message
             PointData point;
             try {
@@ -188,25 +153,62 @@ public class AlarmProcessingJob {
             String path = point.getPath();
             if (path == null) return "[SKIP] path is null";
 
-            // 2. Find rules and evaluate
-            List<AlarmRule> pointRules = rulesCache.get(path);
-            if (pointRules == null || pointRules.isEmpty()) return "[SKIP] Rules not found: " + path;
-
-            AlarmRule triggered = evaluate(point.getValue(), pointRules);
-            boolean isAlarm = triggered != null;
+            String type = point.getType();
+            String pointName = extractPointName(path);
             String ts = formatTimestamp(point.getTimestamp());
 
-            // 3. Build current state and resolve stage / duration against active history
-            //    alarm:latest  -> real-time point value (always overwritten, for TDengine sync)
-            //    alarm:active  -> alarm record + ack state (only changes on alarm/recovery/ack)
-            PointAlarmState current = buildState(point, triggered);
-            PointAlarmState history = readActive(path);   // alarm record (may be null/normal/frozen)
+            // 2. Filter string type - no alarm rules
+            if ("string".equalsIgnoreCase(type)) {
+                // Still write latest state for TDengine sync
+                PointAlarmState normalState = buildState(point, null, null, null, null);
+                writeLatestState(normalState);
+                return String.format("\033[90m[%s] [%8s] %-40s | value=%s | string type, skipped\033[0m",
+                        ts, "STRING", point.getName(), point.getValue());
+            }
+
+            // 3. Construct alarm_name (TODO: currently always uses _00, optimize later for multi-rule selection)
+            String alarmName = pointName + "_00";
+
+            // 4. Look up rule from Redis based on type
+            EvalResult triggered = null;
+            String ruleType = type != null ? type.toLowerCase() : "";
+
+            switch (ruleType) {
+                case "boolean" -> triggered = evaluateBoolean(alarmName, point.getValue());
+                case "numeric" -> triggered = evaluateNumeric(alarmName, point.getValue());
+                case "enum" -> triggered = evaluateEnum(alarmName, point.getValue());
+                default -> {
+                    // Unknown type or null type
+                    PointAlarmState normalState = buildState(point, null, null, null, null);
+                    writeLatestState(normalState);
+                    return String.format("[%s] [%8s] %-40s | value=%s | unknown type: %s",
+                            ts, "UNKNOWN", point.getName(), point.getValue(), type);
+                }
+            }
+
+            if (triggered == null) {
+                // No rule found for this point
+                PointAlarmState normalState = buildState(point, null, null, null, null);
+                writeLatestState(normalState);
+                return String.format("[%s] [%8s] %-40s | value=%s | no rule found, point=%s, type=%s",
+                        ts, "NORULE", point.getName(), point.getValue(), pointName, type);
+            }
+
+            boolean isAlarm = triggered.isAlarm();
+            String level = triggered.level;
+            String severity = triggered.severity;
+            String alarmMessage = triggered.message;
+            String hysteresis = triggered.hysteresis;
+
+            // 5. Build current state and resolve stage / duration against active history
+            PointAlarmState current = buildState(point, level, severity, alarmMessage, hysteresis);
+            PointAlarmState history = readActive(path);
             long intervalSeconds = computeIntervalSeconds(history, current);
 
-            // 4. Always write the real-time value to alarm:latest (preserves original semantics)
+            // 6. Always write the real-time value to alarm:latest
             writeLatestState(current);
 
-            // 5. Resolve alarm lifecycle and update alarm:active accordingly
+            // 7. Resolve alarm lifecycle and update alarm:active accordingly
             if (history == null || isBlank(history.getLevel())) {
                 // No active alarm record (or last record was non-alarm)
                 if (isAlarm) {
@@ -273,9 +275,9 @@ public class AlarmProcessingJob {
                 }
             }
 
-            // 6. Console output
+            // 8. Console output
             if (isAlarm) {
-                String color = switch (triggered.getSeverity()) {
+                String color = switch (severity) {
                     case "Critical" -> "\033[91m";
                     case "Major"    -> "\033[93m";
                     case "Minor"    -> "\033[33m";
@@ -283,8 +285,8 @@ public class AlarmProcessingJob {
                     default         -> "";
                 };
                 return String.format("%s[%s] [%8s] [%-8s] %-40s | value=%s | level=%s | %s\033[0m",
-                        color, ts, triggered.getSeverity(), current.getStage(), point.getName(),
-                        point.getValue(), triggered.getLevel(), triggered.getMessage());
+                        color, ts, severity, current.getStage(), point.getName(),
+                        point.getValue(), level, alarmMessage);
             } else {
                 return String.format("\033[92m[%s] [%8s] %-40s | value=%s | normal\033[0m",
                         ts, "NORMAL", point.getName(), point.getValue());
@@ -296,9 +298,125 @@ public class AlarmProcessingJob {
             if (jedis != null) jedis.close();
         }
 
-        // ── State construction ──────────────────────────────────────────────────────
+        // ── Rule evaluation (type-specific, reads from Redis) ──────────────────
 
-        private PointAlarmState buildState(PointData point, AlarmRule triggered) {
+        /** Result of evaluating a rule against a point value. */
+        record EvalResult(boolean isAlarm, String level, String severity,
+                          String message, String hysteresis) {}
+
+        private EvalResult evaluateBoolean(String alarmName, String pointValue) {
+            String json = jedis.hget(rulesBooleanKey, alarmName);
+            if (json == null || json.isBlank()) return null;
+
+            try {
+                AlarmRuleBooleanEntity rule = objectMapper.readValue(json, AlarmRuleBooleanEntity.class);
+                String normalizedValue = pointValue != null ? pointValue.trim() : null;
+                if (rule.getBooleanValue() != null && normalizedValue != null
+                        && normalizedValue.equalsIgnoreCase(rule.getBooleanValue())) {
+                    return new EvalResult(true, "Boolean", rule.getBooleanSeverity(),
+                            rule.getBooleanMessage(), null);
+                }
+                // Value doesn't match alarm value -> not alarming, but rule exists
+                return new EvalResult(false, null, null, null, null);
+            } catch (Exception e) {
+                System.err.println("[FLINK] Failed to deserialize boolean rule: " + alarmName + " - " + e.getMessage());
+                return null;
+            }
+        }
+
+        private EvalResult evaluateNumeric(String alarmName, String pointValue) {
+            String json = jedis.hget(rulesNumericKey, alarmName);
+            if (json == null || json.isBlank()) return null;
+
+            try {
+                AlarmRuleNumericEntity rule = objectMapper.readValue(json, AlarmRuleNumericEntity.class);
+                Double numVal = null;
+                try {
+                    numVal = Double.parseDouble(pointValue != null ? pointValue.trim() : "");
+                } catch (Exception ignored) {}
+                if (numVal == null) {
+                    return new EvalResult(false, null, null, null, null);
+                }
+
+                // Priority order: High-High, High, Low-Low, Low
+                // High-High
+                if (rule.getHighHighValue() != null && !rule.getHighHighValue().isBlank()) {
+                    try {
+                        if (numVal >= Double.parseDouble(rule.getHighHighValue())) {
+                            return new EvalResult(true, "High-High", rule.getHighHighSeverity(),
+                                    rule.getHighHighMessage(), rule.getHighHighHysteresis());
+                        }
+                    } catch (NumberFormatException ignored) {}
+                }
+                // High
+                if (rule.getHighValue() != null && !rule.getHighValue().isBlank()) {
+                    try {
+                        if (numVal >= Double.parseDouble(rule.getHighValue())) {
+                            return new EvalResult(true, "High", rule.getHighSeverity(),
+                                    rule.getHighMessage(), rule.getHighHysteresis());
+                        }
+                    } catch (NumberFormatException ignored) {}
+                }
+                // Low-Low
+                if (rule.getLowLowValue() != null && !rule.getLowLowValue().isBlank()) {
+                    try {
+                        if (numVal <= Double.parseDouble(rule.getLowLowValue())) {
+                            return new EvalResult(true, "Low-Low", rule.getLowLowSeverity(),
+                                    rule.getLowLowMessage(), rule.getLowLowHysteresis());
+                        }
+                    } catch (NumberFormatException ignored) {}
+                }
+                // Low
+                if (rule.getLowValue() != null && !rule.getLowValue().isBlank()) {
+                    try {
+                        if (numVal <= Double.parseDouble(rule.getLowValue())) {
+                            return new EvalResult(true, "Low", rule.getLowSeverity(),
+                                    rule.getLowMessage(), rule.getLowHysteresis());
+                        }
+                    } catch (NumberFormatException ignored) {}
+                }
+
+                return new EvalResult(false, null, null, null, null);
+            } catch (Exception e) {
+                System.err.println("[FLINK] Failed to deserialize numeric rule: " + alarmName + " - " + e.getMessage());
+                return null;
+            }
+        }
+
+        private EvalResult evaluateEnum(String alarmName, String pointValue) {
+            String json = jedis.hget(rulesEnumKey, alarmName);
+            if (json == null || json.isBlank()) return null;
+
+            try {
+                List<AlarmRuleEnumEntity> rules = objectMapper.readValue(json,
+                        new TypeReference<List<AlarmRuleEnumEntity>>() {});
+                String normalizedValue = pointValue != null ? pointValue.trim() : null;
+
+                for (AlarmRuleEnumEntity rule : rules) {
+                    if (rule.getEnumValue() != null && normalizedValue != null
+                            && normalizedValue.equals(String.valueOf(rule.getEnumValue()))) {
+                        // Match found - only alarm if severity is not "Normal"
+                        if (!"Normal".equalsIgnoreCase(rule.getSeverity())) {
+                            return new EvalResult(true, "Enum", rule.getSeverity(),
+                                    rule.getMessage(), null);
+                        } else {
+                            // Normal severity -> not an alarm, but rule exists
+                            return new EvalResult(false, null, null, null, null);
+                        }
+                    }
+                }
+                // No matching enum value
+                return new EvalResult(false, null, null, null, null);
+            } catch (Exception e) {
+                System.err.println("[FLINK] Failed to deserialize enum rules: " + alarmName + " - " + e.getMessage());
+                return null;
+            }
+        }
+
+        // ── State construction ──────────────────────────────────────────────────
+
+        private PointAlarmState buildState(PointData point, String level, String severity,
+                                           String message, String hysteresis) {
             PointAlarmState state = new PointAlarmState();
             state.setName(point.getName());
             state.setDisplayName(point.getDisplayName());
@@ -313,44 +431,36 @@ public class AlarmProcessingJob {
             state.setOther(point.getOther());
             state.setTimestamp(point.getTimestamp());
 
-            if (triggered != null) {
-                state.setLevel(triggered.getLevel());
-                state.setSeverity(triggered.getSeverity());
-                state.setMessage(triggered.getMessage());
-                state.setHysteresis(triggered.getHysteresis());
+            if (level != null) {
+                state.setLevel(level);
+                state.setSeverity(severity);
+                state.setMessage(message);
+                state.setHysteresis(hysteresis);
             }
-            // If not triggered, level/severity/message/hysteresis remain null
 
-            // status/ackBy are set per-case in map() (preserved on continue, reset on start)
             state.setSource(extractSource(point.getPath()));
             state.setLocation(extractLocation(point.getPath()));
             state.setDuration("0");
             state.setStage("");
-
             return state;
         }
 
-        /**
-         * Extract location from path: remove leading slash, split by '/',
-         * and return the third segment (index 2).
-         */
+        private String extractPointName(String path) {
+            if (path == null || path.isEmpty()) return "";
+            String normalized = path.startsWith("/") ? path.substring(1) : path;
+            String[] parts = normalized.split("/");
+            return parts.length > 0 ? parts[parts.length - 1] : "";
+        }
+
         private String extractLocation(String path) {
-            if (path == null || path.isEmpty()) {
-                return "";
-            }
+            if (path == null || path.isEmpty()) return "";
             String normalized = path.startsWith("/") ? path.substring(1) : path;
             String[] parts = normalized.split("/");
             return parts.length >= 3 ? parts[2] : "";
         }
 
-        /**
-         * Extract source from path: remove leading slash, split by '/',
-         * and join the last two segments with '_'.
-         */
         private String extractSource(String path) {
-            if (path == null || path.isEmpty()) {
-                return "";
-            }
+            if (path == null || path.isEmpty()) return "";
             String normalized = path.startsWith("/") ? path.substring(1) : path;
             String[] parts = normalized.split("/");
             if (parts.length >= 2) {
@@ -359,14 +469,14 @@ public class AlarmProcessingJob {
             return parts.length == 1 ? parts[0] : "";
         }
 
-        // ── Redis writers ───────────────────────────────────────────────────────────
+        // ── Redis writers ────────────────────────────────────────────────────────
 
         private void writeLatestState(PointAlarmState state) {
             try {
                 String json = objectMapper.writeValueAsString(state);
                 jedis.hset(latestRedisKey, state.getPath(), json);
             } catch (Exception e) {
-                System.err.println("[FLINK] Failed to write latest state to Redis: " + state.getPath() + " - " + e.getMessage());
+                System.err.println("[FLINK] Failed to write latest state: " + state.getPath() + " - " + e.getMessage());
             }
         }
 
@@ -380,17 +490,13 @@ public class AlarmProcessingJob {
             }
         }
 
-        // ── Active alarm record helpers (alarm:active) ──────────────────────────────
-
         private PointAlarmState readActive(String path) {
             try {
                 String json = jedis.hget(activeRedisKey, path);
-                if (json == null || json.isBlank()) {
-                    return null;
-                }
+                if (json == null || json.isBlank()) return null;
                 return objectMapper.readValue(json, PointAlarmState.class);
             } catch (Exception e) {
-                System.err.println("[FLINK] Failed to read active alarm for path: " + path + " - " + e.getMessage());
+                System.err.println("[FLINK] Failed to read active alarm: " + path + " - " + e.getMessage());
                 return null;
             }
         }
@@ -400,7 +506,7 @@ public class AlarmProcessingJob {
                 String json = objectMapper.writeValueAsString(state);
                 jedis.hset(activeRedisKey, state.getPath(), json);
             } catch (Exception e) {
-                System.err.println("[FLINK] Failed to write active alarm to Redis: " + state.getPath() + " - " + e.getMessage());
+                System.err.println("[FLINK] Failed to write active alarm: " + state.getPath() + " - " + e.getMessage());
             }
         }
 
@@ -408,17 +514,10 @@ public class AlarmProcessingJob {
             try {
                 jedis.hdel(activeRedisKey, path);
             } catch (Exception e) {
-                System.err.println("[FLINK] Failed to remove active alarm for path: " + path + " - " + e.getMessage());
+                System.err.println("[FLINK] Failed to remove active alarm: " + path + " - " + e.getMessage());
             }
         }
 
-        /**
-         * Broadcast a "cleared" signal for an acknowledged alarm that has recovered.
-         * The record carries stage=end + status=Ack + blank level so the frontend
-         * can remove it from the alarm list. Only published to the notification
-         * channel (no TDengine realtime write needed — the end record was already
-         * persisted via publishHistoryEnd when recovery was detected).
-         */
         private void publishNotificationChannel(PointAlarmState history) {
             try {
                 String json = objectMapper.writeValueAsString(history);
@@ -441,9 +540,7 @@ public class AlarmProcessingJob {
                 if (d != null && !d.isBlank()) {
                     historyDuration = Long.parseLong(d);
                 }
-            } catch (NumberFormatException ignored) {
-            }
-
+            } catch (NumberFormatException ignored) {}
             return baseSeconds + historyDuration;
         }
 
@@ -458,57 +555,6 @@ public class AlarmProcessingJob {
 
         private boolean isBlank(String value) {
             return value == null || value.isBlank();
-        }
-
-        // ── Threshold evaluation ────────────────────────────────────────────────────
-
-        private AlarmRule evaluate(String pointValue, List<AlarmRule> rules) {
-            String normalizedValue = pointValue != null ? pointValue.trim() : null;
-
-            // Boolean rules: trigger when the point value matches the configured alarm value
-            for (AlarmRule rule : rules) {
-                if ("Boolean".equals(rule.getLevel()) || "BOOL".equals(rule.getPointType())) {
-                    if (rule.getValue() != null
-                            && normalizedValue != null
-                            && normalizedValue.equalsIgnoreCase(rule.getValue())) {
-                        return rule;
-                    }
-                }
-            }
-
-            // Numeric rules: simple threshold comparison
-            Double numVal = null;
-            try {
-                numVal = Double.parseDouble(normalizedValue);
-            } catch (Exception ignored) {
-            }
-
-            if (numVal == null) {
-                return null;
-            }
-
-            List<AlarmRule> numericRules = rules.stream()
-                    .filter(r -> NUMERIC_PRIORITY_ORDER.contains(r.getLevel()))
-                    .filter(r -> r.getValue() != null)
-                    .sorted(Comparator.comparingInt(r -> NUMERIC_PRIORITY_ORDER.indexOf(r.getLevel())))
-                    .toList();
-
-            for (AlarmRule rule : numericRules) {
-                try {
-                    double threshold = Double.parseDouble(rule.getValue());
-
-                    boolean triggered = switch (rule.getLevel()) {
-                        case "High", "High-High" -> numVal >= threshold;
-                        case "Low", "Low-Low" -> numVal <= threshold;
-                        default -> false;
-                    };
-
-                    if (triggered) return rule;
-                } catch (NumberFormatException ignored) {
-                }
-            }
-
-            return null;
         }
 
         private String formatTimestamp(Long epochMs) {

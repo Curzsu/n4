@@ -37,7 +37,7 @@ public class AlarmNotificationListener implements MessageListener {
 
     private final StringRedisTemplate redisTemplate;
     private final AlarmWebSocketHandler webSocketHandler;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     @Override
     public void onMessage(Message message, byte[] pattern) {

@@ -28,6 +28,7 @@ public class AlarmRuleCrudService {
     private final AlarmRuleBooleanMapper booleanMapper;
     private final AlarmRuleNumericMapper numericMapper;
     private final AlarmRuleEnumMapper enumMapper;
+    private final AlarmRuleSyncService alarmRuleSyncService;
 
     private static final Pattern SEQ_PATTERN = Pattern.compile("_(\\d+)$");
 
@@ -42,18 +43,21 @@ public class AlarmRuleCrudService {
         entity.setPointType("BOOL");
         booleanMapper.insert(entity);
         log.info("Created boolean alarm rule: id={}, alarmName={}", entity.getId(), entity.getAlarmName());
+        alarmRuleSyncService.syncBooleanRulesToRedis();
         return entity;
     }
 
     public AlarmRuleBooleanEntity updateBooleanRule(AlarmRuleBooleanEntity entity) {
         booleanMapper.update(entity);
         log.info("Updated boolean alarm rule: id={}", entity.getId());
+        alarmRuleSyncService.syncBooleanRulesToRedis();
         return entity;
     }
 
     public void deleteBooleanRule(Long id) {
         booleanMapper.deleteById(id);
         log.info("Deleted boolean alarm rule: id={}", id);
+        alarmRuleSyncService.syncBooleanRulesToRedis();
     }
 
     // ── Numeric ──────────────────────────────────────────────────────────────
@@ -67,18 +71,21 @@ public class AlarmRuleCrudService {
         entity.setPointType("NUMERIC");
         numericMapper.insert(entity);
         log.info("Created numeric alarm rule: id={}, alarmName={}", entity.getId(), entity.getAlarmName());
+        alarmRuleSyncService.syncNumericRulesToRedis();
         return entity;
     }
 
     public AlarmRuleNumericEntity updateNumericRule(AlarmRuleNumericEntity entity) {
         numericMapper.update(entity);
         log.info("Updated numeric alarm rule: id={}", entity.getId());
+        alarmRuleSyncService.syncNumericRulesToRedis();
         return entity;
     }
 
     public void deleteNumericRule(Long id) {
         numericMapper.deleteById(id);
         log.info("Deleted numeric alarm rule: id={}", id);
+        alarmRuleSyncService.syncNumericRulesToRedis();
     }
 
     // ── Enum ─────────────────────────────────────────────────────────────────
@@ -101,6 +108,7 @@ public class AlarmRuleCrudService {
             enumMapper.insert(e);
         }
         log.info("Created enum alarm rules: alarmName={}, count={}", alarmName, entities.size());
+        alarmRuleSyncService.syncEnumRulesToRedis();
         return entities;
     }
 
@@ -117,12 +125,14 @@ public class AlarmRuleCrudService {
             enumMapper.insert(e);
         }
         log.info("Updated enum alarm rules: alarmName={}, count={}", alarmName, entities.size());
+        alarmRuleSyncService.syncEnumRulesToRedis();
         return entities;
     }
 
     public void deleteEnumRulesByAlarmName(String alarmName) {
         enumMapper.deleteByAlarmName(alarmName);
         log.info("Deleted enum alarm rules: alarmName={}", alarmName);
+        alarmRuleSyncService.syncEnumRulesToRedis();
     }
 
     // ── Shared ───────────────────────────────────────────────────────────────

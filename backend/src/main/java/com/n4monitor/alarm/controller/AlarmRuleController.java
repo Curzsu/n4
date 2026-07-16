@@ -1,60 +1,42 @@
 package com.n4monitor.alarm.controller;
 
 import com.n4monitor.alarm.service.AlarmRuleCrudService;
-import com.n4monitor.alarm.service.AlarmRuleLoader;
-import com.n4monitor.alarm.service.AlarmRuleService;
+import com.n4monitor.alarm.service.AlarmRuleSyncService;
 import com.n4monitor.dto.ApiResponse;
 import com.n4monitor.entity.AlarmRuleBooleanEntity;
 import com.n4monitor.entity.AlarmRuleEnumEntity;
 import com.n4monitor.entity.AlarmRuleNumericEntity;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * Alarm rule management API.
  * CRUD endpoints are split by point type: boolean, numeric, enum.
+ * List endpoints read from Redis first (cache-first), falling back to MySQL.
  */
 @RestController
 @RequestMapping("/api/alarm-rules")
 @RequiredArgsConstructor
 public class AlarmRuleController {
 
-    private final AlarmRuleService alarmRuleService;
-    private final AlarmRuleLoader alarmRuleLoader;
     private final AlarmRuleCrudService alarmRuleCrudService;
+    private final AlarmRuleSyncService alarmRuleSyncService;
 
-    @Value("${alarm.rule.excel-file}")
-    private String excelFilePath;
-
-    @Value("${alarm.rule.log-file}")
-    private String logFilePath;
-
-    // ── Reload + Count (Redis, from Excel) ───────────────────────────────────
+    // ── Reload (full MySQL -> Redis sync) ────────────────────────────────────
 
     @PostMapping("/reload")
     public ApiResponse<String> reloadRules() {
-        alarmRuleLoader.loadRules(excelFilePath, logFilePath);
-        return ApiResponse.success("Alarm rules reloaded to Redis (Excel + Log)");
-    }
-
-    @GetMapping("/count")
-    public ApiResponse<Map<String, Object>> ruleCount() {
-        var rules = alarmRuleService.loadAllRules();
-        return ApiResponse.success(Map.of(
-                "totalPoints", rules.size(),
-                "loaded", !rules.isEmpty()
-        ));
+        alarmRuleSyncService.syncAllRulesToRedis();
+        return ApiResponse.success("Alarm rules reloaded from MySQL to Redis");
     }
 
     // ── Boolean CRUD ─────────────────────────────────────────────────────────
 
     @GetMapping("/boolean")
     public ApiResponse<List<AlarmRuleBooleanEntity>> listBooleanRules() {
-        return ApiResponse.success(alarmRuleCrudService.getAllBooleanRules());
+        return ApiResponse.success(alarmRuleSyncService.getBooleanRulesWithCache());
     }
 
     @PostMapping("/boolean")
@@ -79,7 +61,7 @@ public class AlarmRuleController {
 
     @GetMapping("/numeric")
     public ApiResponse<List<AlarmRuleNumericEntity>> listNumericRules() {
-        return ApiResponse.success(alarmRuleCrudService.getAllNumericRules());
+        return ApiResponse.success(alarmRuleSyncService.getNumericRulesWithCache());
     }
 
     @PostMapping("/numeric")
@@ -104,7 +86,7 @@ public class AlarmRuleController {
 
     @GetMapping("/enum")
     public ApiResponse<List<AlarmRuleEnumEntity>> listEnumRules() {
-        return ApiResponse.success(alarmRuleCrudService.getAllEnumRules());
+        return ApiResponse.success(alarmRuleSyncService.getEnumRulesWithCache());
     }
 
     @PostMapping("/enum")

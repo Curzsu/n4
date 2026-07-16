@@ -27,6 +27,11 @@ public class AlarmController {
         return ApiResponse.success(alarmService.getActiveAlarms(tab));
     }
 
+    @GetMapping("/cleared")
+    public ApiResponse<List<AlarmRecordDto>> getClearedAlarms() {
+        return ApiResponse.success(alarmService.getClearedAlarms());
+    }
+
     @GetMapping("/summary")
     public ApiResponse<AlarmSummaryDto> getAlarmSummary() {
         return ApiResponse.success(alarmService.getAlarmSummary());

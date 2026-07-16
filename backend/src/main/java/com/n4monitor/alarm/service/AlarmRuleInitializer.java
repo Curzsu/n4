@@ -2,49 +2,30 @@ package com.n4monitor.alarm.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 /**
- * Automatically load alarm rules into Redis on application startup.
- * <p>
- * Loading process:
- * 1. Read user-configured rules from Excel (alarm_rules_config.xlsx)
- * 2. For points not configured in Excel, auto-generate mock rules from log file
- * 3. Merge and write to Redis
- * <p>
- * Skips if rule data already exists in Redis.
+ * Automatically syncs alarm rules from MySQL to Redis on application startup.
+ * Runs before the Flink job (Order 20) so rules are available when Flink opens.
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@Order(0)
 public class AlarmRuleInitializer implements ApplicationRunner {
 
-    private final AlarmRuleService alarmRuleService;
-    private final AlarmRuleLoader alarmRuleLoader;
-
-    @Value("${alarm.rule.excel-file}")
-    private String excelFilePath;
-
-    @Value("${alarm.rule.log-file}")
-    private String logFilePath;
+    private final AlarmRuleSyncService alarmRuleSyncService;
 
     @Override
     public void run(ApplicationArguments args) {
         try {
-            if (alarmRuleService.hasRules()) {
-                log.info("Alarm rules already exist in Redis, skipping auto load");
-                return;
-            }
-
-            log.info("No alarm rules in Redis, starting load (Excel + Log)...");
-            alarmRuleLoader.loadRules(excelFilePath, logFilePath);
-
+            log.info("Syncing alarm rules from MySQL to Redis...");
+            alarmRuleSyncService.syncAllRulesToRedis();
         } catch (Exception e) {
-            log.warn("Auto load of alarm rules failed (Redis may not be ready): {}", e.getMessage());
-            log.warn("You can manually trigger loading via POST /api/alarm-rules/reload");
+            log.warn("Auto sync of alarm rules failed (MySQL/Redis may not be ready): {}", e.getMessage());
         }
     }
 }

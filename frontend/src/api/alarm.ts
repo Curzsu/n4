@@ -16,6 +16,9 @@ export const alarmApi = {
   getActiveAlarms(tab: string): Promise<AlarmRecord[]> {
     return request.get('/api/alarms/active', { params: { tab } })
   },
+  getClearedAlarms(): Promise<AlarmRecord[]> {
+    return request.get('/api/alarms/cleared')
+  },
   getAlarmSummary(): Promise<AlarmSummary> {
     return request.get('/api/alarms/summary')
   },

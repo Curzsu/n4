@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.n4monitor.alarm.model.PointAlarmState;
 import com.n4monitor.config.TdengineConfig;
+import com.n4monitor.dto.AlarmRecordDto;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,6 +14,12 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.sql.*;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -43,7 +50,7 @@ public class TdengineSyncService {
 
     private final TdengineConfig tdengineConfig;
     private final StringRedisTemplate redisTemplate;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     private volatile Connection connection;
     private volatile boolean initialized = false;
@@ -347,6 +354,63 @@ public class TdengineSyncService {
 
             pstmt.executeUpdate();
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  Query methods (read from TDengine)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    private static final DateTimeFormatter TD_TIME_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+    /**
+     * Query cleared alarms (stage=end + status=Ack) from the alarm_realtime supertable.
+     * Returns the most recent 200 records, ordered by data_timestamp descending.
+     */
+    public List<AlarmRecordDto> queryClearedAlarms() {
+        List<AlarmRecordDto> result = new ArrayList<>();
+        if (!ensureConnected()) {
+            log.warn("TDengine not available, cannot query cleared alarms");
+            return result;
+        }
+
+        String sql = "SELECT data_timestamp, alarm_level, alarm_severity, alarm_source, " +
+                "alarm_message, alarm_location, alarm_status, ack_by, alarm_duration, " +
+                "alarm_stage, path FROM alarm_realtime " +
+                "WHERE alarm_stage = 'end' AND alarm_status = 'Ack' " +
+                "ORDER BY data_timestamp DESC LIMIT 200";
+
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                AlarmRecordDto dto = new AlarmRecordDto();
+                Timestamp dataTs = rs.getTimestamp("data_timestamp");
+                if (dataTs != null) {
+                    dto.setTime(LocalDateTime.ofInstant(
+                            Instant.ofEpochMilli(dataTs.getTime()), ZoneId.systemDefault())
+                            .format(TD_TIME_FORMAT));
+                } else {
+                    dto.setTime("-");
+                }
+                dto.setLevel(rs.getString("alarm_level"));
+                dto.setSeverity(rs.getString("alarm_severity"));
+                dto.setSource(rs.getString("alarm_source"));
+                dto.setMessage(rs.getString("alarm_message"));
+                dto.setLocation(rs.getString("alarm_location"));
+                dto.setStatus(rs.getString("alarm_status"));
+                dto.setAckBy(rs.getString("ack_by"));
+                dto.setDuration(rs.getString("alarm_duration"));
+                dto.setStage(rs.getString("alarm_stage"));
+                dto.setPath(rs.getString("path"));
+                result.add(dto);
+            }
+        } catch (SQLException e) {
+            log.error("Failed to query cleared alarms from TDengine", e);
+            closeConnection();
+        }
+
+        log.info("Queried {} cleared alarms from TDengine", result.size());
+        return result;
     }
 
     /**

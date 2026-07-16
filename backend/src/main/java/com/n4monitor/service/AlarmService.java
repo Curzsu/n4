@@ -36,7 +36,7 @@ public class AlarmService {
 
     private final StringRedisTemplate redisTemplate;
     private final TdengineSyncService tdengineSyncService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     /**
      * Read all alarm states from Redis and convert to AlarmRecordDto list.
@@ -113,6 +113,14 @@ public class AlarmService {
                     .filter(a -> "Cleared".equals(a.getStatus())).collect(Collectors.toList());
             default -> allAlarms;
         };
+    }
+
+    /**
+     * Get cleared alarms (stage=end + status=Ack) from TDengine.
+     * These are historical alarm records that have been acknowledged and recovered.
+     */
+    public List<AlarmRecordDto> getClearedAlarms() {
+        return tdengineSyncService.queryClearedAlarms();
     }
 
     /**
