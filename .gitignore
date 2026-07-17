@@ -26,3 +26,6 @@ Thumbs.db
 #test-producer/
 docs/
 __pycache__/
+
+*.docx
+*.sql

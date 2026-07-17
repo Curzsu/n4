@@ -15,6 +15,7 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import KpiCardsRow from '@/components/KpiCardsRow.vue'
 import BuildingPlaceholder from '@/components/BuildingPlaceholder.vue'
 import TrendChartsGrid from '@/components/TrendChartsGrid.vue'
@@ -23,6 +24,10 @@ import DeviceDetailView from '@/components/DeviceDetailView.vue'
 import { useDashboardStore } from '@/stores/dashboard'
 
 const store = useDashboardStore()
+
+onMounted(() => {
+  store.selectedNode = null
+})
 </script>
 
 

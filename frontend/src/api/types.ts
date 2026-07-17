@@ -199,4 +199,14 @@ export interface EnumRuleItem {
   createTime?: string
   updateTime?: string
 }
+export interface Product {
+  productId?: number
+  productName: string
+  productType: string
+  model?: string
+  manufacturer?: string
+  manuDate?: string
+  isDeleted?: boolean
+}
+
 

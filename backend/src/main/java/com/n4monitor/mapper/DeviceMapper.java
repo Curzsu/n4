@@ -23,4 +23,7 @@ public interface DeviceMapper {
     Device findByDeviceCode(@Param("deviceCode") String deviceCode);
 
     Device findByDeviceName(@Param("deviceName") String deviceName);
+    void insert(Device device);
+    void update(Device device);
+    void logicalDelete(@Param("deviceId") Long deviceId);
 }

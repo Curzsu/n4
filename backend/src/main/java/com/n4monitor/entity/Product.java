@@ -10,4 +10,7 @@ public class Product {
     private String model;
     private String manufacturer;
     private String manuDate;
+    private Boolean isDeleted;
+    private java.time.LocalDateTime createTime;
+    private java.time.LocalDateTime updateTime;
 }
