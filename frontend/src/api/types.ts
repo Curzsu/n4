@@ -54,10 +54,23 @@ export interface TrendData {
 
 export interface DeviceTreeNode {
   id: number
+  deviceCode?: string
   label: string
   type: string
   status: number
   children: DeviceTreeNode[]
+}
+
+export interface FuxaBinding {
+  deviceId?: number
+  deviceCode?: string
+  mqttDeviceId: string
+  modelCode: string
+  fuxaDeviceId: string
+  fuxaDeviceName: string
+  viewName: string
+  iframeUrl: string
+  status: 'READY' | 'ERROR'
 }
 
 export interface MonitorPoint {
@@ -73,4 +86,127 @@ export interface MonitorPoint {
   pointValue: string
   pointStatus: number
 }
+
+// ===== Alarm Page Types =====
+
+export interface AlarmRecord {
+  id: string
+  time: string
+  severity: string
+  source: string
+  message: string
+  location: string
+  status: string
+  ackBy: string
+  duration: string
+  stage?: string
+  path?: string
+}
+
+export interface SeverityItem {
+  name: string
+  value: number
+  percentage: number
+}
+
+export interface AlarmSeverityData {
+  total: number
+  items: SeverityItem[]
+}
+
+export interface TrendSeries {
+  name: string
+  data: number[]
+}
+
+export interface AlarmTrendData {
+  timeLabels: string[]
+  series: TrendSeries[]
+}
+
+export interface AlarmHourData {
+  hours: string[]
+  counts: number[]
+}
+
+export interface SystemItem {
+  name: string
+  value: number
+  percentage: number
+}
+
+export interface AlarmSystemData {
+  items: SystemItem[]
+}
+
+export interface SourceItem {
+  name: string
+  count: number
+}
+
+export interface AlarmSourceData {
+  items: SourceItem[]
+}
+
+// ===== Alarm Rules (three type-specific tables) =====
+
+export interface BooleanRuleItem {
+  id?: number
+  alarmName: string
+  pointName?: string
+  pointType?: string
+  booleanValue?: string
+  booleanSeverity?: string
+  booleanMessage?: string
+  createTime?: string
+  updateTime?: string
+}
+
+export interface NumericRuleItem {
+  id?: number
+  alarmName: string
+  pointName?: string
+  pointType?: string
+  highHighValue?: string
+  highHighSeverity?: string
+  highHighMessage?: string
+  highHighHysteresis?: string
+  highValue?: string
+  highSeverity?: string
+  highMessage?: string
+  highHysteresis?: string
+  lowValue?: string
+  lowSeverity?: string
+  lowMessage?: string
+  lowHysteresis?: string
+  lowLowValue?: string
+  lowLowSeverity?: string
+  lowLowMessage?: string
+  lowLowHysteresis?: string
+  createTime?: string
+  updateTime?: string
+}
+
+export interface EnumRuleItem {
+  id?: number
+  alarmName: string
+  pointName?: string
+  pointType?: string
+  enumValue: number
+  enumMeaning?: string
+  severity?: string
+  message?: string
+  createTime?: string
+  updateTime?: string
+}
+export interface Product {
+  productId?: number
+  productName: string
+  productType: string
+  model?: string
+  manufacturer?: string
+  manuDate?: string
+  isDeleted?: boolean
+}
+
 

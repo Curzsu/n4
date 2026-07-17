@@ -15,4 +15,10 @@ public interface MonitorPointMapper {
 
     /** Count points by status (1=normal, 0=alarm) */
     int countByPointStatus(@Param("pointStatus") Integer pointStatus);
+
+    void batchInsert(@Param("list") List<MonitorPoint> points);
+    void insert(MonitorPoint point);
+    void update(MonitorPoint point);
+    void deleteByPointId(@Param("pointId") Long pointId);
+    void deleteByDeviceId(@Param("deviceId") Long deviceId);
 }

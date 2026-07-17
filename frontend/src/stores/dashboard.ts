@@ -2,7 +2,8 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { dashboardApi } from '@/api/dashboard'
 import { deviceApi } from '@/api/device'
-import type { KpiMetrics, AlarmSummary, AlarmItem, SystemStatusItem, TrendData, DeviceTreeNode } from '@/api/types'
+import { productApi } from '@/api/product'
+import type { KpiMetrics, AlarmSummary, AlarmItem, SystemStatusItem, TrendData, DeviceTreeNode, Product } from '@/api/types'
 
 export const useDashboardStore = defineStore('dashboard', () => {
   const kpiMetrics = ref<KpiMetrics | null>(null)
@@ -14,13 +15,15 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const pueTrend = ref<TrendData | null>(null)
   const temperatureTrend = ref<TrendData | null>(null)
   const deviceTree = ref<DeviceTreeNode[]>([])
-  const selectedNode = ref<DeviceTreeNode | null>(null)
+  const allProducts = ref<Product[]>([])
+  const selectedNode = ref<any | null>(null)
   const loading = ref(false)
+  const isRightCollapsed = ref(true)
 
   async function fetchAllDashboardData() {
     loading.value = true
     try {
-      const [kpi, alarm, top5, status, power, energy, pue, temp, tree] = await Promise.all([
+      const [kpi, alarm, top5, status, power, energy, pue, temp, productsList, devicesTreeFromBackend] = await Promise.all([
         dashboardApi.getKpi(),
         dashboardApi.getAlarmSummary(),
         dashboardApi.getAlarmTop5(),
@@ -29,6 +32,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
         dashboardApi.getEnergyTrend(),
         dashboardApi.getPueTrend(),
         dashboardApi.getTemperatureTrend(),
+        productApi.getAllProducts(),
         deviceApi.getDeviceTree(),
       ])
       kpiMetrics.value = kpi
@@ -39,7 +43,17 @@ export const useDashboardStore = defineStore('dashboard', () => {
       energyTrend.value = energy
       pueTrend.value = pue
       temperatureTrend.value = temp
-      deviceTree.value = tree
+      allProducts.value = productsList
+
+      deviceTree.value = [
+        {
+          id: 'root' as any,
+          label: 'SITE-JHB-01',
+          type: 'site',
+          status: 1,
+          children: devicesTreeFromBackend
+        }
+      ]
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
     } finally {
@@ -57,8 +71,10 @@ export const useDashboardStore = defineStore('dashboard', () => {
     pueTrend,
     temperatureTrend,
     deviceTree,
+    allProducts,
     selectedNode,
     loading,
+    isRightCollapsed,
     fetchAllDashboardData,
   }
 })

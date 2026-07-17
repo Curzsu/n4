@@ -3,6 +3,7 @@ import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig({
+  cacheDir: '.vite-cache',
   plugins: [vue()],
   resolve: {
     alias: {
@@ -14,6 +15,11 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://localhost:8089',
+        changeOrigin: true,
+      },
+      '/ws': {
+        target: 'ws://localhost:8089',
+        ws: true,
         changeOrigin: true,
       },
     },

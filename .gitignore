@@ -20,3 +20,12 @@ Thumbs.db
 *.log
 *.tmp
 *.swp
+
+材料/
+.superpowers/
+#test-producer/
+docs/
+__pycache__/
+
+*.docx
+*.sql

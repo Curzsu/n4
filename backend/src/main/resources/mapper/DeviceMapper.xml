@@ -29,4 +29,61 @@
         SELECT * FROM device WHERE device_id = #{deviceId} AND is_deleted = 0
     </select>
 
+    <select id="findByDeviceCode" resultType="com.n4monitor.entity.Device">
+        SELECT * FROM device WHERE device_code = #{deviceCode} AND is_deleted = 0 LIMIT 1
+    </select>
+
+    <select id="findByDeviceName" resultType="com.n4monitor.entity.Device">
+        SELECT * FROM device WHERE device_name = #{deviceName} AND is_deleted = 0
+        ORDER BY device_id
+        LIMIT 1
+    </select>
+    <insert id="insert" useGeneratedKeys="true" keyProperty="deviceId">
+        INSERT INTO device (
+            device_name, device_code, ip_address, mac_address, product_id,
+            sys_parent_id, sys_path, sys_level, sys_sort_order,
+            loc_parent_id, loc_path, loc_level, loc_sort_order,
+            status, install_date, warranty_expire, region, department,
+            responsible_person, contact_phone, extra_attrs
+        ) VALUES (
+            #{deviceName}, #{deviceCode}, #{ipAddress}, #{macAddress}, #{productId},
+            #{sysParentId}, #{sysPath}, #{sysLevel}, #{sysSortOrder},
+            #{locParentId}, #{locPath}, #{locLevel}, #{locSortOrder},
+            #{status}, #{installDate}, #{warrantyExpire}, #{region}, #{department},
+            #{responsiblePerson}, #{contactPhone}, #{extraAttrs}
+        )
+    </insert>
+
+    <update id="update">
+        UPDATE device
+        SET device_name = #{deviceName},
+            device_code = #{deviceCode},
+            ip_address = #{ipAddress},
+            mac_address = #{macAddress},
+            sys_parent_id = #{sysParentId},
+            sys_path = #{sysPath},
+            sys_level = #{sysLevel},
+            sys_sort_order = #{sysSortOrder},
+            loc_parent_id = #{locParentId},
+            loc_path = #{locPath},
+            loc_level = #{locLevel},
+            loc_sort_order = #{locSortOrder},
+            status = #{status},
+            install_date = #{installDate},
+            warranty_expire = #{warrantyExpire},
+            region = #{region},
+            department = #{department},
+            responsible_person = #{responsiblePerson},
+            contact_phone = #{contactPhone},
+            extra_attrs = #{extraAttrs},
+            update_time = NOW()
+        WHERE device_id = #{deviceId}
+    </update>
+
+    <update id="logicalDelete">
+        UPDATE device
+        SET is_deleted = 1, update_time = NOW()
+        WHERE device_id = #{deviceId}
+    </update>
+
 </mapper>

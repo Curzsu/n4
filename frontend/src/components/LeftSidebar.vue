@@ -16,7 +16,7 @@
     </div>
     <div class="sidebar-tree" v-if="!isCollapsed">
       <el-tree
-        :data="deviceTree"
+        :data="visibleTreeData"
         :props="treeProps"
         node-key="id"
         default-expand-all
@@ -43,11 +43,13 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { Location } from '@element-plus/icons-vue'
 import { useDashboardStore } from '@/stores/dashboard'
 import type { DeviceTreeNode } from '@/api/types'
 import type ElTree from 'element-plus/es/components/tree/index'
 
+const route = useRoute()
 const store = useDashboardStore()
 const deviceTree = computed(() => store.deviceTree)
 const isCollapsed = ref(false)
@@ -59,7 +61,28 @@ const treeProps = {
   label: 'label',
 }
 
-function handleNodeClick(data: DeviceTreeNode) {
+const visibleTreeData = computed(() => {
+  if (route.path === '/device-template') {
+    return [
+      {
+        id: 'root',
+        label: '全部设备模板',
+        type: 'site',
+        status: 1,
+        children: store.allProducts.map(p => ({
+          id: p.productId || 0,
+          label: p.productName,
+          type: 'product',
+          status: 1,
+          children: []
+        }))
+      }
+    ]
+  }
+  return deviceTree.value
+})
+
+function handleNodeClick(data: any) {
   store.selectedNode = data
 }
 
@@ -148,16 +171,13 @@ watch(searchText, (val) => {
   &.fault { background-color: $accent-red; }
 }
 
-.node-site {
+.node-system-group {
   color: $text-primary;
   font-weight: 600;
 }
-.node-building {
-  color: $text-primary;
-  font-weight: 500;
-}
-.node-system {
+.node-system-sub {
   color: $text-secondary;
+  font-weight: 500;
 }
 .node-device {
   color: $text-muted;
