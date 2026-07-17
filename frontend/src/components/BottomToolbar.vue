@@ -16,7 +16,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Bell, TrendCharts, Document, Tools, Setting } from '@element-plus/icons-vue'
+import { Bell, TrendCharts, Document, Tools, Setting, Clock } from '@element-plus/icons-vue'
 import { useDashboardStore } from '@/stores/dashboard'
 
 const store = useDashboardStore()
@@ -33,6 +33,13 @@ const alarmItems = computed(() => [
     badge: store.alarmSummary?.critical || 0,
     active: route.path === '/alarm',
     to: '/alarm',
+  },
+  {
+    label: 'Alarm History',
+    icon: Clock,
+    badge: null,
+    active: route.path === '/alarm/history',
+    to: '/alarm/history',
   },
   {
     label: 'Alarm Configuration',

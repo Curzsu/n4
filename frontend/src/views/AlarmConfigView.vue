@@ -635,6 +635,7 @@ onMounted(() => {
 
 :deep(.el-dialog) {
   background-color: $bg-card;
+  border: 1px solid $border-card;
   .el-dialog__title { color: $text-primary; }
   .el-dialog__body { color: $text-primary; }
 }
