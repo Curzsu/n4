@@ -34,6 +34,9 @@ public class FlinkJobRunner implements CommandLineRunner {
     @Value("${spring.data.redis.port:6379}")
     private int redisPort;
 
+    @Value("${spring.data.redis.password:}")
+    private String redisPassword;
+
     @Value("${alarm.flink.enabled}")
     private boolean enabled;
 
@@ -79,7 +82,7 @@ public class FlinkJobRunner implements CommandLineRunner {
                 log.info("  Realtime channel: {}", realtimeChannel);
 
                 AlarmProcessingJob.run(kafkaBroker, kafkaTopic, groupId,
-                        redisHost, redisPort,
+                        redisHost, redisPort,redisPassword,
                         rulesBooleanKey, rulesNumericKey, rulesEnumKey,
                         latestRedisKey, activeRedisKey,
                         notificationChannel, realtimeChannel);

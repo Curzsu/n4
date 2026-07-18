@@ -48,7 +48,7 @@ public class AlarmProcessingJob {
 
     public static void main(String[] args) throws Exception {
         run("47.121.30.136:9092", "obix-mqtt-points",
-            "n4-flink-alarm-processor", "localhost", 6379,
+            "n4-flink-alarm-processor", "localhost", 6379, "",
             DEFAULT_RULES_BOOLEAN_KEY, DEFAULT_RULES_NUMERIC_KEY, DEFAULT_RULES_ENUM_KEY,
             DEFAULT_LATEST_KEY, DEFAULT_ACTIVE_KEY,
             DEFAULT_NOTIFICATIONS_CHANNEL, DEFAULT_REALTIME_CHANNEL);
@@ -58,7 +58,7 @@ public class AlarmProcessingJob {
      * Start Flink job (blocking method, should be called in a separate thread).
      */
     public static void run(String kafkaBroker, String kafkaTopic,
-                           String groupId, String redisHost, int redisPort,
+                           String groupId, String redisHost, int redisPort, String redisPassword,
                            String rulesBooleanKey, String rulesNumericKey, String rulesEnumKey,
                            String latestRedisKey, String activeRedisKey,
                            String notificationChannel, String realtimeChannel) throws Exception {
@@ -82,6 +82,7 @@ public class AlarmProcessingJob {
 
         DataStream<String> alarmStream = kafkaStream.map(
                 new AlarmProcessFunction(redisHost, redisPort,
+                redisPassword,
                         rulesBooleanKey, rulesNumericKey, rulesEnumKey,
                         latestRedisKey, activeRedisKey, notificationChannel, realtimeChannel));
 
@@ -98,6 +99,7 @@ public class AlarmProcessingJob {
 
         private final String redisHost;
         private final int redisPort;
+        private final String redisPassword;
         private final String rulesBooleanKey;
         private final String rulesNumericKey;
         private final String rulesEnumKey;
@@ -112,12 +114,13 @@ public class AlarmProcessingJob {
         private static final DateTimeFormatter TS_FORMAT =
                 DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
-        public AlarmProcessFunction(String redisHost, int redisPort,
+        public AlarmProcessFunction(String redisHost, int redisPort, String redisPassword,
                                     String rulesBooleanKey, String rulesNumericKey, String rulesEnumKey,
                                     String latestRedisKey, String activeRedisKey,
                                     String notificationChannel, String realtimeChannel) {
             this.redisHost = redisHost;
             this.redisPort = redisPort;
+            this.redisPassword = redisPassword;
             this.rulesBooleanKey = rulesBooleanKey;
             this.rulesNumericKey = rulesNumericKey;
             this.rulesEnumKey = rulesEnumKey;
@@ -130,6 +133,9 @@ public class AlarmProcessingJob {
         @Override
         public void open(Configuration parameters) {
             jedis = new Jedis(redisHost, redisPort);
+            if (redisPassword != null && !redisPassword.isBlank()) {
+                jedis.auth(redisPassword);
+            }
             objectMapper = new ObjectMapper().findAndRegisterModules();
 
             System.out.println("[FLINK] Alarm processor started");
