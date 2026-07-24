@@ -148,19 +148,7 @@ export interface AlarmSourceData {
   items: SourceItem[]
 }
 
-// ===== Alarm Rules (three type-specific tables) =====
-
-export interface BooleanRuleItem {
-  id?: number
-  alarmName: string
-  pointName?: string
-  pointType?: string
-  booleanValue?: string
-  booleanSeverity?: string
-  booleanMessage?: string
-  createTime?: string
-  updateTime?: string
-}
+// ===== Alarm Rules (two type-specific tables: numeric + enum) =====
 
 export interface NumericRuleItem {
   id?: number
@@ -192,7 +180,7 @@ export interface EnumRuleItem {
   alarmName: string
   pointName?: string
   pointType?: string
-  enumValue: number
+  enumValue: string
   enumMeaning?: string
   severity?: string
   message?: string

@@ -18,23 +18,6 @@
       </div>
     </div>
 
-    <!-- Boolean table -->
-    <div v-show="activeTab === 'boolean'" class="config-table-wrapper">
-      <el-table :data="booleanData" :height="tableHeight" style="width: 100%"
-        :header-cell-style="headerCellStyle" :cell-style="cellStyle" size="small" border v-loading="loading">
-        <el-table-column prop="alarmName" label="Alarm Name" width="220" show-overflow-tooltip />
-        <el-table-column prop="booleanValue" label="Value" width="80" />
-        <el-table-column prop="booleanSeverity" label="Severity" width="90" />
-        <el-table-column prop="booleanMessage" label="Message" min-width="200" show-overflow-tooltip />
-        <el-table-column label="Actions" width="120" align="center" fixed="right">
-          <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="openEditDialog(row)">Edit</el-button>
-            <el-button type="danger" link size="small" @click="handleDelete(row)">Delete</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </div>
-
     <!-- Numeric table -->
     <div v-show="activeTab === 'numeric'" class="config-table-wrapper">
       <el-table :data="numericData" :height="tableHeight" style="width: 100%"
@@ -106,7 +89,6 @@
           <el-form-item label="Point Type" required class="basic-type">
             <el-select v-model="formData.pointType" placeholder="Select type" style="width: 140px"
               popper-class="alarm-config-popper" :disabled="isEdit">
-              <el-option label="BOOL" value="BOOL" />
               <el-option label="NUMERIC" value="NUMERIC" />
               <el-option label="ENUM" value="ENUM" />
             </el-select>
@@ -117,29 +99,6 @@
         <div v-if="!formData.pointType" class="type-hint">
           Please select a Point Type to configure alarm rules.
         </div>
-
-        <!-- Boolean rules (BOOL only) -->
-        <template v-if="formData.pointType === 'BOOL'">
-          <el-divider content-position="left">Boolean</el-divider>
-          <div class="level-row">
-            <el-form-item label="Value" required class="field-third">
-              <el-select v-model="formData.booleanValue" placeholder="-" popper-class="alarm-config-popper">
-                <el-option label="true" value="true" />
-                <el-option label="false" value="false" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="Severity" required class="field-third">
-              <el-select v-model="formData.booleanSeverity" placeholder="-" popper-class="alarm-config-popper">
-                <el-option v-for="s in severityOptions" :key="s" :label="s" :value="s" />
-              </el-select>
-            </el-form-item>
-          </div>
-          <div class="level-row">
-            <el-form-item label="Message" class="field-full">
-              <el-input v-model="formData.booleanMessage" placeholder="Alarm message" />
-            </el-form-item>
-          </div>
-        </template>
 
         <!-- Numeric rules (NUMERIC only) -->
         <template v-if="formData.pointType === 'NUMERIC'">
@@ -230,7 +189,7 @@
           <div v-for="(item, idx) in enumFormItems" :key="idx" class="enum-row">
             <el-input v-model="item.enumValue" placeholder="0" class="enum-val" />
             <el-input v-model="item.enumMeaning" placeholder="e.g. 关机" class="enum-meaning" />
-            <el-select v-model="item.severity" placeholder="Severity" popper-class="alarm-config-popper" class="enum-sev">
+            <el-select v-model="item.severity" placeholder="-" clearable popper-class="alarm-config-popper" class="enum-sev">
               <el-option v-for="s in enumSeverityOptions" :key="s" :label="s" :value="s" />
             </el-select>
             <el-input v-model="item.message" placeholder="Alarm message" class="enum-msg" />
@@ -258,7 +217,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
 import { alarmApi } from '@/api/alarm'
-import type { BooleanRuleItem, NumericRuleItem, EnumRuleItem } from '@/api/types'
+import type { NumericRuleItem, EnumRuleItem } from '@/api/types'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -267,17 +226,15 @@ const dialogVisible = ref(false)
 const isEdit = ref(false)
 
 const severityOptions = ['Critical', 'Major', 'Minor', 'Warning']
-const enumSeverityOptions = ['Critical', 'Major', 'Minor', 'Warning', 'Normal']
+const enumSeverityOptions = ['Critical', 'Major', 'Minor', 'Warning']
 
 const tabs = [
-  { key: 'boolean', label: 'Boolean' },
   { key: 'numeric', label: 'Numeric' },
   { key: 'enum', label: 'Enum' },
 ]
-const activeTab = ref('boolean')
+const activeTab = ref('numeric')
 
 // Table data per type
-const booleanData = ref<BooleanRuleItem[]>([])
 const numericData = ref<NumericRuleItem[]>([])
 const enumData = ref<EnumRuleItem[]>([])
 
@@ -305,8 +262,6 @@ function emptyForm() {
     alarmName: '',
     pointName: '',
     pointType: '',
-    // boolean
-    booleanValue: 'false', booleanSeverity: '', booleanMessage: '',
     // numeric
     highHighValue: '', highHighSeverity: '', highHighMessage: '', highHighHysteresis: '',
     highValue: '', highSeverity: '', highMessage: '', highHysteresis: '',
@@ -316,16 +271,11 @@ function emptyForm() {
 }
 
 function emptyEnumItem(): EnumRuleItem {
-  return { alarmName: '', enumValue: 0, enumMeaning: '', severity: '', message: '' }
+  return { alarmName: '', enumValue: '', enumMeaning: '', severity: '', message: '' }
 }
 
 function addEnumItem() {
-  // Default enumValue = max existing value + 1 (so first item is 0, next is 1, 2, ...)
-  const maxVal = enumFormItems.value.reduce((max, item) => {
-    const v = Number(item.enumValue)
-    return Number.isNaN(v) ? max : Math.max(max, v)
-  }, -1)
-  enumFormItems.value.push({ ...emptyEnumItem(), enumValue: maxVal + 1 })
+  enumFormItems.value.push({ ...emptyEnumItem() })
 }
 
 function removeEnumItem(idx: number) {
@@ -339,12 +289,10 @@ function onTabChange(tab: string) {
 async function fetchRules() {
   loading.value = true
   try {
-    const [bools, nums, enums] = await Promise.all([
-      alarmApi.getBooleanRules(),
+    const [nums, enums] = await Promise.all([
       alarmApi.getNumericRules(),
       alarmApi.getEnumRules(),
     ])
-    booleanData.value = bools
     numericData.value = nums
     enumData.value = enums
   } catch (e) {
@@ -365,10 +313,7 @@ function openCreateDialog() {
 function openEditDialog(row: any) {
   isEdit.value = true
   const type = activeTab.value
-  if (type === 'boolean') {
-    formData.value = { ...emptyForm(), ...JSON.parse(JSON.stringify(row)) }
-    formData.value.pointType = 'BOOL'
-  } else if (type === 'numeric') {
+  if (type === 'numeric') {
     formData.value = { ...emptyForm(), ...JSON.parse(JSON.stringify(row)) }
     formData.value.pointType = 'NUMERIC'
   } else if (type === 'enum') {
@@ -403,23 +348,7 @@ async function handleSave() {
 
   saving.value = true
   try {
-    if (type === 'BOOL') {
-      if (!f.booleanValue) { ElMessage.warning('Boolean Value is required'); saving.value = false; return }
-      if (!f.booleanSeverity) { ElMessage.warning('Boolean Severity is required'); saving.value = false; return }
-      const payload: BooleanRuleItem = {
-        ...(isEdit.value ? { id: f.id } : { pointName: f.pointName }),
-        alarmName: f.alarmName,
-        pointType: 'BOOL',
-        booleanValue: f.booleanValue,
-        booleanSeverity: f.booleanSeverity,
-        booleanMessage: f.booleanMessage,
-      }
-      if (isEdit.value && payload.id) {
-        await alarmApi.updateBooleanRule(payload.id, payload)
-      } else {
-        await alarmApi.createBooleanRule(payload)
-      }
-    } else if (type === 'NUMERIC') {
+    if (type === 'NUMERIC') {
       const levels = [
         ['highHighValue', 'highHighSeverity', 'highHighHysteresis'],
         ['highValue', 'highSeverity', 'highHysteresis'],
@@ -457,11 +386,10 @@ async function handleSave() {
       const items = enumFormItems.value.filter(e => e.enumValue !== null && e.enumValue !== undefined && String(e.enumValue).trim() !== '')
       if (items.length === 0) { ElMessage.warning('At least one enum value is required'); saving.value = false; return }
       for (const e of items) {
-        if (!e.severity) { ElMessage.warning('Each enum value must have a Severity'); saving.value = false; return }
-        e.enumValue = Number(e.enumValue)
+        e.enumValue = String(e.enumValue).trim()
       }
       // Check for duplicate enum values within the same point
-      const seen = new Set<number>()
+      const seen = new Set<string>()
       for (const e of items) {
         if (seen.has(e.enumValue)) {
           ElMessage.warning(`Duplicate enum value: ${e.enumValue}. Each value must be unique.`)
@@ -508,9 +436,7 @@ async function handleDelete(row: any) {
   }
 
   try {
-    if (type === 'boolean') {
-      await alarmApi.deleteBooleanRule(row.id)
-    } else if (type === 'numeric') {
+    if (type === 'numeric') {
       await alarmApi.deleteNumericRule(row.id)
     } else if (type === 'enum') {
       await alarmApi.deleteEnumRules(row.alarmName)

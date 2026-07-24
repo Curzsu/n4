@@ -3,7 +3,6 @@ package com.n4monitor.alarm.controller;
 import com.n4monitor.alarm.service.AlarmRuleCrudService;
 import com.n4monitor.alarm.service.AlarmRuleSyncService;
 import com.n4monitor.dto.ApiResponse;
-import com.n4monitor.entity.AlarmRuleBooleanEntity;
 import com.n4monitor.entity.AlarmRuleEnumEntity;
 import com.n4monitor.entity.AlarmRuleNumericEntity;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +12,8 @@ import java.util.List;
 
 /**
  * Alarm rule management API.
- * CRUD endpoints are split by point type: boolean, numeric, enum.
+ * CRUD endpoints are split by point type: numeric, enum.
+ * (Boolean type has been merged into Enum as string-based matching.)
  * List endpoints read from Redis first (cache-first), falling back to MySQL.
  */
 @RestController
@@ -30,31 +30,6 @@ public class AlarmRuleController {
     public ApiResponse<String> reloadRules() {
         alarmRuleSyncService.syncAllRulesToRedis();
         return ApiResponse.success("Alarm rules reloaded from MySQL to Redis");
-    }
-
-    // ── Boolean CRUD ─────────────────────────────────────────────────────────
-
-    @GetMapping("/boolean")
-    public ApiResponse<List<AlarmRuleBooleanEntity>> listBooleanRules() {
-        return ApiResponse.success(alarmRuleSyncService.getBooleanRulesWithCache());
-    }
-
-    @PostMapping("/boolean")
-    public ApiResponse<AlarmRuleBooleanEntity> createBooleanRule(@RequestBody AlarmRuleBooleanEntity entity) {
-        return ApiResponse.success(alarmRuleCrudService.createBooleanRule(entity));
-    }
-
-    @PutMapping("/boolean/{id}")
-    public ApiResponse<AlarmRuleBooleanEntity> updateBooleanRule(@PathVariable Long id,
-                                                                  @RequestBody AlarmRuleBooleanEntity entity) {
-        entity.setId(id);
-        return ApiResponse.success(alarmRuleCrudService.updateBooleanRule(entity));
-    }
-
-    @DeleteMapping("/boolean/{id}")
-    public ApiResponse<Void> deleteBooleanRule(@PathVariable Long id) {
-        alarmRuleCrudService.deleteBooleanRule(id);
-        return ApiResponse.success(null);
     }
 
     // ── Numeric CRUD ─────────────────────────────────────────────────────────

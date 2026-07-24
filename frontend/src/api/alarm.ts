@@ -7,7 +7,6 @@ import type {
   AlarmHourData,
   AlarmSystemData,
   AlarmSourceData,
-  BooleanRuleItem,
   NumericRuleItem,
   EnumRuleItem,
 } from './types'
@@ -41,21 +40,7 @@ export const alarmApi = {
     return request.post('/api/alarms/ack', { paths, ackBy })
   },
 
-  // ── Alarm rule CRUD (three type-specific tables) ──
-
-  // Boolean
-  getBooleanRules(): Promise<BooleanRuleItem[]> {
-    return request.get('/api/alarm-rules/boolean')
-  },
-  createBooleanRule(data: BooleanRuleItem): Promise<BooleanRuleItem> {
-    return request.post('/api/alarm-rules/boolean', data)
-  },
-  updateBooleanRule(id: number, data: BooleanRuleItem): Promise<BooleanRuleItem> {
-    return request.put(`/api/alarm-rules/boolean/${id}`, data)
-  },
-  deleteBooleanRule(id: number): Promise<void> {
-    return request.delete(`/api/alarm-rules/boolean/${id}`)
-  },
+  // ── Alarm rule CRUD (two type-specific tables: numeric + enum) ──
 
   // Numeric
   getNumericRules(): Promise<NumericRuleItem[]> {

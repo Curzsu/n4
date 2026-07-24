@@ -46,9 +46,8 @@ alarm:
     group-id: n4-flink-alarm-processor
   # Redis keys and channels used by alarm processing
   redis:
-    rules-boolean-key: alarm:rules:boolean       # Boolean rules hash (field=alarm_name, value=BooleanEntity JSON)
     rules-numeric-key: alarm:rules:numeric       # Numeric rules hash (field=alarm_name, value=NumericEntity JSON)
-    rules-enum-key: alarm:rules:enum             # Enum rules hash (field=alarm_name, value=List<EnumEntity> JSON)
+    rules-enum-key: alarm:rules:enum             # Enum rules hash (field=alarm_name, value=List<EnumEntity> JSON, includes former boolean rules)
     latest-key: alarm:latest                     # Real-time point values (overwritten per data tick, for TDengine sync and charts)
     active-key: alarm:active                     # Alarm records + ack status
     notification-channel: alarm:notifications    # WebSocket notification channel

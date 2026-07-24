@@ -42,7 +42,7 @@
       border
       v-loading="loading"
     >
-      <el-table-column width="48" align="center">
+      <el-table-column width="20" align="center">
         <template #default="{ row }">
           <el-checkbox
             :model-value="selectedIds.has(row.id)"
@@ -51,7 +51,7 @@
           />
         </template>
       </el-table-column>
-      <el-table-column prop="time" label="Time" width="160" show-overflow-tooltip>
+      <el-table-column prop="time" label="Time" width="105" show-overflow-tooltip>
         <template #header>
           <div class="header-cell">
             <el-popover v-model:visible="filterPopover.time" trigger="manual"  placement="bottom" :width="320" popper-class="alarm-filter-popper" @show="syncTimeDraft">
@@ -86,7 +86,7 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="severity" label="Severity" width="110">
+      <el-table-column prop="severity" label="Severity" width="65">
         <template #header>
           <div class="header-cell">
             <el-popover v-model:visible="filterPopover.severity" trigger="manual"  placement="bottom" :width="140" popper-class="alarm-filter-popper" @show="syncDraft('severity')">
@@ -854,6 +854,9 @@ onBeforeUnmount(() => {
 
   // Compact row height: reduce cell padding + line-height
   .el-table__cell {
+    padding: 0 0 !important;
+  }
+  .el-table__cell .cell {
     padding: 0 4px !important;
   }
   .el-table__header-cell {

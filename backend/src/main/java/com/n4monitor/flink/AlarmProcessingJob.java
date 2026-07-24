@@ -2,7 +2,6 @@ package com.n4monitor.flink;
 
 import com.n4monitor.alarm.model.PointAlarmState;
 import com.n4monitor.alarm.model.PointData;
-import com.n4monitor.entity.AlarmRuleBooleanEntity;
 import com.n4monitor.entity.AlarmRuleEnumEntity;
 import com.n4monitor.entity.AlarmRuleNumericEntity;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -38,7 +37,6 @@ import java.util.*;
  */
 public class AlarmProcessingJob {
 
-    private static final String DEFAULT_RULES_BOOLEAN_KEY = "alarm:rules:boolean";
     private static final String DEFAULT_RULES_NUMERIC_KEY = "alarm:rules:numeric";
     private static final String DEFAULT_RULES_ENUM_KEY = "alarm:rules:enum";
     private static final String DEFAULT_LATEST_KEY = "alarm:latest";
@@ -49,7 +47,7 @@ public class AlarmProcessingJob {
     public static void main(String[] args) throws Exception {
         run("47.121.30.136:9092", "obix-mqtt-points",
             "n4-flink-alarm-processor", "localhost", 6379, "",
-            DEFAULT_RULES_BOOLEAN_KEY, DEFAULT_RULES_NUMERIC_KEY, DEFAULT_RULES_ENUM_KEY,
+            DEFAULT_RULES_NUMERIC_KEY, DEFAULT_RULES_ENUM_KEY,
             DEFAULT_LATEST_KEY, DEFAULT_ACTIVE_KEY,
             DEFAULT_NOTIFICATIONS_CHANNEL, DEFAULT_REALTIME_CHANNEL);
     }
@@ -59,7 +57,7 @@ public class AlarmProcessingJob {
      */
     public static void run(String kafkaBroker, String kafkaTopic,
                            String groupId, String redisHost, int redisPort, String redisPassword,
-                           String rulesBooleanKey, String rulesNumericKey, String rulesEnumKey,
+                           String rulesNumericKey, String rulesEnumKey,
                            String latestRedisKey, String activeRedisKey,
                            String notificationChannel, String realtimeChannel) throws Exception {
 
@@ -83,7 +81,7 @@ public class AlarmProcessingJob {
         DataStream<String> alarmStream = kafkaStream.map(
                 new AlarmProcessFunction(redisHost, redisPort,
                 redisPassword,
-                        rulesBooleanKey, rulesNumericKey, rulesEnumKey,
+                        rulesNumericKey, rulesEnumKey,
                         latestRedisKey, activeRedisKey, notificationChannel, realtimeChannel));
 
         alarmStream.print();
@@ -100,7 +98,6 @@ public class AlarmProcessingJob {
         private final String redisHost;
         private final int redisPort;
         private final String redisPassword;
-        private final String rulesBooleanKey;
         private final String rulesNumericKey;
         private final String rulesEnumKey;
         private final String latestRedisKey;
@@ -115,13 +112,12 @@ public class AlarmProcessingJob {
                 DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
         public AlarmProcessFunction(String redisHost, int redisPort, String redisPassword,
-                                    String rulesBooleanKey, String rulesNumericKey, String rulesEnumKey,
+                                    String rulesNumericKey, String rulesEnumKey,
                                     String latestRedisKey, String activeRedisKey,
                                     String notificationChannel, String realtimeChannel) {
             this.redisHost = redisHost;
             this.redisPort = redisPort;
             this.redisPassword = redisPassword;
-            this.rulesBooleanKey = rulesBooleanKey;
             this.rulesNumericKey = rulesNumericKey;
             this.rulesEnumKey = rulesEnumKey;
             this.latestRedisKey = latestRedisKey;
@@ -139,7 +135,6 @@ public class AlarmProcessingJob {
             objectMapper = new ObjectMapper().findAndRegisterModules();
 
             System.out.println("[FLINK] Alarm processor started");
-            System.out.println("[FLINK] Rules boolean key: " + rulesBooleanKey);
             System.out.println("[FLINK] Rules numeric key: " + rulesNumericKey);
             System.out.println("[FLINK] Rules enum key: " + rulesEnumKey);
             System.out.println("[FLINK] Latest state Redis key: " + latestRedisKey);
@@ -180,9 +175,8 @@ public class AlarmProcessingJob {
             String ruleType = type != null ? type.toLowerCase() : "";
 
             switch (ruleType) {
-                case "boolean" -> triggered = evaluateBoolean(alarmName, point.getValue());
+                case "boolean", "enum" -> triggered = evaluateEnum(alarmName, point.getValue());
                 case "numeric" -> triggered = evaluateNumeric(alarmName, point.getValue());
-                case "enum" -> triggered = evaluateEnum(alarmName, point.getValue());
                 default -> {
                     // Unknown type or null type
                     PointAlarmState normalState = buildState(point, null, null, null, null);
@@ -310,26 +304,6 @@ public class AlarmProcessingJob {
         record EvalResult(boolean isAlarm, String level, String severity,
                           String message, String hysteresis) {}
 
-        private EvalResult evaluateBoolean(String alarmName, String pointValue) {
-            String json = jedis.hget(rulesBooleanKey, alarmName);
-            if (json == null || json.isBlank()) return null;
-
-            try {
-                AlarmRuleBooleanEntity rule = objectMapper.readValue(json, AlarmRuleBooleanEntity.class);
-                String normalizedValue = pointValue != null ? pointValue.trim() : null;
-                if (rule.getBooleanValue() != null && normalizedValue != null
-                        && normalizedValue.equalsIgnoreCase(rule.getBooleanValue())) {
-                    return new EvalResult(true, "Boolean", rule.getBooleanSeverity(),
-                            rule.getBooleanMessage(), null);
-                }
-                // Value doesn't match alarm value -> not alarming, but rule exists
-                return new EvalResult(false, null, null, null, null);
-            } catch (Exception e) {
-                System.err.println("[FLINK] Failed to deserialize boolean rule: " + alarmName + " - " + e.getMessage());
-                return null;
-            }
-        }
-
         private EvalResult evaluateNumeric(String alarmName, String pointValue) {
             String json = jedis.hget(rulesNumericKey, alarmName);
             if (json == null || json.isBlank()) return null;
@@ -400,13 +374,13 @@ public class AlarmProcessingJob {
 
                 for (AlarmRuleEnumEntity rule : rules) {
                     if (rule.getEnumValue() != null && normalizedValue != null
-                            && normalizedValue.equals(String.valueOf(rule.getEnumValue()))) {
-                        // Match found - only alarm if severity is not "Normal"
-                        if (!"Normal".equalsIgnoreCase(rule.getSeverity())) {
+                            && normalizedValue.equalsIgnoreCase(rule.getEnumValue())) {
+                        // Match found - alarm only if severity is non-empty
+                        if (rule.getSeverity() != null && !rule.getSeverity().isBlank()) {
                             return new EvalResult(true, "Enum", rule.getSeverity(),
                                     rule.getMessage(), null);
                         } else {
-                            // Normal severity -> not an alarm, but rule exists
+                            // Empty severity -> normal value, not an alarm
                             return new EvalResult(false, null, null, null, null);
                         }
                     }

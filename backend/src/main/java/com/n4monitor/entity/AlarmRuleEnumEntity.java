@@ -22,8 +22,8 @@ public class AlarmRuleEnumEntity {
     /** 点位类型：ENUM */
     private String pointType;
 
-    /** 枚举值（如 0, 1, 2, 3） */
-    private Integer enumValue;
+    /** 枚举值（字符串，如 "0"/"1"/"true"/"false"/"Open"/"Closed"） */
+    private String enumValue;
 
     /** 枚举值含义（如 关机、开机、故障） */
     private String enumMeaning;
