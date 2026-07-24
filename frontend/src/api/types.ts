@@ -155,22 +155,20 @@ export interface NumericRuleItem {
   alarmName: string
   pointName?: string
   pointType?: string
+  timeDelay?: number | null
+  deadband?: string
   highHighValue?: string
   highHighSeverity?: string
   highHighMessage?: string
-  highHighHysteresis?: string
   highValue?: string
   highSeverity?: string
   highMessage?: string
-  highHysteresis?: string
   lowValue?: string
   lowSeverity?: string
   lowMessage?: string
-  lowHysteresis?: string
   lowLowValue?: string
   lowLowSeverity?: string
   lowLowMessage?: string
-  lowLowHysteresis?: string
   createTime?: string
   updateTime?: string
 }
@@ -180,6 +178,7 @@ export interface EnumRuleItem {
   alarmName: string
   pointName?: string
   pointType?: string
+  timeDelay?: number | null
   enumValue: string
   enumMeaning?: string
   severity?: string

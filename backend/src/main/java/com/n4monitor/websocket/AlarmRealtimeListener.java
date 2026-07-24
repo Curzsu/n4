@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 /**
  * Redis Pub/Sub listener for real-time alarm records.
  * <p>
- * When Flink confirms an alarm (after the hysteresis timeout), it publishes
+ * When Flink confirms an alarm (after the time_delay timeout), it publishes
  * the {@link PointAlarmState} to the {@code alarm:realtime} channel.
  * This listener receives the message and writes it to TDengine immediately.
  */

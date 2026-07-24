@@ -22,6 +22,9 @@ public class AlarmRuleEnumEntity {
     /** 点位类型：ENUM */
     private String pointType;
 
+    /** 报警触发延时（秒），同一点位所有枚举行共享 */
+    private Integer timeDelay;
+
     /** 枚举值（字符串，如 "0"/"1"/"true"/"false"/"Open"/"Closed"） */
     private String enumValue;
 

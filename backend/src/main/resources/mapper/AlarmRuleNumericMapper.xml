@@ -19,39 +19,37 @@
     <insert id="insert" parameterType="com.n4monitor.entity.AlarmRuleNumericEntity"
             useGeneratedKeys="true" keyProperty="id">
         INSERT INTO alarm_rule_numeric (
-            alarm_name, point_type,
-            high_high_value, high_high_severity, high_high_message, high_high_hysteresis,
-            high_value, high_severity, high_message, high_hysteresis,
-            low_value, low_severity, low_message, low_hysteresis,
-            low_low_value, low_low_severity, low_low_message, low_low_hysteresis
+            alarm_name, point_type, time_delay, deadband,
+            high_high_value, high_high_severity, high_high_message,
+            high_value, high_severity, high_message,
+            low_value, low_severity, low_message,
+            low_low_value, low_low_severity, low_low_message
         ) VALUES (
-            #{alarmName}, #{pointType},
-            #{highHighValue}, #{highHighSeverity}, #{highHighMessage}, #{highHighHysteresis},
-            #{highValue}, #{highSeverity}, #{highMessage}, #{highHysteresis},
-            #{lowValue}, #{lowSeverity}, #{lowMessage}, #{lowHysteresis},
-            #{lowLowValue}, #{lowLowSeverity}, #{lowLowMessage}, #{lowLowHysteresis}
+            #{alarmName}, #{pointType}, #{timeDelay}, #{deadband},
+            #{highHighValue}, #{highHighSeverity}, #{highHighMessage},
+            #{highValue}, #{highSeverity}, #{highMessage},
+            #{lowValue}, #{lowSeverity}, #{lowMessage},
+            #{lowLowValue}, #{lowLowSeverity}, #{lowLowMessage}
         )
     </insert>
 
     <update id="update" parameterType="com.n4monitor.entity.AlarmRuleNumericEntity">
         UPDATE alarm_rule_numeric SET
             alarm_name           = #{alarmName},
+            time_delay           = #{timeDelay},
+            deadband             = #{deadband},
             high_high_value      = #{highHighValue},
             high_high_severity   = #{highHighSeverity},
             high_high_message    = #{highHighMessage},
-            high_high_hysteresis = #{highHighHysteresis},
             high_value           = #{highValue},
             high_severity        = #{highSeverity},
             high_message         = #{highMessage},
-            high_hysteresis      = #{highHysteresis},
             low_value            = #{lowValue},
             low_severity         = #{lowSeverity},
             low_message          = #{lowMessage},
-            low_hysteresis       = #{lowHysteresis},
             low_low_value        = #{lowLowValue},
             low_low_severity     = #{lowLowSeverity},
-            low_low_message      = #{lowLowMessage},
-            low_low_hysteresis   = #{lowLowHysteresis}
+            low_low_message      = #{lowLowMessage}
         WHERE id = #{id} AND is_deleted = 0
     </update>
 

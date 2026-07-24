@@ -72,9 +72,12 @@ public class AlarmRuleCrudService {
         checkDuplicateEnumValues(entities);
         String pointName = entities.get(0).getPointName();
         String alarmName = generateAlarmName(pointName);
+        // time_delay is per-point; take from the first row and propagate to all rows
+        Integer timeDelay = entities.get(0).getTimeDelay();
         for (AlarmRuleEnumEntity e : entities) {
             e.setAlarmName(alarmName);
             e.setPointType("ENUM");
+            e.setTimeDelay(timeDelay);
             enumMapper.insert(e);
         }
         log.info("Created enum alarm rules: alarmName={}, count={}", alarmName, entities.size());
@@ -89,9 +92,12 @@ public class AlarmRuleCrudService {
         }
         checkDuplicateEnumValues(entities);
         enumMapper.deleteByAlarmName(alarmName);
+        // time_delay is per-point; take from the first row and propagate to all rows
+        Integer timeDelay = entities.get(0).getTimeDelay();
         for (AlarmRuleEnumEntity e : entities) {
             e.setAlarmName(alarmName);
             e.setPointType("ENUM");
+            e.setTimeDelay(timeDelay);
             enumMapper.insert(e);
         }
         log.info("Updated enum alarm rules: alarmName={}, count={}", alarmName, entities.size());

@@ -23,29 +23,27 @@
       <el-table :data="numericData" :height="tableHeight" style="width: 100%"
         :header-cell-style="headerCellStyle" :cell-style="cellStyle" size="small" border v-loading="loading">
         <el-table-column prop="alarmName" label="Alarm Name" width="200" show-overflow-tooltip />
+        <el-table-column prop="timeDelay" label="Time Delay(s)" width="80" align="center" />
+        <el-table-column prop="deadband" label="Deadband" width="80" align="center" />
         <el-table-column label="High-High" align="center">
           <el-table-column prop="highHighValue" label="Value" width="70" />
           <el-table-column prop="highHighSeverity" label="Severity" width="80" />
           <el-table-column prop="highHighMessage" label="Message" width="120" show-overflow-tooltip />
-          <el-table-column prop="highHighHysteresis" label="Hyst." width="60" />
         </el-table-column>
         <el-table-column label="High" align="center">
           <el-table-column prop="highValue" label="Value" width="70" />
           <el-table-column prop="highSeverity" label="Severity" width="80" />
           <el-table-column prop="highMessage" label="Message" width="120" show-overflow-tooltip />
-          <el-table-column prop="highHysteresis" label="Hyst." width="60" />
         </el-table-column>
         <el-table-column label="Low" align="center">
           <el-table-column prop="lowValue" label="Value" width="70" />
           <el-table-column prop="lowSeverity" label="Severity" width="80" />
           <el-table-column prop="lowMessage" label="Message" width="120" show-overflow-tooltip />
-          <el-table-column prop="lowHysteresis" label="Hyst." width="60" />
         </el-table-column>
         <el-table-column label="Low-Low" align="center">
           <el-table-column prop="lowLowValue" label="Value" width="70" />
           <el-table-column prop="lowLowSeverity" label="Severity" width="80" />
           <el-table-column prop="lowLowMessage" label="Message" width="120" show-overflow-tooltip />
-          <el-table-column prop="lowLowHysteresis" label="Hyst." width="60" />
         </el-table-column>
         <el-table-column label="Actions" width="120" align="center" fixed="right">
           <template #default="{ row }">
@@ -61,6 +59,7 @@
       <el-table :data="enumData" :height="tableHeight" style="width: 100%"
         :header-cell-style="headerCellStyle" :cell-style="cellStyle" size="small" border v-loading="loading">
         <el-table-column prop="alarmName" label="Alarm Name" width="200" show-overflow-tooltip />
+        <el-table-column prop="timeDelay" label="Time Delay(s)" width="80" align="center" />
         <el-table-column prop="enumValue" label="Enum Value" width="100" align="center" />
         <el-table-column prop="enumMeaning" label="Meaning" min-width="150" show-overflow-tooltip />
         <el-table-column prop="severity" label="Severity" width="90" />
@@ -77,7 +76,7 @@
     <!-- Create / Edit dialog -->
     <el-dialog v-model="dialogVisible" :title="isEdit ? 'Edit Alarm Rule' : 'Add Alarm Rule'"
       width="720px" :close-on-click-modal="false" @closed="resetForm">
-      <el-form :model="formData" label-width="90px" size="small" label-position="right">
+      <el-form :model="formData"  size="small" label-position="right">
         <!-- Basic fields: Point Name + Point Type on the same row -->
         <div class="basic-row">
           <el-form-item v-if="isEdit" label="Alarm Name" class="basic-name">
@@ -102,18 +101,25 @@
 
         <!-- Numeric rules (NUMERIC only) -->
         <template v-if="formData.pointType === 'NUMERIC'">
+          <!-- Per-point: Time_Delay + Deadband -->
+          <div class="level-row">
+            <el-form-item label="Time Delay(s)" class="field-half">
+              <el-input v-model="formData.timeDelay" placeholder="0" />
+            </el-form-item>
+            <el-form-item label="Deadband" class="field-half">
+              <el-input v-model="formData.deadband" placeholder="0" />
+            </el-form-item>
+          </div>
+
           <el-divider content-position="left">High-High</el-divider>
           <div class="level-row">
-            <el-form-item label="Value" required class="field-third">
+            <el-form-item label="Value" required class="field-half">
               <el-input v-model="formData.highHighValue" placeholder=">= threshold" />
             </el-form-item>
-            <el-form-item label="Severity" required class="field-third">
+            <el-form-item label="Severity" required class="field-half">
               <el-select v-model="formData.highHighSeverity" placeholder="-" popper-class="alarm-config-popper">
                 <el-option v-for="s in severityOptions" :key="s" :label="s" :value="s" />
               </el-select>
-            </el-form-item>
-            <el-form-item label="Hysteresis" class="field-third">
-              <el-input v-model="formData.highHighHysteresis" placeholder="0.00" />
             </el-form-item>
           </div>
           <div class="level-row">
@@ -124,16 +130,13 @@
 
           <el-divider content-position="left">High</el-divider>
           <div class="level-row">
-            <el-form-item label="Value" required class="field-third">
+            <el-form-item label="Value" required class="field-half">
               <el-input v-model="formData.highValue" placeholder=">= threshold" />
             </el-form-item>
-            <el-form-item label="Severity" required class="field-third">
+            <el-form-item label="Severity" required class="field-half">
               <el-select v-model="formData.highSeverity" placeholder="-" popper-class="alarm-config-popper">
                 <el-option v-for="s in severityOptions" :key="s" :label="s" :value="s" />
               </el-select>
-            </el-form-item>
-            <el-form-item label="Hysteresis" class="field-third">
-              <el-input v-model="formData.highHysteresis" placeholder="0.00" />
             </el-form-item>
           </div>
           <div class="level-row">
@@ -144,16 +147,13 @@
 
           <el-divider content-position="left">Low</el-divider>
           <div class="level-row">
-            <el-form-item label="Value" required class="field-third">
+            <el-form-item label="Value" required class="field-half">
               <el-input v-model="formData.lowValue" placeholder="<= threshold" />
             </el-form-item>
-            <el-form-item label="Severity" required class="field-third">
+            <el-form-item label="Severity" required class="field-half">
               <el-select v-model="formData.lowSeverity" placeholder="-" popper-class="alarm-config-popper">
                 <el-option v-for="s in severityOptions" :key="s" :label="s" :value="s" />
               </el-select>
-            </el-form-item>
-            <el-form-item label="Hysteresis" class="field-third">
-              <el-input v-model="formData.lowHysteresis" placeholder="0.00" />
             </el-form-item>
           </div>
           <div class="level-row">
@@ -164,16 +164,13 @@
 
           <el-divider content-position="left">Low-Low</el-divider>
           <div class="level-row">
-            <el-form-item label="Value" required class="field-third">
+            <el-form-item label="Value" required class="field-half">
               <el-input v-model="formData.lowLowValue" placeholder="<= threshold" />
             </el-form-item>
-            <el-form-item label="Severity" required class="field-third">
+            <el-form-item label="Severity" required class="field-half">
               <el-select v-model="formData.lowLowSeverity" placeholder="-" popper-class="alarm-config-popper">
                 <el-option v-for="s in severityOptions" :key="s" :label="s" :value="s" />
               </el-select>
-            </el-form-item>
-            <el-form-item label="Hysteresis" class="field-third">
-              <el-input v-model="formData.lowLowHysteresis" placeholder="0.00" />
             </el-form-item>
           </div>
           <div class="level-row">
@@ -186,16 +183,32 @@
         <!-- Enum rules (ENUM only) -->
         <template v-if="formData.pointType === 'ENUM'">
           <el-divider content-position="left">Enum Values</el-divider>
-          <div v-for="(item, idx) in enumFormItems" :key="idx" class="enum-row">
-            <el-input v-model="item.enumValue" placeholder="0" class="enum-val" />
-            <el-input v-model="item.enumMeaning" placeholder="e.g. 关机" class="enum-meaning" />
-            <el-select v-model="item.severity" placeholder="-" clearable popper-class="alarm-config-popper" class="enum-sev">
-              <el-option v-for="s in enumSeverityOptions" :key="s" :label="s" :value="s" />
-            </el-select>
-            <el-input v-model="item.message" placeholder="Alarm message" class="enum-msg" />
-            <el-button type="danger" link size="small" @click="removeEnumItem(idx)" :disabled="enumFormItems.length <= 1">
-              <el-icon><Delete /></el-icon>
-            </el-button>
+          <div v-for="(item, idx) in enumFormItems" :key="idx" class="enum-item">
+            <div class="level-row">
+              <el-form-item label="Value" class="field-quarter">
+                <el-input v-model="item.enumValue" placeholder="0" />
+              </el-form-item>
+              <el-form-item label="Meaning" class="field-quarter">
+                <el-input v-model="item.enumMeaning" placeholder="e.g. 关机" />
+              </el-form-item>
+              <el-form-item label="Severity" class="field-quarter">
+                <el-select v-model="item.severity" placeholder="-" clearable popper-class="alarm-config-popper">
+                  <el-option v-for="s in enumSeverityOptions" :key="s" :label="s" :value="s" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="Time Delay(s)" class="field-quarter">
+                <el-input v-model="item.timeDelay" placeholder="0" />
+              </el-form-item>
+            </div>
+            <div class="level-row">
+              <el-form-item label="Message" class="field-full">
+                <el-input v-model="item.message" placeholder="Alarm message" />
+              </el-form-item>
+              <el-button type="danger" link size="small" class="enum-delete-btn"
+                @click="removeEnumItem(idx)" :disabled="enumFormItems.length <= 1">
+                <el-icon><Delete /></el-icon>
+              </el-button>
+            </div>
           </div>
           <el-button type="primary" link size="small" @click="addEnumItem">
             <el-icon><Plus /></el-icon>
@@ -262,16 +275,19 @@ function emptyForm() {
     alarmName: '',
     pointName: '',
     pointType: '',
-    // numeric
-    highHighValue: '', highHighSeverity: '', highHighMessage: '', highHighHysteresis: '',
-    highValue: '', highSeverity: '', highMessage: '', highHysteresis: '',
-    lowValue: '', lowSeverity: '', lowMessage: '', lowHysteresis: '',
-    lowLowValue: '', lowLowSeverity: '', lowLowMessage: '', lowLowHysteresis: '',
+    // numeric per-point
+    timeDelay: null as number | null,
+    deadband: '',
+    // numeric levels
+    highHighValue: '', highHighSeverity: '', highHighMessage: '',
+    highValue: '', highSeverity: '', highMessage: '',
+    lowValue: '', lowSeverity: '', lowMessage: '',
+    lowLowValue: '', lowLowSeverity: '', lowLowMessage: '',
   }
 }
 
 function emptyEnumItem(): EnumRuleItem {
-  return { alarmName: '', enumValue: '', enumMeaning: '', severity: '', message: '' }
+  return { alarmName: '', enumValue: '', enumMeaning: '', severity: '', message: '', timeDelay: null }
 }
 
 function addEnumItem() {
@@ -350,16 +366,15 @@ async function handleSave() {
   try {
     if (type === 'NUMERIC') {
       const levels = [
-        ['highHighValue', 'highHighSeverity', 'highHighHysteresis'],
-        ['highValue', 'highSeverity', 'highHysteresis'],
-        ['lowValue', 'lowSeverity', 'lowHysteresis'],
-        ['lowLowValue', 'lowLowSeverity', 'lowLowHysteresis'],
+        ['highHighValue', 'highHighSeverity'],
+        ['highValue', 'highSeverity'],
+        ['lowValue', 'lowSeverity'],
+        ['lowLowValue', 'lowLowSeverity'],
       ] as const
-      for (const [vKey, sKey, hKey] of levels) {
+      for (const [vKey, sKey] of levels) {
         if (f[vKey]?.trim() && !f[sKey]) {
           ElMessage.warning(`Severity is required when ${vKey} is filled`); saving.value = false; return
         }
-        if (f[vKey]?.trim() && !f[hKey]?.trim()) f[hKey] = '0.00'
       }
       const hasAny = levels.some(([v]) => f[v]?.toString().trim() !== '')
       if (!hasAny) { ElMessage.warning('At least one threshold Value is required'); saving.value = false; return }
@@ -368,14 +383,16 @@ async function handleSave() {
         ...(isEdit.value ? { id: f.id } : { pointName: f.pointName }),
         alarmName: f.alarmName,
         pointType: 'NUMERIC',
+        timeDelay: f.timeDelay !== '' && f.timeDelay !== null && f.timeDelay !== undefined ? Number(f.timeDelay) : null,
+        deadband: f.deadband,
         highHighValue: f.highHighValue, highHighSeverity: f.highHighSeverity,
-        highHighMessage: f.highHighMessage, highHighHysteresis: f.highHighHysteresis,
+        highHighMessage: f.highHighMessage,
         highValue: f.highValue, highSeverity: f.highSeverity,
-        highMessage: f.highMessage, highHysteresis: f.highHysteresis,
+        highMessage: f.highMessage,
         lowValue: f.lowValue, lowSeverity: f.lowSeverity,
-        lowMessage: f.lowMessage, lowHysteresis: f.lowHysteresis,
+        lowMessage: f.lowMessage,
         lowLowValue: f.lowLowValue, lowLowSeverity: f.lowLowSeverity,
-        lowLowMessage: f.lowLowMessage, lowLowHysteresis: f.lowLowHysteresis,
+        lowLowMessage: f.lowLowMessage,
       }
       if (isEdit.value && payload.id) {
         await alarmApi.updateNumericRule(payload.id, payload)
@@ -508,17 +525,33 @@ onMounted(() => {
 .level-row {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  padding-left: 4px;
+  gap: 12px;
+  // padding-left: 4px;
   .el-form-item { margin-bottom: 12px; }
-  .field-third {
+  /* Element Plus sets width:100% on .el-form-item by default, which forces
+     each item onto its own line. Override so flex-basis from the field-* classes
+     actually controls the width. */
+  // :deep(.el-form-item) { width: auto; }
+  .field-half {
+    flex: 1 1 0; min-width: 0;
+    .el-input, .el-select { width: 100%; }
+  }
+  .field-quarter {
     flex: 1 1 0; min-width: 0;
     .el-input, .el-select { width: 100%; }
   }
   .field-full {
-    flex: 1 1 100%;
+    flex: 1 1 0;
     .el-input { width: 100%; }
   }
+  .enum-delete-btn {
+    flex: 0 0 auto;
+    height: 24px; 
+  }
+}
+
+:deep(.el-form-item__label){
+  padding-right: 4px;
 }
 
 .type-hint {
@@ -528,16 +561,12 @@ onMounted(() => {
   text-align: center;
 }
 
-// Enum rows in the form
-.enum-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+// Enum items in the form: visual separation between multi-value rows
+.enum-item {
   margin-bottom: 8px;
-  .enum-val { width: 80px; flex-shrink: 0; }
-  .enum-meaning { width: 120px; flex-shrink: 0; }
-  .enum-sev { width: 120px; flex-shrink: 0; }
-  .enum-msg { flex: 1; min-width: 100px; }
+  padding-bottom: 4px;
+  border-bottom: 1px dashed $border-color;
+  &:last-child { border-bottom: none; }
 }
 
 // Dark theme for el-table

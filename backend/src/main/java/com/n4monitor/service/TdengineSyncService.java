@@ -133,6 +133,8 @@ public class TdengineSyncService {
                 + "alarm_level NCHAR(32), "
                 + "alarm_severity NCHAR(32), "
                 + "alarm_message NCHAR(256), "
+                + "time_delay NCHAR(32), "
+                + "deadband NCHAR(64), "
                 + "ack_by NCHAR(32), "
                 + "alarm_status NCHAR(32), "
                 + "alarm_source NCHAR(64), "
@@ -169,7 +171,8 @@ public class TdengineSyncService {
                 + "alarm_level NCHAR(32), "
                 + "alarm_severity NCHAR(32), "
                 + "alarm_message NCHAR(256), "
-                + "hysteresis NCHAR(32), "
+                + "time_delay NCHAR(32), "
+                + "deadband NCHAR(64), "
                 + "ack_by NCHAR(32), "
                 + "alarm_status NCHAR(32), "
                 + "alarm_source NCHAR(64), "
@@ -282,7 +285,7 @@ public class TdengineSyncService {
         String subtable = sanitizeTableName(path);
 
         String sql = "INSERT INTO " + subtable + " USING " + supertable
-                + " TAGS (?, ?, ?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                + " TAGS (?, ?, ?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, state.getName());
@@ -303,12 +306,14 @@ public class TdengineSyncService {
             pstmt.setString(14, state.getLevel());
             pstmt.setString(15, state.getSeverity());
             pstmt.setString(16, state.getMessage());
-            pstmt.setString(17, state.getAckBy());
-            pstmt.setString(18, state.getStatus());
-            pstmt.setString(19, state.getSource());
-            pstmt.setString(20, state.getLocation());
-            pstmt.setString(21, state.getStage());
-            pstmt.setString(22, state.getDuration());
+            pstmt.setString(17, state.getTimeDelay() != null ? String.valueOf(state.getTimeDelay()) : null);
+            pstmt.setString(18, state.getDeadband());
+            pstmt.setString(19, state.getAckBy());
+            pstmt.setString(20, state.getStatus());
+            pstmt.setString(21, state.getSource());
+            pstmt.setString(22, state.getLocation());
+            pstmt.setString(23, state.getStage());
+            pstmt.setString(24, state.getDuration());
 
             pstmt.executeUpdate();
         }
@@ -323,7 +328,7 @@ public class TdengineSyncService {
         String subtable = sanitizeTableName(path) + "_rt";
 
         String sql = "INSERT INTO " + subtable + " USING " + supertable
-                + " TAGS (?, ?, ?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                + " TAGS (?, ?, ?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, state.getName());
@@ -344,13 +349,14 @@ public class TdengineSyncService {
             pstmt.setString(14, state.getLevel());
             pstmt.setString(15, state.getSeverity());
             pstmt.setString(16, state.getMessage());
-            pstmt.setString(17, state.getHysteresis());
-            pstmt.setString(18, state.getAckBy());
-            pstmt.setString(19, state.getStatus());
-            pstmt.setString(20, state.getSource());
-            pstmt.setString(21, state.getLocation());
-            pstmt.setString(22, state.getStage());
-            pstmt.setString(23, state.getDuration());
+            pstmt.setString(17, state.getTimeDelay() != null ? String.valueOf(state.getTimeDelay()) : null);
+            pstmt.setString(18, state.getDeadband());
+            pstmt.setString(19, state.getAckBy());
+            pstmt.setString(20, state.getStatus());
+            pstmt.setString(21, state.getSource());
+            pstmt.setString(22, state.getLocation());
+            pstmt.setString(23, state.getStage());
+            pstmt.setString(24, state.getDuration());
 
             pstmt.executeUpdate();
         }

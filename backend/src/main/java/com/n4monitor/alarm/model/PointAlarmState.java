@@ -25,8 +25,11 @@ public class PointAlarmState extends PointData implements Serializable {
     /** Alarm message */
     private String message;
 
-    /** Hysteresis (confirmation timeout in seconds) used for this alarm */
-    private String hysteresis;
+    /** Alarm trigger delay in seconds (per-point, from alarm rule) */
+    private Integer timeDelay;
+
+    /** Deadband value (per-point, from numeric alarm rule) */
+    private String deadband;
 
     /** Acknowledged by (default "-") */
     private String ackBy;

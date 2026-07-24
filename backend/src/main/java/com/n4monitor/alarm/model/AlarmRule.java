@@ -26,8 +26,11 @@ public class AlarmRule {
     /** Alarm prompt message */
     private String message;
 
-    /** Hysteresis / deadband for numeric thresholds (null for Boolean rules) */
-    private String hysteresis;
+    /** Alarm trigger delay in seconds (per-point) */
+    private Integer timeDelay;
+
+    /** Deadband for numeric thresholds (per-point, null for Boolean rules) */
+    private String deadband;
 
     /** Point value type: BOOL or NUMERIC */
     private String pointType;

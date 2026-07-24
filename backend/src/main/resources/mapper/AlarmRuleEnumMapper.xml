@@ -19,15 +19,16 @@
     <insert id="insert" parameterType="com.n4monitor.entity.AlarmRuleEnumEntity"
             useGeneratedKeys="true" keyProperty="id">
         INSERT INTO alarm_rule_enum (
-            alarm_name, point_type, enum_value, enum_meaning, severity, message
+            alarm_name, point_type, time_delay, enum_value, enum_meaning, severity, message
         ) VALUES (
-            #{alarmName}, #{pointType}, #{enumValue}, #{enumMeaning}, #{severity}, #{message}
+            #{alarmName}, #{pointType}, #{timeDelay}, #{enumValue}, #{enumMeaning}, #{severity}, #{message}
         )
     </insert>
 
     <update id="update" parameterType="com.n4monitor.entity.AlarmRuleEnumEntity">
         UPDATE alarm_rule_enum SET
             alarm_name    = #{alarmName},
+            time_delay    = #{timeDelay},
             enum_value    = #{enumValue},
             enum_meaning  = #{enumMeaning},
             severity      = #{severity},

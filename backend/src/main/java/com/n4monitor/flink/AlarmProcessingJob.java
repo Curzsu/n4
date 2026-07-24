@@ -161,7 +161,7 @@ public class AlarmProcessingJob {
             // 2. Filter string type - no alarm rules
             if ("string".equalsIgnoreCase(type)) {
                 // Still write latest state for TDengine sync
-                PointAlarmState normalState = buildState(point, null, null, null, null);
+                PointAlarmState normalState = buildState(point, null, null, null, null, null);
                 writeLatestState(normalState);
                 return String.format("\033[90m[%s] [%8s] %-40s | value=%s | string type, skipped\033[0m",
                         ts, "STRING", point.getName(), point.getValue());
@@ -179,7 +179,7 @@ public class AlarmProcessingJob {
                 case "numeric" -> triggered = evaluateNumeric(alarmName, point.getValue());
                 default -> {
                     // Unknown type or null type
-                    PointAlarmState normalState = buildState(point, null, null, null, null);
+                    PointAlarmState normalState = buildState(point, null, null, null, null, null);
                     writeLatestState(normalState);
                     return String.format("[%s] [%8s] %-40s | value=%s | unknown type: %s",
                             ts, "UNKNOWN", point.getName(), point.getValue(), type);
@@ -188,7 +188,7 @@ public class AlarmProcessingJob {
 
             if (triggered == null) {
                 // No rule found for this point
-                PointAlarmState normalState = buildState(point, null, null, null, null);
+                PointAlarmState normalState = buildState(point, null, null, null, null, null);
                 writeLatestState(normalState);
                 return String.format("[%s] [%8s] %-40s | value=%s | no rule found, point=%s, type=%s",
                         ts, "NORULE", point.getName(), point.getValue(), pointName, type);
@@ -198,10 +198,11 @@ public class AlarmProcessingJob {
             String level = triggered.level;
             String severity = triggered.severity;
             String alarmMessage = triggered.message;
-            String hysteresis = triggered.hysteresis;
+            Integer timeDelay = triggered.timeDelay;
+            String deadband = triggered.deadband;
 
             // 5. Build current state and resolve stage / duration against active history
-            PointAlarmState current = buildState(point, level, severity, alarmMessage, hysteresis);
+            PointAlarmState current = buildState(point, level, severity, alarmMessage, timeDelay, deadband);
             PointAlarmState history = readActive(path);
             long intervalSeconds = computeIntervalSeconds(history, current);
 
@@ -302,7 +303,7 @@ public class AlarmProcessingJob {
 
         /** Result of evaluating a rule against a point value. */
         record EvalResult(boolean isAlarm, String level, String severity,
-                          String message, String hysteresis) {}
+                          String message, Integer timeDelay, String deadband) {}
 
         private EvalResult evaluateNumeric(String alarmName, String pointValue) {
             String json = jedis.hget(rulesNumericKey, alarmName);
@@ -315,8 +316,11 @@ public class AlarmProcessingJob {
                     numVal = Double.parseDouble(pointValue != null ? pointValue.trim() : "");
                 } catch (Exception ignored) {}
                 if (numVal == null) {
-                    return new EvalResult(false, null, null, null, null);
+                    return new EvalResult(false, null, null, null, null, null);
                 }
+
+                Integer timeDelay = rule.getTimeDelay();
+                String deadband = rule.getDeadband();
 
                 // Priority order: High-High, High, Low-Low, Low
                 // High-High
@@ -324,7 +328,7 @@ public class AlarmProcessingJob {
                     try {
                         if (numVal >= Double.parseDouble(rule.getHighHighValue())) {
                             return new EvalResult(true, "High-High", rule.getHighHighSeverity(),
-                                    rule.getHighHighMessage(), rule.getHighHighHysteresis());
+                                    rule.getHighHighMessage(), timeDelay, deadband);
                         }
                     } catch (NumberFormatException ignored) {}
                 }
@@ -333,7 +337,7 @@ public class AlarmProcessingJob {
                     try {
                         if (numVal >= Double.parseDouble(rule.getHighValue())) {
                             return new EvalResult(true, "High", rule.getHighSeverity(),
-                                    rule.getHighMessage(), rule.getHighHysteresis());
+                                    rule.getHighMessage(), timeDelay, deadband);
                         }
                     } catch (NumberFormatException ignored) {}
                 }
@@ -342,7 +346,7 @@ public class AlarmProcessingJob {
                     try {
                         if (numVal <= Double.parseDouble(rule.getLowLowValue())) {
                             return new EvalResult(true, "Low-Low", rule.getLowLowSeverity(),
-                                    rule.getLowLowMessage(), rule.getLowLowHysteresis());
+                                    rule.getLowLowMessage(), timeDelay, deadband);
                         }
                     } catch (NumberFormatException ignored) {}
                 }
@@ -351,12 +355,12 @@ public class AlarmProcessingJob {
                     try {
                         if (numVal <= Double.parseDouble(rule.getLowValue())) {
                             return new EvalResult(true, "Low", rule.getLowSeverity(),
-                                    rule.getLowMessage(), rule.getLowHysteresis());
+                                    rule.getLowMessage(), timeDelay, deadband);
                         }
                     } catch (NumberFormatException ignored) {}
                 }
 
-                return new EvalResult(false, null, null, null, null);
+                return new EvalResult(false, null, null, null, null, null);
             } catch (Exception e) {
                 System.err.println("[FLINK] Failed to deserialize numeric rule: " + alarmName + " - " + e.getMessage());
                 return null;
@@ -378,15 +382,15 @@ public class AlarmProcessingJob {
                         // Match found - alarm only if severity is non-empty
                         if (rule.getSeverity() != null && !rule.getSeverity().isBlank()) {
                             return new EvalResult(true, "Enum", rule.getSeverity(),
-                                    rule.getMessage(), null);
+                                    rule.getMessage(), rule.getTimeDelay(), null);
                         } else {
                             // Empty severity -> normal value, not an alarm
-                            return new EvalResult(false, null, null, null, null);
+                            return new EvalResult(false, null, null, null, null, null);
                         }
                     }
                 }
                 // No matching enum value
-                return new EvalResult(false, null, null, null, null);
+                return new EvalResult(false, null, null, null, null, null);
             } catch (Exception e) {
                 System.err.println("[FLINK] Failed to deserialize enum rules: " + alarmName + " - " + e.getMessage());
                 return null;
@@ -396,7 +400,7 @@ public class AlarmProcessingJob {
         // ── State construction ──────────────────────────────────────────────────
 
         private PointAlarmState buildState(PointData point, String level, String severity,
-                                           String message, String hysteresis) {
+                                           String message, Integer timeDelay, String deadband) {
             PointAlarmState state = new PointAlarmState();
             state.setName(point.getName());
             state.setDisplayName(point.getDisplayName());
@@ -415,7 +419,8 @@ public class AlarmProcessingJob {
                 state.setLevel(level);
                 state.setSeverity(severity);
                 state.setMessage(message);
-                state.setHysteresis(hysteresis);
+                state.setTimeDelay(timeDelay);
+                state.setDeadband(deadband);
             }
 
             state.setSource(extractSource(point.getPath()));
