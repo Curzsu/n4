@@ -52,6 +52,7 @@ alarm:
     active-key: alarm:active                     # Alarm records + ack status
     notification-channel: alarm:notifications    # WebSocket notification channel
     realtime-channel: alarm:realtime             # TDengine realtime persistence channel
+    point-rule-map-key: alarm:point:rule         # 点位 path -> alarm_code 映射(Hash, field=path, value=alarm_code)
 
 # Dynamic FUXA template binding. Secrets remain in FUXA's MQTT device configuration.
 fuxa:
