@@ -30,10 +30,11 @@ import java.util.*;
  * type-specific hashes keyed by alarm_name), evaluates each message in real-time,
  * and writes latest state to Redis.
  * <p>
- * Rule lookup: extracts pointName from the Kafka message path, constructs
- * alarm_name = "{pointName}_00" (TODO: support multi-rule selection), and
- * queries the Redis hash corresponding to the message's type field
- * (boolean/numeric/enum). String-type messages are skipped.
+ * Rule lookup: extracts the point path from the Kafka message, looks up the
+ * point's alarm_code from the Redis hash alarm:point:rule (field = path), and
+ * uses that alarm_code as the alarm_name to query the rule hashes
+ * (alarm:rules:numeric / alarm:rules:enum). A point with an empty alarm_code
+ * has no rule and is skipped (no evaluation). String-type messages are also skipped.
  */
 public class AlarmProcessingJob {
 
