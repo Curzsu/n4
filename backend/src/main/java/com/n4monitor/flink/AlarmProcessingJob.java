@@ -175,8 +175,16 @@ public class AlarmProcessingJob {
                         ts, "STRING", point.getName(), point.getValue());
             }
 
-            // 3. Construct alarm_name (TODO: currently always uses _00, optimize later for multi-rule selection)
-            String alarmName = pointName + "_00";
+            // 3. Look up this point's alarm_code from Redis (path -> alarm_code).
+            //    Empty alarm_code = no alarm rule = skip alarm evaluation (no _00 fallback).
+            String alarmName = jedis.hget(pointRuleMapKey, path);
+            if (alarmName == null || alarmName.isEmpty()) {
+                // No alarm_code configured for this point: skip alarm evaluation, write normal state.
+                PointAlarmState normalState = buildState(point, null, null, null, null, null);
+                writeLatestState(normalState);
+                return String.format("[%s] [%8s] %-40s | value=%s | no alarm_code, point=%s, type=%s",
+                        ts, "NORULE", point.getName(), point.getValue(), pointName, type);
+            }
 
             // 4. Look up rule from Redis based on type
             EvalResult triggered = null;
