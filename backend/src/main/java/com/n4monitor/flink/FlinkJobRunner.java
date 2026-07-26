@@ -58,6 +58,9 @@ public class FlinkJobRunner implements CommandLineRunner {
     @Value("${alarm.redis.realtime-channel}")
     private String realtimeChannel;
 
+    @Value("${alarm.redis.point-rule-map-key:alarm:point:rule}")
+    private String pointRuleMapKey;
+
     @Override
     public void run(String... args) {
         if (!enabled) {
@@ -76,12 +79,14 @@ public class FlinkJobRunner implements CommandLineRunner {
                 log.info("  Active key: {}", activeRedisKey);
                 log.info("  Notification channel: {}", notificationChannel);
                 log.info("  Realtime channel: {}", realtimeChannel);
+                log.info("  Point rule map key: {}", pointRuleMapKey);
 
                 AlarmProcessingJob.run(kafkaBroker, kafkaTopic, groupId,
                         redisHost, redisPort, redisPassword,
                         rulesNumericKey, rulesEnumKey,
                         latestRedisKey, activeRedisKey,
-                        notificationChannel, realtimeChannel);
+                        notificationChannel, realtimeChannel,
+                        pointRuleMapKey);
             } catch (InterruptedException e) {
                 log.info("Flink job thread interrupted, stopping...");
                 Thread.currentThread().interrupt();

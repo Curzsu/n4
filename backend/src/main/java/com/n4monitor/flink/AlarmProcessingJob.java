@@ -43,13 +43,15 @@ public class AlarmProcessingJob {
     private static final String DEFAULT_ACTIVE_KEY = "alarm:active";
     private static final String DEFAULT_NOTIFICATIONS_CHANNEL = "alarm:notifications";
     private static final String DEFAULT_REALTIME_CHANNEL = "alarm:realtime";
+    private static final String DEFAULT_POINT_RULE_MAP_KEY = "alarm:point:rule";
 
     public static void main(String[] args) throws Exception {
         run("47.121.30.136:9092", "obix-mqtt-points",
             "n4-flink-alarm-processor", "localhost", 6379, "",
             DEFAULT_RULES_NUMERIC_KEY, DEFAULT_RULES_ENUM_KEY,
             DEFAULT_LATEST_KEY, DEFAULT_ACTIVE_KEY,
-            DEFAULT_NOTIFICATIONS_CHANNEL, DEFAULT_REALTIME_CHANNEL);
+            DEFAULT_NOTIFICATIONS_CHANNEL, DEFAULT_REALTIME_CHANNEL,
+            DEFAULT_POINT_RULE_MAP_KEY);
     }
 
     /**
@@ -59,7 +61,8 @@ public class AlarmProcessingJob {
                            String groupId, String redisHost, int redisPort, String redisPassword,
                            String rulesNumericKey, String rulesEnumKey,
                            String latestRedisKey, String activeRedisKey,
-                           String notificationChannel, String realtimeChannel) throws Exception {
+                           String notificationChannel, String realtimeChannel,
+                           String pointRuleMapKey) throws Exception {
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(1);
@@ -82,7 +85,8 @@ public class AlarmProcessingJob {
                 new AlarmProcessFunction(redisHost, redisPort,
                 redisPassword,
                         rulesNumericKey, rulesEnumKey,
-                        latestRedisKey, activeRedisKey, notificationChannel, realtimeChannel));
+                        latestRedisKey, activeRedisKey, notificationChannel, realtimeChannel,
+                        pointRuleMapKey));
 
         alarmStream.print();
 
@@ -104,6 +108,7 @@ public class AlarmProcessingJob {
         private final String activeRedisKey;
         private final String notificationChannel;
         private final String realtimeChannel;
+        private final String pointRuleMapKey;
 
         private transient Jedis jedis;
         private transient ObjectMapper objectMapper;
@@ -114,7 +119,8 @@ public class AlarmProcessingJob {
         public AlarmProcessFunction(String redisHost, int redisPort, String redisPassword,
                                     String rulesNumericKey, String rulesEnumKey,
                                     String latestRedisKey, String activeRedisKey,
-                                    String notificationChannel, String realtimeChannel) {
+                                    String notificationChannel, String realtimeChannel,
+                                    String pointRuleMapKey) {
             this.redisHost = redisHost;
             this.redisPort = redisPort;
             this.redisPassword = redisPassword;
@@ -124,6 +130,7 @@ public class AlarmProcessingJob {
             this.activeRedisKey = activeRedisKey;
             this.notificationChannel = notificationChannel;
             this.realtimeChannel = realtimeChannel;
+            this.pointRuleMapKey = pointRuleMapKey;
         }
 
         @Override
@@ -139,6 +146,7 @@ public class AlarmProcessingJob {
             System.out.println("[FLINK] Rules enum key: " + rulesEnumKey);
             System.out.println("[FLINK] Latest state Redis key: " + latestRedisKey);
             System.out.println("[FLINK] Active alarm Redis key: " + activeRedisKey);
+            System.out.println("[FLINK] Point rule map key: " + pointRuleMapKey);
         }
 
         @Override
