@@ -29,7 +29,8 @@ public class AlarmRuleController {
     @PostMapping("/reload")
     public ApiResponse<String> reloadRules() {
         alarmRuleSyncService.syncAllRulesToRedis();
-        return ApiResponse.success("Alarm rules reloaded from MySQL to Redis");
+        alarmRuleSyncService.syncPointRuleMapToRedis();
+        return ApiResponse.success("Alarm rules and point-rule mappings reloaded");
     }
 
     // ── Numeric CRUD ─────────────────────────────────────────────────────────
