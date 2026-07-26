@@ -4,8 +4,10 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.n4monitor.entity.AlarmRuleEnumEntity;
 import com.n4monitor.entity.AlarmRuleNumericEntity;
+import com.n4monitor.entity.PointDeploymentEntity;
 import com.n4monitor.mapper.AlarmRuleEnumMapper;
 import com.n4monitor.mapper.AlarmRuleNumericMapper;
+import com.n4monitor.mapper.PointDeploymentMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,9 +37,13 @@ public class AlarmRuleSyncService {
     @Value("${alarm.redis.rules-enum-key}")
     private String rulesEnumKey;
 
+    @Value("${alarm.redis.point-rule-map-key:alarm:point:rule}")
+    private String pointRuleMapKey;
+
     private final StringRedisTemplate redisTemplate;
     private final AlarmRuleNumericMapper numericMapper;
     private final AlarmRuleEnumMapper enumMapper;
+    private final PointDeploymentMapper pointDeploymentMapper;
     private final ObjectMapper objectMapper;
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -90,6 +96,27 @@ public class AlarmRuleSyncService {
             redisTemplate.opsForHash().putAll(rulesEnumKey, redisData);
         }
         log.info("Synced {} enum rule groups to Redis key '{}'", redisData.size(), rulesEnumKey);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  Point deployment -> alarm_code map sync (path -> alarm_code)
+    //  Read by Flink per-message to look up each point's alarm rule.
+    // ═══════════════════════════════════════════════════════════════════════
+
+    public void syncPointRuleMapToRedis() {
+        List<PointDeploymentEntity> points = pointDeploymentMapper.findAllForRuleMap();
+        Map<String, String> redisData = new HashMap<>();
+        for (PointDeploymentEntity p : points) {
+            // 空 alarm_code = 无报警规则，不写入映射表（Flink 查不到即跳过报警判断）
+            if (p.getAlarmCode() != null && !p.getAlarmCode().isBlank()) {
+                redisData.put(p.getN4Address(), p.getAlarmCode());
+            }
+        }
+        redisTemplate.delete(pointRuleMapKey);
+        if (!redisData.isEmpty()) {
+            redisTemplate.opsForHash().putAll(pointRuleMapKey, redisData);
+        }
+        log.info("Synced {} point->alarm_code mappings to Redis key '{}'", redisData.size(), pointRuleMapKey);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
