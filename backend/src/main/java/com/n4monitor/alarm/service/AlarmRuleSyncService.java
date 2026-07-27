@@ -107,7 +107,7 @@ public class AlarmRuleSyncService {
         List<PointDeploymentEntity> points = pointDeploymentMapper.findAllForRuleMap();
         Map<String, String> redisData = new HashMap<>();
         for (PointDeploymentEntity p : points) {
-            // 空 alarm_code = 无报警规则，不写入映射表（Flink 查不到即跳过报警判断）
+            // Empty alarm_code = no alarm rule; skip writing to the map (Flink treats a miss as "no rule")
             if (p.getAlarmCode() != null && !p.getAlarmCode().isBlank()) {
                 redisData.put(p.getN4Address(), p.getAlarmCode());
             }

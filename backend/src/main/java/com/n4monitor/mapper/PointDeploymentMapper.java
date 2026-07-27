@@ -8,6 +8,6 @@ import java.util.List;
 @Mapper
 public interface PointDeploymentMapper {
 
-    /** 查询所有未删除点位的 path + alarm_code，用于同步规则映射到 Redis */
+    /** Query path + alarm_code for all non-deleted points, used to sync the rule mapping to Redis */
     List<PointDeploymentEntity> findAllForRuleMap();
 }
