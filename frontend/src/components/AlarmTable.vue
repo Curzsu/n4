@@ -778,6 +778,32 @@ onBeforeUnmount(() => {
   align-items: center;
   padding: 0 12px;
   gap: 8px;
+
+  // Transparent-background action buttons: green text + green border, light-green fill on hover.
+  // Overrides Element Plus default (primary/success) styling for a consistent outline style.
+  :deep(.el-button) {
+    background-color: transparent;
+    border: 1px solid $accent-green;
+    color: $accent-green;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s, opacity 0.2s;
+
+    &:hover,
+    &:focus {
+      background-color: rgba($accent-green, 0.15);
+      border-color: $accent-green;
+      color: $accent-green;
+    }
+
+    // Keep disabled Ack button muted (no alarm selected)
+    &.is-disabled,
+    &.is-disabled:hover {
+      background-color: transparent;
+      border-color: $border-card;
+      color: $text-muted;
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+  }
 }
 
 .tab-item {
@@ -828,6 +854,10 @@ onBeforeUnmount(() => {
   --el-table-text-color: #e5e7eb;
   --el-table-header-text-color: #e5e7eb;
 
+  .el-table .cell {
+    line-height: 20px;
+  }
+
   .el-table__inner-wrapper {
     background-color: #111827;
   }
@@ -862,10 +892,12 @@ onBeforeUnmount(() => {
   .el-table__header-cell {
     padding: 0 4px !important;
   }
-  // .cell is the inner div — Element Plus sets line-height: 23px which
+  // .cell is the inner div - Element Plus sets line-height: 23px which
   // dominates the row height. Override with higher specificity + !important.
+  // NOTE: EP table header <th> only carries the `el-table__cell` class (NOT
+  // `el-table__header-cell`), so we target `th.el-table__cell` for headers.
   td.el-table__cell .cell,
-  th.el-table__header-cell .cell {
+  th.el-table__cell .cell {
     padding: 0 4px !important;
     line-height: 20px !important;
     height: 20px !important;

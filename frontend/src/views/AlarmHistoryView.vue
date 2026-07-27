@@ -162,8 +162,10 @@ onMounted(() => {
   td, th { border-bottom: 1px solid #1f2937; }
   .el-table__cell { padding: 0 4px !important; }
   .el-table__header-cell { padding: 0 4px !important; }
+  // NOTE: EP table header <th> only carries the `el-table__cell` class (NOT
+  // `el-table__header-cell`), so we target `th.el-table__cell` for headers.
   td.el-table__cell .cell,
-  th.el-table__header-cell .cell {
+  th.el-table__cell .cell {
     padding: 0 4px !important;
     line-height: 20px !important;
     height: 20px !important;

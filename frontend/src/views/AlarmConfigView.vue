@@ -569,7 +569,7 @@ onMounted(() => {
   &:last-child { border-bottom: none; }
 }
 
-// Dark theme for el-table
+// Dark theme for el-table (consistent with Active Alarms table: 10px font, 20px row height, no vertical padding)
 :deep(.el-table) {
   background-color: #111827;
   color: #e5e7eb;
@@ -586,6 +586,41 @@ onMounted(() => {
   .el-table__row { background-color: #111827; }
   .el-table__row:hover > td { background-color: #1a2332 !important; }
   td, th { border-bottom: 1px solid #1f2937; }
+
+  // Compact row height: zero out cell padding, force .cell to 20px line/height.
+  // Element Plus sets line-height: 23px on .cell which dominates row height;
+  // override with higher specificity + !important (same approach as AlarmTable.vue).
+  // NOTE: EP table header <th> only carries the `el-table__cell` class (NOT
+  // `el-table__header-cell`), so we target `th.el-table__cell` for headers.
+  .el-table__cell { padding: 0 0 !important; }
+  .el-table__cell .cell { padding: 0 4px !important; }
+  .el-table__header-cell { padding: 0 4px !important; }
+  td.el-table__cell .cell,
+  th.el-table__cell .cell {
+    padding: 0 4px !important;
+    line-height: 20px !important;
+    height: 20px !important;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+  }
+  td.el-table__cell.is-center .cell {
+    justify-content: center;
+  }
+}
+
+:deep(.el-table .cell) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+:deep(.el-table__empty-block) {
+  background-color: #111827;
+}
+
+:deep(.el-loading-mask) {
+  background-color: rgba(10, 14, 23, 0.7);
 }
 
 :deep(.el-dialog) {
@@ -620,10 +655,16 @@ onMounted(() => {
 </style>
 
 <style lang="scss">
+// Select dropdown options (teleported to body) - dark theme + compact (10px font, 20px row height, no padding).
+// Consistent with the AlarmTable filter-select popper styling.
 .el-select__popper.alarm-config-popper {
   .el-select-dropdown { background-color: #111827; border: 1px solid #2d3748; }
   .el-select-dropdown__item {
     color: #9ca3af;
+    font-size: 10px;
+    height: 20px;
+    line-height: 20px;
+    padding: 0 8px;
     &:hover, &.is-hovering { background-color: #1a2332; color: #e5e7eb; }
     &.is-selected { color: #10b981; font-weight: 600; }
   }
