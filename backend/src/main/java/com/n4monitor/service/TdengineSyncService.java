@@ -370,20 +370,20 @@ public class TdengineSyncService {
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     /**
-     * Query cleared alarms (stage=end + status=Ack) from the alarm_realtime supertable.
-     * Returns the most recent 200 records, ordered by data_timestamp descending.
+     * Query all alarm records from the alarm_realtime supertable.
+     * Returns the most recent 200 records, ordered by data_timestamp descending
+     * (newest first), mirroring the Active Alarms default ordering.
      */
     public List<AlarmRecordDto> queryClearedAlarms() {
         List<AlarmRecordDto> result = new ArrayList<>();
         if (!ensureConnected()) {
-            log.warn("TDengine not available, cannot query cleared alarms");
+            log.warn("TDengine not available, cannot query alarm history");
             return result;
         }
 
         String sql = "SELECT data_timestamp, alarm_level, alarm_severity, alarm_source, " +
                 "alarm_message, alarm_location, alarm_status, ack_by, alarm_duration, " +
                 "alarm_stage, path FROM alarm_realtime " +
-                "WHERE alarm_stage = 'end' AND alarm_status = 'Ack' " +
                 "ORDER BY data_timestamp DESC LIMIT 200";
 
         try (Statement stmt = connection.createStatement();
@@ -411,11 +411,11 @@ public class TdengineSyncService {
                 result.add(dto);
             }
         } catch (SQLException e) {
-            log.error("Failed to query cleared alarms from TDengine", e);
+            log.error("Failed to query alarm history from TDengine", e);
             closeConnection();
         }
 
-        log.info("Queried {} cleared alarms from TDengine", result.size());
+        log.info("Queried {} alarm history records from TDengine", result.size());
         return result;
     }
 

@@ -57,7 +57,11 @@ import { useDashboardStore } from '@/stores/dashboard'
 const route = useRoute()
 const store = useDashboardStore()
 
-const isAlarmRoute = computed(() => route.path.startsWith('/alarm'))
+// /alarm/config belongs to the System menu, so it must NOT be treated as an
+// alarm route (which would show AlarmSidebar + alarm right panel).
+const systemPaths = ['/device-template', '/device-deployment', '/alarm/config']
+const isSystemRoute = computed(() => systemPaths.includes(route.path))
+const isAlarmRoute = computed(() => route.path.startsWith('/alarm') && !isSystemRoute.value)
 
 const isRightCollapsed = computed({
   get: () => store.isRightCollapsed,

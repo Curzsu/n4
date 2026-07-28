@@ -44,22 +44,18 @@ const alarmSummary = computed(() => store.alarmSummary)
 const navTabs = [
   'Dashboard',
   'Alarms',
-  'Device Template',
-  'Device Deployment',
   'Trend',
   'Report',
-  'System'
+  'System',
 ]
 
 const activeTab = computed(() => {
+  // System second-level routes: device template, device deployment, alarm configuration
+  if (route.path === '/device-template' || route.path === '/device-deployment' || route.path === '/alarm/config') {
+    return 'System'
+  }
   if (route.path.startsWith('/alarm')) {
     return 'Alarms'
-  }
-  if (route.path === '/device-template') {
-    return 'Device Template'
-  }
-  if (route.path === '/device-deployment') {
-    return 'Device Deployment'
   }
   return 'Dashboard'
 })
@@ -67,8 +63,9 @@ const activeTab = computed(() => {
 const routeMap: Record<string, string> = {
   'Dashboard': '/',
   'Alarms': '/alarm',
-  'Device Template': '/device-template',
-  'Device Deployment': '/device-deployment',
+  // System opens its first second-level entry (Device Template);
+  // the remaining entries are reachable via the bottom toolbar on System routes.
+  'System': '/device-template',
 }
 
 function handleTabClick(tab: string) {

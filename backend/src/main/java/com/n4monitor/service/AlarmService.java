@@ -116,8 +116,9 @@ public class AlarmService {
     }
 
     /**
-     * Get cleared alarms (stage=end + status=Ack) from TDengine.
-     * These are historical alarm records that have been acknowledged and recovered.
+     * Get all alarm history records from TDengine (newest first).
+     * Returns every record stored in alarm_realtime regardless of stage/status,
+     * mirroring the Active Alarms default time ordering.
      */
     public List<AlarmRecordDto> getClearedAlarms() {
         return tdengineSyncService.queryClearedAlarms();

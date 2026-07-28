@@ -51,6 +51,9 @@
           />
         </template>
       </el-table-column>
+      <el-table-column label="No." width="40">
+        <template #default="{ $index }">{{ filteredData.length - $index }}</template>
+      </el-table-column>
       <el-table-column prop="time" label="Time" width="105" show-overflow-tooltip>
         <template #header>
           <div class="header-cell">
@@ -776,7 +779,7 @@ onBeforeUnmount(() => {
   margin-left: auto;
   display: flex;
   align-items: center;
-  padding: 0 12px;
+  padding: 0 8px;
   gap: 8px;
 
   // Transparent-background action buttons: green text + green border, light-green fill on hover.
@@ -785,6 +788,10 @@ onBeforeUnmount(() => {
     background-color: transparent;
     border: 1px solid $accent-green;
     color: $accent-green;
+    font-size: 10px;
+    padding: 0 8px;
+    margin: 0;
+    height: 20px;
     transition: background-color 0.2s, color 0.2s, border-color 0.2s, opacity 0.2s;
 
     &:hover,

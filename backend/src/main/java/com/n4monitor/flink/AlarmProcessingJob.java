@@ -223,10 +223,8 @@ public class AlarmProcessingJob {
             PointAlarmState history = readActive(path);
             long intervalSeconds = computeIntervalSeconds(history, current);
 
-            // 6. Always write the real-time value to alarm:latest
-            writeLatestState(current);
 
-            // 7. Resolve alarm lifecycle and update alarm:active accordingly
+            // 6. Resolve alarm lifecycle and update alarm:active accordingly
             if (history == null || isBlank(history.getLevel())) {
                 // No active alarm record (or last record was non-alarm)
                 if (isAlarm) {
@@ -236,7 +234,9 @@ public class AlarmProcessingJob {
                     current.setAckBy("-");
                     current.setStatus("Unack");
                     writeActiveState(current);
-                    publishAlarm(current);
+//                    publishAlarm(current);
+                    publishNotificationChannel(current);
+                    publishRealTimeChannel(current);
                 }
                 // else: still normal, nothing to do in alarm:active
             } else if ("end".equals(history.getStage())) {
@@ -248,7 +248,9 @@ public class AlarmProcessingJob {
                     current.setAckBy("-");
                     current.setStatus("Unack");
                     writeActiveState(current);
-                    publishAlarm(current);
+//                    publishAlarm(current);
+                    publishNotificationChannel(current);
+                    publishRealTimeChannel(current);
                 }
                 // else: still normal after recovery -> idempotent skip (keep frozen record as-is)
             } else {
@@ -262,16 +264,19 @@ public class AlarmProcessingJob {
                         current.setAckBy(history.getAckBy());
                     } else {
                         // Level escalated (e.g. High -> High-High): close old phase, start new
+                        history.setStage("end");
+                        history.setDuration(String.valueOf(intervalSeconds));
+                        publishRealTimeChannel(history);
+
                         current.setStage("start");
                         current.setDuration("0");
                         current.setAckBy("-");
                         current.setStatus("Unack");
-                        history.setStage("end");
-                        history.setDuration(String.valueOf(intervalSeconds));
-                        publishRealTimeChannel(history);
+                        publishNotificationChannel(current);
+                        publishRealTimeChannel(current);
                     }
                     writeActiveState(current);
-                    publishAlarm(current);
+//                    publishAlarm(current);
                 } else {
                     // Alarm recovered
                     if ("Ack".equals(history.getStatus())) {
@@ -281,17 +286,22 @@ public class AlarmProcessingJob {
                         removeActive(path);
                         history.setStage("end");
                         history.setDuration(String.valueOf(intervalSeconds));
-                        publishRealTimeChannel(history);
                         publishNotificationChannel(history);
+                        publishRealTimeChannel(history);
                     } else {
                         // Not yet acknowledged -> freeze the alarm record with final duration
                         history.setStage("end");
                         history.setDuration(String.valueOf(intervalSeconds));
                         writeActiveState(history);
-                        publishAlarm(history);   // broadcast frozen record (frontend freezes duration)
+//                        publishAlarm(history);   // broadcast frozen record (frontend freezes duration)
+                        publishNotificationChannel(current);
+                        publishRealTimeChannel(current);
                     }
                 }
             }
+
+            // 7. Always write the real-time value to alarm:latest
+            writeLatestState(current);
 
             // 8. Console output
             if (isAlarm) {
@@ -492,6 +502,24 @@ public class AlarmProcessingJob {
             }
         }
 
+        private void publishNotificationChannel(PointAlarmState history) {
+            try {
+                String json = objectMapper.writeValueAsString(history);
+                jedis.publish(notificationChannel, json);
+            } catch (Exception e) {
+                System.err.println("[FLINK] Failed to publish cleared signal: " + history.getPath() + " - " + e.getMessage());
+            }
+        }
+
+        private void publishRealTimeChannel(PointAlarmState history) {
+            try {
+                String json = objectMapper.writeValueAsString(history);
+                jedis.publish(realtimeChannel, json);
+            } catch (Exception e) {
+                System.err.println("[FLINK] Failed to publish real-time signal: " + history.getPath() + " - " + e.getMessage());
+            }
+        }
+
         private PointAlarmState readActive(String path) {
             try {
                 String json = jedis.hget(activeRedisKey, path);
@@ -520,15 +548,6 @@ public class AlarmProcessingJob {
             }
         }
 
-        private void publishNotificationChannel(PointAlarmState history) {
-            try {
-                String json = objectMapper.writeValueAsString(history);
-                jedis.publish(notificationChannel, json);
-            } catch (Exception e) {
-                System.err.println("[FLINK] Failed to publish cleared signal: " + history.getPath() + " - " + e.getMessage());
-            }
-        }
-
         private long computeIntervalSeconds(PointAlarmState history, PointAlarmState current) {
             if (history == null || history.getTimestamp() == null || current.getTimestamp() == null) {
                 return 0;
@@ -544,15 +563,6 @@ public class AlarmProcessingJob {
                 }
             } catch (NumberFormatException ignored) {}
             return baseSeconds + historyDuration;
-        }
-
-        private void publishRealTimeChannel(PointAlarmState history) {
-            try {
-                String json = objectMapper.writeValueAsString(history);
-                jedis.publish(realtimeChannel, json);
-            } catch (Exception e) {
-                System.err.println("[FLINK] Failed to publish real-time signal: " + history.getPath() + " - " + e.getMessage());
-            }
         }
 
         private boolean isBlank(String value) {
