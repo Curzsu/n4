@@ -5,13 +5,13 @@
       <span class="device-count">共 {{ devices.length }} 台设备</span>
     </div>
     <el-table :data="devices" style="width: 100%" v-loading="loading" empty-text="暂无设备">
+      <el-table-column prop="deviceDeployId" label="设备ID" width="90" />
       <el-table-column prop="deviceDeployName" label="设备名称" min-width="200">
         <template #default="{ row }">
           <span :class="{ 'mock-name': row.isMock }">{{ row.deviceDeployName }}</span>
           <el-tag v-if="row.isMock" size="small" type="info" class="mock-tag">示例数据</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="deviceAlias" label="别名" min-width="160" show-overflow-tooltip />
       <el-table-column prop="deviceType" label="设备类型" width="120" />
       <el-table-column prop="manufacturer" label="厂商" width="120" />
       <el-table-column label="状态" width="100">
