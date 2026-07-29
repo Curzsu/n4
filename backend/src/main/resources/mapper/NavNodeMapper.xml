@@ -34,4 +34,19 @@
         ORDER BY dd.device_deploy_id
     </select>
 
+    <select id="findDeviceById" resultType="map">
+        SELECT dd.device_deploy_id   AS deviceDeployId,
+               dd.device_deploy_name AS deviceDeployName,
+               dd.device_alias       AS deviceAlias,
+               dd.status             AS status,
+               dd.n4_address         AS n4Address,
+               dt.device_type        AS deviceType,
+               dt.manufacturer       AS manufacturer,
+               dt.model              AS model,
+               (dd.device_deploy_name LIKE 'MOCK_%') AS isMock
+        FROM device_deployment dd
+        LEFT JOIN device_template dt ON dd.device_tmpl_id = dt.device_tmpl_id
+        WHERE dd.is_deleted = 0 AND dd.device_deploy_id = #{deviceDeployId}
+    </select>
+
 </mapper>

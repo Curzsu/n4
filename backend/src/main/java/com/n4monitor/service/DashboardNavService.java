@@ -62,20 +62,31 @@ public class DashboardNavService {
     /** 查某二级节点下设备列表 */
     public List<DeviceDeployListDto> getDevicesByNode(Long nodeId) {
         List<Map<String, Object>> rows = navNodeMapper.findDevicesByNodeId(nodeId);
-        return rows.stream().map(row -> {
-            DeviceDeployListDto dto = new DeviceDeployListDto();
-            dto.setDeviceDeployId(toLong(row.get("deviceDeployId")));
-            dto.setDeviceDeployName((String) row.get("deviceDeployName"));
-            dto.setDeviceAlias((String) row.get("deviceAlias"));
-            dto.setStatus(toInt(row.get("status")));
-            dto.setN4Address((String) row.get("n4Address"));
-            dto.setDeviceType((String) row.get("deviceType"));
-            dto.setManufacturer((String) row.get("manufacturer"));
-            dto.setModel((String) row.get("model"));
-            Object isMock = row.get("isMock");
-            dto.setIsMock(isMock != null && ((Number) isMock).intValue() == 1);
-            return dto;
-        }).collect(Collectors.toList());
+        return rows.stream().map(this::toDeviceDto).collect(Collectors.toList());
+    }
+
+    /** 按设备部署ID查单个设备 */
+    public DeviceDeployListDto getDeviceById(Long deviceDeployId) {
+        Map<String, Object> row = navNodeMapper.findDeviceById(deviceDeployId);
+        if (row == null) {
+            return null;
+        }
+        return toDeviceDto(row);
+    }
+
+    private DeviceDeployListDto toDeviceDto(Map<String, Object> row) {
+        DeviceDeployListDto dto = new DeviceDeployListDto();
+        dto.setDeviceDeployId(toLong(row.get("deviceDeployId")));
+        dto.setDeviceDeployName((String) row.get("deviceDeployName"));
+        dto.setDeviceAlias((String) row.get("deviceAlias"));
+        dto.setStatus(toInt(row.get("status")));
+        dto.setN4Address((String) row.get("n4Address"));
+        dto.setDeviceType((String) row.get("deviceType"));
+        dto.setManufacturer((String) row.get("manufacturer"));
+        dto.setModel((String) row.get("model"));
+        Object isMock = row.get("isMock");
+        dto.setIsMock(isMock != null && ((Number) isMock).intValue() == 1);
+        return dto;
     }
 
     private static Long toLong(Object v) {

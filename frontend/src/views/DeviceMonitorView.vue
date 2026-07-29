@@ -9,12 +9,8 @@
 
     <section class="alarm-section">
       <h3>告警列表</h3>
-      <p class="placeholder" v-if="!alarms.length">暂无告警</p>
-      <el-table v-else :data="alarms" size="small">
-        <el-table-column prop="time" label="时间" width="160" />
-        <el-table-column prop="severity" label="级别" width="80" />
-        <el-table-column prop="message" label="告警描述" />
-      </el-table>
+      <AlarmTable v-if="deviceName" :device-name="deviceName" />
+      <p v-else class="placeholder">加载设备信息中...</p>
     </section>
   </div>
 </template>
@@ -24,25 +20,36 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import FuxaMonitorPanel from '@/components/FuxaMonitorPanel.vue'
+import AlarmTable from '@/components/AlarmTable.vue'
+import { dashboardNavApi } from '@/api/dashboardNav'
 import type { DeviceTreeNode } from '@/api/types'
 
 const route = useRoute()
 const deviceDeployId = computed(() => Number(route.params.deviceDeployId))
-const deviceName = ref(`设备 ${deviceDeployId.value}`)
-const alarms = ref<any[]>([])
+const deviceName = ref('')
 
 // FuxaMonitorPanel 期望 device: DeviceTreeNode，构造代理对象触发其加载绑定逻辑
 // FuxaMonitorPanel 内部调用 deviceApi.getFuxaBinding(device.id)，绑定查不到会降级到默认视图
 const fuxaDeviceProxy = computed<DeviceTreeNode | null>(() => ({
   id: deviceDeployId.value,
-  label: deviceName.value,
+  label: deviceName.value || `设备 ${deviceDeployId.value}`,
   type: 'device',
   status: 1,
   children: [],
 }))
 
-onMounted(() => {
-  // 设备名暂用 id 占位；后续可调设备详情接口补全。告警列表本期留空（占位）。
+onMounted(async () => {
+  try {
+    const device = await dashboardNavApi.getDeviceById(deviceDeployId.value)
+    if (device) {
+      deviceName.value = device.deviceDeployName
+    } else {
+      deviceName.value = `设备 ${deviceDeployId.value}（未找到）`
+    }
+  } catch (e) {
+    console.error('加载设备信息失败', e)
+    deviceName.value = `设备 ${deviceDeployId.value}`
+  }
 })
 </script>
 

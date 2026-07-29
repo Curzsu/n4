@@ -8,4 +8,7 @@ export const dashboardNavApi = {
   getDevicesByNode(nodeId: number): Promise<DeviceDeployItem[]> {
     return request.get(`/api/dashboard/nav/nodes/${nodeId}/devices`)
   },
+  getDeviceById(deviceDeployId: number): Promise<DeviceDeployItem> {
+    return request.get(`/api/dashboard/nav/devices/${deviceDeployId}`)
+  },
 }

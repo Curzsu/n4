@@ -52,6 +52,51 @@ html, body, #app {
   border: 1px solid $border-color !important;
 }
 
+// Element Plus table dark theme overrides
+.el-table {
+  background-color: transparent !important;
+  color: $text-primary !important;
+
+  // 内层背景透明，继承卡片底色
+  th.el-table__cell {
+    background-color: $bg-card-hover !important;
+    color: $text-secondary !important;
+    border-bottom-color: $border-color !important;
+  }
+
+  td.el-table__cell {
+    border-bottom-color: $border-color !important;
+  }
+
+  // 行背景透明（继承父容器深色）
+  .el-table__row {
+    background-color: transparent !important;
+    &:hover > td.el-table__cell {
+      background-color: $bg-card-hover !important;
+    }
+  }
+
+  // 当前选中行
+  .el-table__body tr.current-row > td.el-table__cell {
+    background-color: rgba($accent-green, 0.12) !important;
+  }
+
+  // 空数据提示
+  .el-table__empty-block {
+    background-color: transparent !important;
+  }
+  .el-table__empty-text {
+    color: $text-muted !important;
+  }
+
+  // 内层容器透明
+  .el-table__inner-wrapper,
+  .el-table__header-wrapper,
+  .el-table__body-wrapper {
+    background-color: transparent !important;
+  }
+}
+
 // Dark dialog styling
 .dark-dialog {
   --el-dialog-bg-color: #111b27 !important; // $bg-card matching template view

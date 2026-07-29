@@ -32,4 +32,10 @@ public class DashboardNavController {
     public ApiResponse<List<DeviceDeployListDto>> getDevicesByNode(@PathVariable Long nodeId) {
         return ApiResponse.success(navService.getDevicesByNode(nodeId));
     }
+
+    /** 按设备部署ID查单个设备详情 */
+    @GetMapping("/devices/{deviceDeployId}")
+    public ApiResponse<DeviceDeployListDto> getDeviceById(@PathVariable Long deviceDeployId) {
+        return ApiResponse.success(navService.getDeviceById(deviceDeployId));
+    }
 }

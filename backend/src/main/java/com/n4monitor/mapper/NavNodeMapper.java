@@ -16,4 +16,7 @@ public interface NavNodeMapper {
 
     /** 查某二级节点下的设备列表（JOIN device_template） */
     List<Map<String, Object>> findDevicesByNodeId(@Param("nodeId") Long nodeId);
+
+    /** 按设备部署ID查单个设备（JOIN device_template） */
+    Map<String, Object> findDeviceById(@Param("deviceDeployId") Long deviceDeployId);
 }
