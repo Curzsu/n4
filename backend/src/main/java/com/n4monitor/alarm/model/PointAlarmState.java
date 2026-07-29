@@ -48,4 +48,14 @@ public class PointAlarmState extends PointData implements Serializable {
 
     /** Alarm phase: start / continue / end (empty for non-alarm) */
     private String stage;
+
+    /**
+     * Epoch-millis timestamp when the current alarm first started.
+     * <p>
+     * Persisted in alarm:active so that continue/end events can keep using the
+     * alarm's start time (historical timestamp) for the active table and the
+     * notification channel, while latest/realtime still use the live data timestamp.
+     * Null for non-alarm (normal) states.
+     */
+    private Long alarmStartTime;
 }

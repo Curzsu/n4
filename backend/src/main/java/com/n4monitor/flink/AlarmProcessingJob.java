@@ -152,6 +152,20 @@ public class AlarmProcessingJob {
 
         @Override
         public String map(String message) throws Exception {
+            try {
+                return processMessage(message);
+            } catch (Exception e) {
+                // Never let an exception escape map() - an uncaught exception fails
+                // the Flink task and tears down the whole job. Log and skip the
+                // offending message so the stream keeps processing subsequent data.
+                System.err.println("[FLINK] Uncaught error processing message, skipping: "
+                        + e.getClass().getSimpleName() + " - " + e.getMessage());
+                e.printStackTrace();
+                return "[SKIP] uncaught error: " + e.getMessage();
+            }
+        }
+
+        private String processMessage(String message) throws Exception {
             // 1. Parse Kafka message
             PointData point;
             try {
@@ -233,10 +247,12 @@ public class AlarmProcessingJob {
                     current.setDuration("0");
                     current.setAckBy("-");
                     current.setStatus("Unack");
+                    // Alarm start time = this data tick's timestamp (the historical timestamp)
+                    current.setAlarmStartTime(current.getTimestamp());
                     writeActiveState(current);
 //                    publishAlarm(current);
                     publishNotificationChannel(current);
-                    publishRealTimeChannel(current);
+                    publishRealTimeChannel(current, current.getTimestamp());
                 }
                 // else: still normal, nothing to do in alarm:active
             } else if ("end".equals(history.getStage())) {
@@ -247,10 +263,12 @@ public class AlarmProcessingJob {
                     current.setDuration("0");
                     current.setAckBy("-");
                     current.setStatus("Unack");
+                    // New alarm cycle begins: reset the start time to this tick
+                    current.setAlarmStartTime(current.getTimestamp());
                     writeActiveState(current);
 //                    publishAlarm(current);
                     publishNotificationChannel(current);
-                    publishRealTimeChannel(current);
+                    publishRealTimeChannel(current, current.getTimestamp());
                 }
                 // else: still normal after recovery -> idempotent skip (keep frozen record as-is)
             } else {
@@ -262,18 +280,22 @@ public class AlarmProcessingJob {
                         current.setDuration(String.valueOf(intervalSeconds));
                         current.setStatus(history.getStatus());
                         current.setAckBy(history.getAckBy());
+                        // Continue uses the original alarm start time (historical timestamp)
+                        current.setAlarmStartTime(history.getAlarmStartTime());
                     } else {
                         // Level escalated (e.g. High -> High-High): close old phase, start new
                         history.setStage("end");
                         history.setDuration(String.valueOf(intervalSeconds));
-                        publishRealTimeChannel(history);
+                        publishRealTimeChannel(history, current.getTimestamp());
 
                         current.setStage("start");
                         current.setDuration("0");
                         current.setAckBy("-");
                         current.setStatus("Unack");
+                        // Escalation starts a new alarm phase: reset start time to this tick
+                        current.setAlarmStartTime(current.getTimestamp());
                         publishNotificationChannel(current);
-                        publishRealTimeChannel(current);
+                        publishRealTimeChannel(current, current.getTimestamp());
                     }
                     writeActiveState(current);
 //                    publishAlarm(current);
@@ -287,15 +309,18 @@ public class AlarmProcessingJob {
                         history.setStage("end");
                         history.setDuration(String.valueOf(intervalSeconds));
                         publishNotificationChannel(history);
-                        publishRealTimeChannel(history);
+                        publishRealTimeChannel(history, current.getTimestamp());
                     } else {
                         // Not yet acknowledged -> freeze the alarm record with final duration
                         history.setStage("end");
                         history.setDuration(String.valueOf(intervalSeconds));
                         writeActiveState(history);
 //                        publishAlarm(history);   // broadcast frozen record (frontend freezes duration)
-                        publishNotificationChannel(current);
-                        publishRealTimeChannel(current);
+                        // Notify with the alarm's historical start time (current carries the recovered value
+                        // but should report when the alarm began).
+//                        current.setAlarmStartTime(history.getAlarmStartTime());
+                        publishNotificationChannel(history);
+                        publishRealTimeChannel(history, current.getTimestamp());
                     }
                 }
             }
@@ -483,7 +508,7 @@ public class AlarmProcessingJob {
 
         // ── Redis writers ────────────────────────────────────────────────────────
 
-        private void writeLatestState(PointAlarmState state) {
+    private void writeLatestState(PointAlarmState state) {
             try {
                 String json = objectMapper.writeValueAsString(state);
                 jedis.hset(latestRedisKey, state.getPath(), json);
@@ -502,38 +527,45 @@ public class AlarmProcessingJob {
             }
         }
 
-        private void publishNotificationChannel(PointAlarmState history) {
+    /**
+     * Publish to the notification channel (frontend WebSocket).
+     * The timestamp is forced to the alarm's historical start time so the
+     * frontend always shows when the alarm began (start/continue/end alike).
+     */
+    private void publishNotificationChannel(PointAlarmState state) {
             try {
-                String json = objectMapper.writeValueAsString(history);
+                String json = serializeWithTimestamp(state, state.getAlarmStartTime());
                 jedis.publish(notificationChannel, json);
             } catch (Exception e) {
-                System.err.println("[FLINK] Failed to publish cleared signal: " + history.getPath() + " - " + e.getMessage());
+                System.err.println("[FLINK] Failed to publish cleared signal: " + state.getPath() + " - " + e.getMessage());
             }
         }
 
-        private void publishRealTimeChannel(PointAlarmState history) {
+    /**
+     * Publish to the realtime channel (TDengine persistence).
+     * The timestamp is forced to the current data tick's timestamp
+     * (point.getTimestamp()), so each lifecycle event (start/continue/end/escalation)
+     * is recorded at the moment it was observed - regardless of whether the state
+     * object is the fresh current tick or a history record read back from Redis.
+     * Accepts a nullable Long to avoid NPE from auto-unboxing when a Kafka message
+     * lacks a timestamp; null falls back to the state's own timestamp.
+     */
+    private void publishRealTimeChannel(PointAlarmState state, Long dataTimestamp) {
             try {
-                String json = objectMapper.writeValueAsString(history);
+                String json = serializeWithTimestamp(state, dataTimestamp);
                 jedis.publish(realtimeChannel, json);
             } catch (Exception e) {
-                System.err.println("[FLINK] Failed to publish real-time signal: " + history.getPath() + " - " + e.getMessage());
+                System.err.println("[FLINK] Failed to publish real-time signal: " + state.getPath() + " - " + e.getMessage());
             }
         }
 
-        private PointAlarmState readActive(String path) {
+    /**
+     * Write a state to alarm:active with its timestamp forced to the alarm's
+     * historical start time (so continue/end records keep the start timestamp).
+     */
+    private void writeActiveState(PointAlarmState state) {
             try {
-                String json = jedis.hget(activeRedisKey, path);
-                if (json == null || json.isBlank()) return null;
-                return objectMapper.readValue(json, PointAlarmState.class);
-            } catch (Exception e) {
-                System.err.println("[FLINK] Failed to read active alarm: " + path + " - " + e.getMessage());
-                return null;
-            }
-        }
-
-        private void writeActiveState(PointAlarmState state) {
-            try {
-                String json = objectMapper.writeValueAsString(state);
+                String json = serializeWithTimestamp(state, state.getAlarmStartTime());
                 jedis.hset(activeRedisKey, state.getPath(), json);
             } catch (Exception e) {
                 System.err.println("[FLINK] Failed to write active alarm: " + state.getPath() + " - " + e.getMessage());
@@ -548,21 +580,46 @@ public class AlarmProcessingJob {
             }
         }
 
+        private PointAlarmState readActive(String path) {
+            try {
+                String json = jedis.hget(activeRedisKey, path);
+                if (json == null || json.isBlank()) return null;
+                return objectMapper.readValue(json, PointAlarmState.class);
+            } catch (Exception e) {
+                System.err.println("[FLINK] Failed to read active alarm: " + path + " - " + e.getMessage());
+                return null;
+            }
+        }
+
+    /**
+     * Serialize a state with a specific timestamp, without mutating the original.
+     * If overrideTs is null, the state's own timestamp is kept.
+     */
+    private String serializeWithTimestamp(PointAlarmState state, Long overrideTs) throws Exception {
+        if (overrideTs == null) {
+            return objectMapper.writeValueAsString(state);
+        }
+        // Clone via JSON round-trip to avoid mutating the shared state object.
+        var node = (com.fasterxml.jackson.databind.node.ObjectNode) objectMapper.readTree(objectMapper.writeValueAsString(state));
+        node.put("timestamp", overrideTs);
+        return objectMapper.writeValueAsString(node);
+    }
+
+        /**
+         * Compute the alarm duration in seconds from the alarm start to the current tick.
+         * <p>
+         * Since the active table now persists the alarm start time as the record's
+         * timestamp (historical timestamp), history.getTimestamp() equals the alarm
+         * start time. The duration is therefore the elapsed seconds from that start
+         * time to the current data tick. No accumulation of a previous duration
+         * value is needed (that would double-count).
+         */
         private long computeIntervalSeconds(PointAlarmState history, PointAlarmState current) {
             if (history == null || history.getTimestamp() == null || current.getTimestamp() == null) {
                 return 0;
             }
             long diff = current.getTimestamp() - history.getTimestamp();
-            long baseSeconds = Math.max(0, diff / 1000);
-
-            long historyDuration = 0;
-            try {
-                String d = history.getDuration();
-                if (d != null && !d.isBlank()) {
-                    historyDuration = Long.parseLong(d);
-                }
-            } catch (NumberFormatException ignored) {}
-            return baseSeconds + historyDuration;
+            return Math.max(0, diff / 1000);
         }
 
         private boolean isBlank(String value) {

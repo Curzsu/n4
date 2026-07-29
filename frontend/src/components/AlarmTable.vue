@@ -368,17 +368,17 @@ function statusWeight(s: string): number {
  *  - Recovered alarm (stage=end): baseDuration only (frozen) */
 function computeActualDuration(row: AlarmRecord): number {
   const baseDuration = parseFloat(row.duration || '0') || 0
-  if (row.stage === 'end') {
-    return baseDuration
-  }
-  // Parse alarm time and compute elapsed
-  try {
-    const alarmDate = new Date((row.time || '').replace(' ', 'T'))
-    if (!isNaN(alarmDate.getTime())) {
-      const elapsed = Math.max(0, (Date.now() - alarmDate.getTime()) / 1000)
-      return elapsed + baseDuration
-    }
-  } catch { /* ignore */ }
+  // if (row.stage === 'end') {
+  //   return baseDuration
+  // }
+  // // Parse alarm time and compute elapsed
+  // try {
+  //   const alarmDate = new Date((row.time || '').replace(' ', 'T'))
+  //   if (!isNaN(alarmDate.getTime())) {
+  //     const elapsed = Math.max(0, (Date.now() - alarmDate.getTime()) / 1000)
+  //     return elapsed + baseDuration
+  //   }
+  // } catch { /* ignore */ }
   return baseDuration
 }
 
