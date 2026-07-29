@@ -76,17 +76,18 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { 
-  Location, 
-  Search, 
-  RefreshRight, 
-  Expand, 
-  Fold, 
-  OfficeBuilding, 
-  Cpu, 
-  FolderOpened, 
+import {
+  Location,
+  Search,
+  RefreshRight,
+  Expand,
+  Fold,
+  OfficeBuilding,
+  Cpu,
+  FolderOpened,
   Grid,
-  Monitor
+  Monitor,
+  DataAnalysis
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useDashboardStore } from '@/stores/dashboard'
@@ -121,7 +122,16 @@ const treeProps = {
  */
 const visibleTreeData = computed(() => {
   if (props.mode === 'nav') {
-    return (props.navTree || []).map(n => toTreeNode(n))
+    // 顶部加一个"数据总览"虚拟节点，点击回到首页数据图
+    const overviewNode = {
+      id: 'overview',
+      label: '数据总览',
+      type: 'site',
+      status: 1,
+      raw: null,
+      children: []
+    }
+    return [overviewNode, ...(props.navTree || []).map(n => toTreeNode(n))]
   }
   if (route.path === '/device-template') {
     return [
@@ -166,6 +176,7 @@ function refreshTreeData() {
 }
 
 function getNodeIcon(data: any) {
+  if (data.id === 'overview') return DataAnalysis
   if (data.type === 'site') return Location
   if (data.type === 'device') return Monitor
   if (data.type === 'product') return Cpu
@@ -175,9 +186,17 @@ function getNodeIcon(data: any) {
 }
 
 function handleNodeClick(data: any) {
-  if (props.mode === 'nav' && data.raw) {
-    emit('node-click', data.raw)
-    return
+  if (props.mode === 'nav') {
+    // 点击"数据总览"虚拟节点：清空选中，回到首页数据图
+    if (data.id === 'overview') {
+      store.currentNavNode = null
+      store.currentDevices = []
+      return
+    }
+    if (data.raw) {
+      emit('node-click', data.raw)
+      return
+    }
   }
   store.selectedNode = data
 }
