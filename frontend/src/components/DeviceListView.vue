@@ -95,6 +95,9 @@ function getStatusText(status: number): string {
 }
 .mock-tag {
   margin-left: 8px;
+  background-color: $bg-card-hover !important;
+  border-color: $border-color !important;
+  color: $text-secondary !important;
 }
 
 .status-dot {

@@ -1,22 +1,29 @@
 <template>
-  <div class="dashboard-view">
-    <DeviceListView
-      :devices="store.currentDevices"
-      :title="currentTitle"
-      :loading="store.devicesLoading"
-      @view-monitor="goMonitor"
-    />
-    <div v-if="!store.currentNavNode" class="empty-hint">
-      <el-icon><InfoFilled /></el-icon>
-      <span>请从左侧导航栏选择一个分类查看设备</span>
-    </div>
+  <div class="dashboard-view" v-loading="store.loading">
+    <!-- 未选导航节点：显示首页数据总览 -->
+    <template v-if="!store.currentNavNode">
+      <KpiCardsRow />
+      <BuildingPlaceholder />
+      <TrendChartsGrid />
+    </template>
+    <!-- 选了导航节点：显示该节点下设备列表 -->
+    <template v-else>
+      <DeviceListView
+        :devices="store.currentDevices"
+        :title="currentTitle"
+        :loading="store.devicesLoading"
+        @view-monitor="goMonitor"
+      />
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { InfoFilled } from '@element-plus/icons-vue'
+import KpiCardsRow from '@/components/KpiCardsRow.vue'
+import BuildingPlaceholder from '@/components/BuildingPlaceholder.vue'
+import TrendChartsGrid from '@/components/TrendChartsGrid.vue'
 import DeviceListView from '@/components/DeviceListView.vue'
 import { useDashboardStore } from '@/stores/dashboard'
 import type { DeviceDeployItem } from '@/api/types'
@@ -43,19 +50,5 @@ function goMonitor(device: DeviceDeployItem) {
   flex-direction: column;
   gap: 16px;
   min-height: 100%;
-}
-
-.empty-hint {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 60px 0;
-  color: $text-secondary;
-  font-size: 14px;
-
-  .el-icon {
-    font-size: 18px;
-  }
 }
 </style>
