@@ -3,7 +3,8 @@
     <TopNavbar />
     <div class="layout-body">
       <AlarmSidebar v-if="isAlarmRoute" :default-collapsed="true" />
-      <LeftSidebar v-else />
+      <LeftSidebar v-else mode="nav" :nav-tree="store.navTree" :loading="store.navLoading"
+                   @node-click="store.selectNavNode" />
 
       <div class="layout-content">
         <slot />
@@ -39,7 +40,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, watch, onMounted } from 'vue'
 import { Bell, Setting, Fold } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
 import TopNavbar from '@/components/TopNavbar.vue'
@@ -75,6 +76,13 @@ watch(isAlarmRoute, (alarm) => {
     store.isRightCollapsed = true
   }
 }, { immediate: true })
+
+// 加载两级导航树（非告警路由时）
+onMounted(() => {
+  if (!store.navTree.length) {
+    store.loadNavTree()
+  }
+})
 </script>
 
 <style scoped lang="scss">

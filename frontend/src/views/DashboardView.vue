@@ -1,41 +1,61 @@
 <template>
-  <div class="dashboard-view" v-loading="store.loading">
-    <template v-if="!store.selectedNode || store.selectedNode.type === 'site'">
-      <KpiCardsRow />
-      <BuildingPlaceholder />
-      <TrendChartsGrid />
-    </template>
-    <template v-else-if="store.selectedNode.type === 'device'">
-      <DeviceDetailView />
-    </template>
-    <template v-else>
-      <SystemDetailView />
-    </template>
+  <div class="dashboard-view">
+    <DeviceListView
+      :devices="store.currentDevices"
+      :title="currentTitle"
+      :loading="store.devicesLoading"
+      @view-monitor="goMonitor"
+    />
+    <div v-if="!store.currentNavNode" class="empty-hint">
+      <el-icon><InfoFilled /></el-icon>
+      <span>请从左侧导航栏选择一个分类查看设备</span>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import KpiCardsRow from '@/components/KpiCardsRow.vue'
-import BuildingPlaceholder from '@/components/BuildingPlaceholder.vue'
-import TrendChartsGrid from '@/components/TrendChartsGrid.vue'
-import SystemDetailView from '@/components/SystemDetailView.vue'
-import DeviceDetailView from '@/components/DeviceDetailView.vue'
+import { computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { InfoFilled } from '@element-plus/icons-vue'
+import DeviceListView from '@/components/DeviceListView.vue'
 import { useDashboardStore } from '@/stores/dashboard'
+import type { DeviceDeployItem } from '@/api/types'
 
 const store = useDashboardStore()
+const router = useRouter()
 
-onMounted(() => {
-  store.selectedNode = null
+const currentTitle = computed(() => {
+  if (!store.currentNavNode) return '设备列表'
+  if (store.currentNavNode.nodeLevel === 1) {
+    return `${store.currentNavNode.nodeName} - 全部设备`
+  }
+  return store.currentNavNode.nodeName
 })
+
+function goMonitor(device: DeviceDeployItem) {
+  router.push(`/dashboard-nav/device/${device.deviceDeployId}`)
+}
 </script>
 
-
-<style lang="scss">
+<style lang="scss" scoped>
 .dashboard-view {
   display: flex;
   flex-direction: column;
   gap: 16px;
   min-height: 100%;
+}
+
+.empty-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 60px 0;
+  color: $text-secondary;
+  font-size: 14px;
+
+  .el-icon {
+    font-size: 18px;
+  }
 }
 </style>

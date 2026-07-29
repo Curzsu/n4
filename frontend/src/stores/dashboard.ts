@@ -3,7 +3,8 @@ import { ref } from 'vue'
 import { dashboardApi } from '@/api/dashboard'
 import { deviceApi } from '@/api/device'
 import { productApi } from '@/api/product'
-import type { KpiMetrics, AlarmSummary, AlarmItem, SystemStatusItem, TrendData, DeviceTreeNode, Product } from '@/api/types'
+import { dashboardNavApi } from '@/api/dashboardNav'
+import type { KpiMetrics, AlarmSummary, AlarmItem, SystemStatusItem, TrendData, DeviceTreeNode, Product, NavTreeNode, DeviceDeployItem } from '@/api/types'
 
 export const useDashboardStore = defineStore('dashboard', () => {
   const kpiMetrics = ref<KpiMetrics | null>(null)
@@ -19,6 +20,46 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const selectedNode = ref<any | null>(null)
   const loading = ref(false)
   const isRightCollapsed = ref(true)
+
+  // ===== Dashboard Nav (两级导航) =====
+  const navTree = ref<NavTreeNode[]>([])
+  const navLoading = ref(false)
+  const currentDevices = ref<DeviceDeployItem[]>([])
+  const devicesLoading = ref(false)
+  const currentNavNode = ref<NavTreeNode | null>(null)
+
+  async function loadNavTree() {
+    navLoading.value = true
+    try {
+      navTree.value = await dashboardNavApi.getNavTree()
+    } catch (e) {
+      console.error('加载导航树失败', e)
+    } finally {
+      navLoading.value = false
+    }
+  }
+
+  async function selectNavNode(node: NavTreeNode) {
+    currentNavNode.value = node
+    devicesLoading.value = true
+    try {
+      if (node.nodeLevel === 1) {
+        // 一级节点：聚合所有二级 children 的设备
+        const childIds = node.children.map(c => c.nodeId)
+        const results = await Promise.all(
+          childIds.map(id => dashboardNavApi.getDevicesByNode(id))
+        )
+        currentDevices.value = results.flat()
+      } else {
+        currentDevices.value = await dashboardNavApi.getDevicesByNode(node.nodeId)
+      }
+    } catch (e) {
+      console.error('加载设备列表失败', e)
+      currentDevices.value = []
+    } finally {
+      devicesLoading.value = false
+    }
+  }
 
   async function fetchAllDashboardData() {
     loading.value = true
@@ -45,15 +86,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
       temperatureTrend.value = temp
       allProducts.value = productsList
 
-      deviceTree.value = [
-        {
-          id: 'root' as any,
-          label: 'SITE-JHB-01',
-          type: 'site',
-          status: 1,
-          children: devicesTreeFromBackend
-        }
-      ]
+      deviceTree.value = devicesTreeFromBackend
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
     } finally {
@@ -76,5 +109,12 @@ export const useDashboardStore = defineStore('dashboard', () => {
     loading,
     isRightCollapsed,
     fetchAllDashboardData,
+    navTree,
+    navLoading,
+    currentDevices,
+    devicesLoading,
+    currentNavNode,
+    loadNavTree,
+    selectNavNode,
   }
 })
