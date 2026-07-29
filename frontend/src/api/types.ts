@@ -53,8 +53,9 @@ export interface TrendData {
 }
 
 export interface DeviceTreeNode {
-  id: number
+  id: number | string
   deviceCode?: string
+  path?: string
   label: string
   type: string
   status: number
@@ -209,4 +210,27 @@ export interface Product {
   isDeleted?: boolean
 }
 
+// ===== Dashboard Nav Types =====
+
+export interface NavTreeNode {
+  nodeId: number
+  nodeName: string
+  nodeLevel: number
+  icon?: string
+  sortOrder: number
+  deviceCount?: number
+  children: NavTreeNode[]
+}
+
+export interface DeviceDeployItem {
+  deviceDeployId: number
+  deviceDeployName: string
+  deviceAlias: string | null
+  status: number
+  n4Address: string
+  deviceType: string | null
+  manufacturer: string | null
+  model: string | null
+  isMock: boolean
+}
 

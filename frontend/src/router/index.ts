@@ -28,6 +28,16 @@ const router = createRouter({
       name: 'device-deployment',
       component: () => import('@/views/device-deploy/DeviceDeploymentView.vue'),
     },
+    {
+      path: '/dashboard-nav',
+      name: 'dashboard-nav',
+      component: () => import('@/views/DashboardNavView.vue'),
+    },
+    {
+      path: '/dashboard-nav/device/:deviceDeployId',
+      name: 'dashboard-nav-device',
+      component: () => import('@/views/DeviceMonitorView.vue'),
+    },
   ],
 })
 
