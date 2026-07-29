@@ -17,7 +17,7 @@
           class="sidebar-search"
         />
         <div class="quick-tools">
-          <el-tooltip content="刷新真实设备树" placement="top">
+          <el-tooltip v-if="mode !== 'nav'" content="刷新真实设备树" placement="top">
             <el-button type="info" size="small" circle :icon="RefreshRight" @click="refreshTreeData" />
           </el-tooltip>
         </div>
@@ -25,7 +25,7 @@
     </div>
 
     <!-- Sidebar Navigation Tree -->
-    <div class="sidebar-tree" v-if="!isCollapsed">
+    <div class="sidebar-tree" v-if="!isCollapsed" v-loading="loading || false">
       <el-tree
         :data="visibleTreeData"
         :props="treeProps"
