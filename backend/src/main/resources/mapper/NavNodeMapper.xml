@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.n4monitor.mapper.NavNodeMapper">
+
+    <select id="findAll" resultType="com.n4monitor.entity.NavNode">
+        SELECT node_id, parent_id, node_name, node_level, node_type, icon, sort_order,
+               is_deleted, create_time, update_time
+        FROM nav_node
+        WHERE is_deleted = 0
+        ORDER BY sort_order, node_id
+    </select>
+
+    <select id="countDevicesByNode" resultType="map">
+        SELECT dd.nav_node_id AS nodeId, COUNT(*) AS deviceCount
+        FROM device_deployment dd
+        WHERE dd.is_deleted = 0 AND dd.nav_node_id IS NOT NULL
+        GROUP BY dd.nav_node_id
+    </select>
+
+    <select id="findDevicesByNodeId" resultType="map">
+        SELECT dd.device_deploy_id   AS deviceDeployId,
+               dd.device_deploy_name AS deviceDeployName,
+               dd.device_alias       AS deviceAlias,
+               dd.status             AS status,
+               dd.n4_address         AS n4Address,
+               dt.device_type        AS deviceType,
+               dt.manufacturer       AS manufacturer,
+               dt.model              AS model,
+               (dd.device_deploy_name LIKE 'MOCK_%') AS isMock
+        FROM device_deployment dd
+        LEFT JOIN device_template dt ON dd.device_tmpl_id = dt.device_tmpl_id
+        WHERE dd.is_deleted = 0 AND dd.nav_node_id = #{nodeId}
+        ORDER BY dd.device_deploy_id
+    </select>
+
+</mapper>
