@@ -22,12 +22,10 @@ const display = computed(() => {
     const baseSeconds = Number(props.duration)
     return formatDuration(Number.isNaN(baseSeconds) ? 0 : baseSeconds)
   }
-  let totalSeconds = elapsedSeconds.value
-  const baseSeconds = Number(props.duration)
-  if (!Number.isNaN(baseSeconds)) {
-    totalSeconds += baseSeconds
-  }
-  return formatDuration(totalSeconds)
+  // Ongoing alarm: the row's time is the alarm start timestamp (notifications now
+  // always carry the alarm start time), so the live duration is simply the elapsed
+  // seconds since that start time. No baseDuration accumulation is needed.
+  return formatDuration(elapsedSeconds.value)
 })
 </script>
 

@@ -364,22 +364,20 @@ function statusWeight(s: string): number {
 }
 
 /** Compute actual duration in seconds for sorting.
- *  - Ongoing alarm: (now - alarmTime) / 1000 + baseDuration
- *  - Recovered alarm (stage=end): baseDuration only (frozen) */
+ *  The row's time is now always the alarm start timestamp (notifications carry
+ *  the historical start time), so the live duration is simply (now - alarmTime).
+ *  Recovered alarms (stage=end) freeze at the stored duration value. */
 function computeActualDuration(row: AlarmRecord): number {
-  const baseDuration = parseFloat(row.duration || '0') || 0
-  // if (row.stage === 'end') {
-  //   return baseDuration
-  // }
-  // // Parse alarm time and compute elapsed
-  // try {
-  //   const alarmDate = new Date((row.time || '').replace(' ', 'T'))
-  //   if (!isNaN(alarmDate.getTime())) {
-  //     const elapsed = Math.max(0, (Date.now() - alarmDate.getTime()) / 1000)
-  //     return elapsed + baseDuration
-  //   }
-  // } catch { /* ignore */ }
-  return baseDuration
+  if (row.stage === 'end') {
+    return parseFloat(row.duration || '0') || 0
+  }
+  try {
+    const alarmDate = new Date((row.time || '').replace(' ', 'T'))
+    if (!isNaN(alarmDate.getTime())) {
+      return Math.max(0, (Date.now() - alarmDate.getTime()) / 1000)
+    }
+  } catch { /* ignore */ }
+  return parseFloat(row.duration || '0') || 0
 }
 
 // ── Time picker draft values (datetimerange with single-panel) ──

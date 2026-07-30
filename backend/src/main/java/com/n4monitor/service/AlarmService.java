@@ -174,28 +174,50 @@ public class AlarmService {
 
                 String stage = node.has("stage") ? node.get("stage").asText() : "";
 
-                // Recompute the alarm duration as of the ack moment.
-                // The active record's timestamp holds the alarm start time (historical),
-                // so the live duration = (ackMoment - alarmStart) / 1000.
-                long alarmStartTs = 0L;
-                if (node.has("alarmStartTime") && !node.get("alarmStartTime").isNull()) {
-                    alarmStartTs = node.get("alarmStartTime").asLong();
-                } else if (node.has("timestamp") && !node.get("timestamp").isNull()) {
-                    alarmStartTs = node.get("timestamp").asLong();
-                }
-                long ackDurationSeconds = alarmStartTs > 0
-                        ? Math.max(0, (ackTimestamp - alarmStartTs) / 1000)
-                        : 0L;
+                boolean recovered = "end".equals(stage);
 
-                // Update status/ackBy + recomputed duration on the active record. The
+                // Duration handling differs by stage:
+                //  - stage=end (recovered): the alarm already ended; Flink froze the final
+                //    duration at recovery time. Keep that value as-is, do NOT recompute.
+                //  - stage=start/continue (still alarming): recompute the live duration as
+                //    (ackMoment - alarmStart) / 1000 so the displayed duration is current.
+                String ackDuration;
+                long ackDurationSeconds = 0L;
+                if (recovered) {
+                    // Preserve the frozen duration written at recovery time.
+                    ackDuration = node.has("duration") && !node.get("duration").isNull()
+                            ? node.get("duration").asText() : "0";
+                    try {
+                        ackDurationSeconds = Long.parseLong(ackDuration);
+                    } catch (NumberFormatException ignored) {
+                        ackDurationSeconds = 0L;
+                    }
+                } else {
+                    long alarmStartTs = 0L;
+                    if (node.has("alarmStartTime") && !node.get("alarmStartTime").isNull()) {
+                        alarmStartTs = node.get("alarmStartTime").asLong();
+                    } else if (node.has("timestamp") && !node.get("timestamp").isNull()) {
+                        alarmStartTs = node.get("timestamp").asLong();
+                    }
+                    ackDurationSeconds = alarmStartTs > 0
+                            ? Math.max(0, (ackTimestamp - alarmStartTs) / 1000)
+                            : 0L;
+                    ackDuration = String.valueOf(ackDurationSeconds);
+                }
+
+                // Update status/ackBy on the active record. For ongoing alarms the duration
+                // is refreshed; for recovered alarms it is left at the frozen value. The
                 // timestamp is left untouched so it keeps the alarm's historical start time.
                 ((com.fasterxml.jackson.databind.node.ObjectNode) node)
                         .put("status", "Ack")
-                        .put("ackBy", ackBy)
-                        .put("duration", String.valueOf(ackDurationSeconds));
+                        .put("ackBy", ackBy);
+                if (!recovered) {
+                    ((com.fasterxml.jackson.databind.node.ObjectNode) node)
+                            .put("duration", ackDuration);
+                }
                 String activeJson = objectMapper.writeValueAsString(node);
 
-                if ("end".equals(stage)) {
+                if (recovered) {
                     // Already recovered (stage=end): mark as Ack and remove from Redis
                     // so a page refresh does not resurrect it. The cleared signal is
                     // still broadcast so the frontend removes the row immediately.
@@ -217,10 +239,12 @@ public class AlarmService {
                     log.warn("Failed to persist acked alarm to TDengine for key: {}", key, te);
                 }
 
-                // Conditionally update alarm:latest. Only when the latest entry is still
-                // an alarm (level non-empty) do we propagate the ack; a recovered point
-                // (level empty) means the ack targets a past alarm and latest must be left alone.
-                updateLatestOnAck(path, ackBy, ackTimestamp);
+                // Update alarm:latest only for ongoing alarms (stage=start/continue).
+                // A recovered alarm (stage=end) has already ended; its latest entry reflects
+                // the recovered (normal) state, so the ack must NOT touch latest at all.
+                if (!recovered) {
+                    updateLatestOnAck(path, ackBy, ackTimestamp, ackDurationSeconds);
+                }
 
                 updated++;
             } catch (Exception e) {
@@ -238,11 +262,15 @@ public class AlarmService {
     }
 
     /**
-     * Update alarm:latest for an acknowledged point, but only if its latest entry is
-     * still in an alarm state (level non-empty). The latest record's status/ackBy are
-     * set to Ack/ackBy and its timestamp to the ack moment.
+     * Update alarm:latest for an acknowledged ongoing alarm (stage=start/continue).
+     * Only called when the alarm is still active. The latest record's status/ackBy are
+     * set to Ack/ackBy, its timestamp to the ack moment, and its duration to the
+     * recomputed value (ack moment - alarm start).
+     * <p>
+     * Recovered alarms (stage=end) never reach this method: their latest entry already
+     * reflects the normal state, so the ack must not modify it.
      */
-    private void updateLatestOnAck(String path, String ackBy, long ackTimestamp) {
+    private void updateLatestOnAck(String path, String ackBy, long ackTimestamp, long ackDurationSeconds) {
         try {
             String latestJson = (String) redisTemplate.opsForHash().get(latestRedisKey, path);
             if (latestJson == null || latestJson.isBlank()) {
@@ -258,6 +286,7 @@ public class AlarmService {
             latestNode.put("status", "Ack");
             latestNode.put("ackBy", ackBy);
             latestNode.put("timestamp", ackTimestamp);
+            latestNode.put("duration", String.valueOf(ackDurationSeconds));
             redisTemplate.opsForHash().put(latestRedisKey, path, objectMapper.writeValueAsString(latestNode));
         } catch (Exception e) {
             log.warn("Failed to update latest on ack for path: {}", path, e);

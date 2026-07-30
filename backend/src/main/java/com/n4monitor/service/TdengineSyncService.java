@@ -140,7 +140,8 @@ public class TdengineSyncService {
                 + "alarm_source NCHAR(64), "
                 + "alarm_location NCHAR(128), "
                 + "alarm_stage NCHAR(16), "
-                + "alarm_duration NCHAR(32)"
+                + "alarm_duration NCHAR(32), "
+                + "alarm_start_time TIMESTAMP"
                 + ") TAGS ("
                 + "name NCHAR(128), "
                 + "display_name NCHAR(128), "
@@ -148,7 +149,7 @@ public class TdengineSyncService {
                 + ")";
         try (Statement stmt = connection.createStatement()) {
             stmt.execute(sql);
-            log.info("Supertable '{}' created/verified", supertable);
+            log.info("Snapshot supertable '{}' created/verified", supertable);
         }
     }
 
@@ -178,7 +179,8 @@ public class TdengineSyncService {
                 + "alarm_source NCHAR(64), "
                 + "alarm_location NCHAR(128), "
                 + "alarm_stage NCHAR(16), "
-                + "alarm_duration NCHAR(32)"
+                + "alarm_duration NCHAR(32), "
+                + "alarm_start_time TIMESTAMP"
                 + ") TAGS ("
                 + "name NCHAR(128), "
                 + "display_name NCHAR(128), "
@@ -285,7 +287,7 @@ public class TdengineSyncService {
         String subtable = sanitizeTableName(path);
 
         String sql = "INSERT INTO " + subtable + " USING " + supertable
-                + " TAGS (?, ?, ?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                + " TAGS (?, ?, ?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, state.getName());
@@ -314,6 +316,8 @@ public class TdengineSyncService {
             pstmt.setString(22, state.getLocation());
             pstmt.setString(23, state.getStage());
             pstmt.setString(24, state.getDuration());
+            Long alarmStart = state.getAlarmStartTime();
+            pstmt.setTimestamp(25, alarmStart != null ? new Timestamp(alarmStart) : null);
 
             pstmt.executeUpdate();
         }
@@ -328,7 +332,7 @@ public class TdengineSyncService {
         String subtable = sanitizeTableName(path) + "_rt";
 
         String sql = "INSERT INTO " + subtable + " USING " + supertable
-                + " TAGS (?, ?, ?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                + " TAGS (?, ?, ?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, state.getName());
@@ -357,6 +361,8 @@ public class TdengineSyncService {
             pstmt.setString(22, state.getLocation());
             pstmt.setString(23, state.getStage());
             pstmt.setString(24, state.getDuration());
+            Long alarmStart = state.getAlarmStartTime();
+            pstmt.setTimestamp(25, alarmStart != null ? new Timestamp(alarmStart) : null);
 
             pstmt.executeUpdate();
         }
@@ -383,7 +389,7 @@ public class TdengineSyncService {
 
         String sql = "SELECT data_timestamp, alarm_level, alarm_severity, alarm_source, " +
                 "alarm_message, alarm_location, alarm_status, ack_by, alarm_duration, " +
-                "alarm_stage, path FROM alarm_realtime " +
+                "alarm_stage, alarm_start_time, path FROM alarm_realtime " +
                 "ORDER BY data_timestamp DESC LIMIT 200";
 
         try (Statement stmt = connection.createStatement();
@@ -407,6 +413,14 @@ public class TdengineSyncService {
                 dto.setAckBy(rs.getString("ack_by"));
                 dto.setDuration(rs.getString("alarm_duration"));
                 dto.setStage(rs.getString("alarm_stage"));
+                Timestamp startTs = rs.getTimestamp("alarm_start_time");
+                if (startTs != null) {
+                    dto.setAlarmStartTime(LocalDateTime.ofInstant(
+                            Instant.ofEpochMilli(startTs.getTime()), ZoneId.systemDefault())
+                            .format(TD_TIME_FORMAT));
+                } else {
+                    dto.setAlarmStartTime("-");
+                }
                 dto.setPath(rs.getString("path"));
                 result.add(dto);
             }
