@@ -22,7 +22,8 @@
         <el-table-column prop="time" label="Time" width="160" show-overflow-tooltip />
         <el-table-column prop="severity" label="Severity" width="90">
           <template #default="{ row }">
-            <span class="severity-tag" :style="severityStyle(row)">{{ row.severity }}</span>
+            <span v-if="row.stage === 'end'">-</span>
+            <span v-else class="severity-tag" :style="severityStyle(row)">{{ row.severity }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="source" label="Source" min-width="200" show-overflow-tooltip />
@@ -69,10 +70,13 @@ const cellStyle = {
 
 function severityStyle(row: AlarmRecord): Record<string, string> {
   const color = getSeverityColor(row.severity)
+  // Normal alarm tag: solid severity-colored fill with dark text (matches the
+  // Active Alarms non-reversed tag style). stage=end rows never reach here
+  // (the template renders "-" for them instead).
   return {
-    color,
-    backgroundColor: '#111827',
-    borderColor: color,
+    color: '#111827',
+    backgroundColor: color,
+    borderColor: '#111827',
   }
 }
 
