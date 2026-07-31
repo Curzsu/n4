@@ -38,7 +38,7 @@ public class AlarmRuleCrudService {
 
     public AlarmRuleNumericEntity createNumericRule(AlarmRuleNumericEntity entity) {
         entity.setAlarmName(generateAlarmName(entity.getPointName()));
-        entity.setPointType("NUMERIC");
+        entity.setPointType("numeric");
         numericMapper.insert(entity);
         log.info("Created numeric alarm rule: id={}, alarmName={}", entity.getId(), entity.getAlarmName());
         alarmRuleSyncService.syncNumericRulesToRedis();
@@ -76,7 +76,7 @@ public class AlarmRuleCrudService {
         Integer timeDelay = entities.get(0).getTimeDelay();
         for (AlarmRuleEnumEntity e : entities) {
             e.setAlarmName(alarmName);
-            e.setPointType("ENUM");
+            e.setPointType("enum");
             e.setTimeDelay(timeDelay);
             enumMapper.insert(e);
         }
@@ -96,7 +96,7 @@ public class AlarmRuleCrudService {
         Integer timeDelay = entities.get(0).getTimeDelay();
         for (AlarmRuleEnumEntity e : entities) {
             e.setAlarmName(alarmName);
-            e.setPointType("ENUM");
+            e.setPointType("enum");
             e.setTimeDelay(timeDelay);
             enumMapper.insert(e);
         }
