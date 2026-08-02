@@ -50,6 +50,20 @@ public class PointAlarmState extends PointData implements Serializable {
     private String stage;
 
     /**
+     * Alarm state transition label, describing how this record relates to the
+     * alarm lifecycle. Values (English only):
+     * <ul>
+     *   <li>{@code Start} - fresh alarm begins</li>
+     *   <li>{@code Continue} - same level keeps alarming</li>
+     *   <li>{@code {oldLevel} to {newLevel}} - level escalation (e.g. {@code High to High-High})</li>
+     *   <li>{@code End} - alarm recovered</li>
+     *   <li>{@code Ack} - user acknowledged the alarm</li>
+     * </ul>
+     * Empty for normal (non-alarm) points.
+     */
+    private String stageMessage;
+
+    /**
      * Epoch-millis timestamp when the current alarm first started.
      * <p>
      * Persisted in alarm:active so that continue/end events can keep using the

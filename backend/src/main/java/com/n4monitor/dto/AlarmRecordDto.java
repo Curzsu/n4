@@ -15,5 +15,6 @@ public class AlarmRecordDto {
     private String duration;    // alarm duration in seconds
     private String path;        // full point path, used by frontend to extract location
     private String stage;       // alarm phase: start / continue / end (empty for non-alarm)
+    private String stageMessage;  // alarm state transition: Start / Continue / {old} to {new} / End / Ack
     private String alarmStartTime;  // when the alarm first started (formatted), from TDengine alarm_start_time
 }

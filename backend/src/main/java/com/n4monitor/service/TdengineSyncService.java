@@ -116,6 +116,12 @@ public class TdengineSyncService {
 
     /**
      * Create snapshot supertable if not exists.
+     * <p>
+     * Schema has been slimmed to match the new Kafka message format (only
+     * clientId/path/timestamp/value + resolved type). Removed columns:
+     * unit, max_val, min_val, ip_addr, port_num, other; removed tags: name,
+     * display_name (path is now the only tag and the unique point key).
+     * Added column: alarm_stage_message (alarm state transition label).
      */
     private void initSupertable() throws SQLException {
         String supertable = tdengineConfig.getSupertable();
@@ -124,12 +130,6 @@ public class TdengineSyncService {
                 + "data_timestamp TIMESTAMP, "
                 + "point_value NCHAR(64), "
                 + "point_type NCHAR(32), "
-                + "unit NCHAR(16), "
-                + "max_val NCHAR(64), "
-                + "min_val NCHAR(64), "
-                + "ip_addr NCHAR(64), "
-                + "port_num NCHAR(16), "
-                + "other NCHAR(256), "
                 + "alarm_level NCHAR(32), "
                 + "alarm_severity NCHAR(32), "
                 + "alarm_message NCHAR(256), "
@@ -140,11 +140,10 @@ public class TdengineSyncService {
                 + "alarm_source NCHAR(64), "
                 + "alarm_location NCHAR(128), "
                 + "alarm_stage NCHAR(16), "
+                + "alarm_stage_message NCHAR(64), "
                 + "alarm_duration NCHAR(32), "
                 + "alarm_start_time TIMESTAMP"
                 + ") TAGS ("
-                + "name NCHAR(128), "
-                + "display_name NCHAR(128), "
                 + "path NCHAR(256)"
                 + ")";
         try (Statement stmt = connection.createStatement()) {
@@ -163,12 +162,6 @@ public class TdengineSyncService {
                 + "data_timestamp TIMESTAMP, "
                 + "point_value NCHAR(64), "
                 + "point_type NCHAR(32), "
-                + "unit NCHAR(16), "
-                + "max_val NCHAR(64), "
-                + "min_val NCHAR(64), "
-                + "ip_addr NCHAR(64), "
-                + "port_num NCHAR(16), "
-                + "other NCHAR(256), "
                 + "alarm_level NCHAR(32), "
                 + "alarm_severity NCHAR(32), "
                 + "alarm_message NCHAR(256), "
@@ -179,11 +172,10 @@ public class TdengineSyncService {
                 + "alarm_source NCHAR(64), "
                 + "alarm_location NCHAR(128), "
                 + "alarm_stage NCHAR(16), "
+                + "alarm_stage_message NCHAR(64), "
                 + "alarm_duration NCHAR(32), "
                 + "alarm_start_time TIMESTAMP"
                 + ") TAGS ("
-                + "name NCHAR(128), "
-                + "display_name NCHAR(128), "
                 + "path NCHAR(256)"
                 + ")";
         try (Statement stmt = connection.createStatement()) {
@@ -286,38 +278,34 @@ public class TdengineSyncService {
         String path = state.getPath();
         String subtable = sanitizeTableName(path);
 
+        // TAGS(path) + 17 VALUES columns
         String sql = "INSERT INTO " + subtable + " USING " + supertable
-                + " TAGS (?, ?, ?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                + " TAGS (?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setString(1, state.getName());
-            pstmt.setString(2, state.getDisplayName());
-            pstmt.setString(3, path);
+            // TAG
+            pstmt.setString(1, path);
 
-            pstmt.setTimestamp(4, new Timestamp(System.currentTimeMillis()));
+            // VALUES
+            pstmt.setTimestamp(2, new Timestamp(System.currentTimeMillis()));
             Long dataTimestamp = state.getTimestamp();
-            pstmt.setTimestamp(5, dataTimestamp != null ? new Timestamp(dataTimestamp) : new Timestamp(System.currentTimeMillis()));
-            pstmt.setString(6, state.getValue());
-            pstmt.setString(7, state.getType());
-            pstmt.setString(8, state.getUnit());
-            pstmt.setString(9, state.getMax());
-            pstmt.setString(10, state.getMin());
-            pstmt.setString(11, state.getIp());
-            pstmt.setString(12, state.getPort());
-            pstmt.setString(13, state.getOther());
-            pstmt.setString(14, state.getLevel());
-            pstmt.setString(15, state.getSeverity());
-            pstmt.setString(16, state.getMessage());
-            pstmt.setString(17, state.getTimeDelay() != null ? String.valueOf(state.getTimeDelay()) : null);
-            pstmt.setString(18, state.getDeadband());
-            pstmt.setString(19, state.getAckBy());
-            pstmt.setString(20, state.getStatus());
-            pstmt.setString(21, state.getSource());
-            pstmt.setString(22, state.getLocation());
-            pstmt.setString(23, state.getStage());
-            pstmt.setString(24, state.getDuration());
+            pstmt.setTimestamp(3, dataTimestamp != null ? new Timestamp(dataTimestamp) : new Timestamp(System.currentTimeMillis()));
+            pstmt.setString(4, state.getValue());
+            pstmt.setString(5, state.getType());
+            pstmt.setString(6, state.getLevel());
+            pstmt.setString(7, state.getSeverity());
+            pstmt.setString(8, state.getMessage());
+            pstmt.setString(9, state.getTimeDelay() != null ? String.valueOf(state.getTimeDelay()) : null);
+            pstmt.setString(10, state.getDeadband());
+            pstmt.setString(11, state.getAckBy());
+            pstmt.setString(12, state.getStatus());
+            pstmt.setString(13, state.getSource());
+            pstmt.setString(14, state.getLocation());
+            pstmt.setString(15, state.getStage());
+            pstmt.setString(16, state.getStageMessage());
+            pstmt.setString(17, state.getDuration());
             Long alarmStart = state.getAlarmStartTime();
-            pstmt.setTimestamp(25, alarmStart != null ? new Timestamp(alarmStart) : null);
+            pstmt.setTimestamp(18, alarmStart != null ? new Timestamp(alarmStart) : null);
 
             pstmt.executeUpdate();
         }
@@ -331,38 +319,34 @@ public class TdengineSyncService {
         String path = state.getPath();
         String subtable = sanitizeTableName(path) + "_rt";
 
+        // TAGS(path) + 17 VALUES columns
         String sql = "INSERT INTO " + subtable + " USING " + supertable
-                + " TAGS (?, ?, ?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                + " TAGS (?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setString(1, state.getName());
-            pstmt.setString(2, state.getDisplayName());
-            pstmt.setString(3, path);
+            // TAG
+            pstmt.setString(1, path);
 
-            pstmt.setTimestamp(4, new Timestamp(System.currentTimeMillis()));
+            // VALUES
+            pstmt.setTimestamp(2, new Timestamp(System.currentTimeMillis()));
             Long dataTimestamp = state.getTimestamp();
-            pstmt.setTimestamp(5, dataTimestamp != null ? new Timestamp(dataTimestamp) : new Timestamp(System.currentTimeMillis()));
-            pstmt.setString(6, state.getValue());
-            pstmt.setString(7, state.getType());
-            pstmt.setString(8, state.getUnit());
-            pstmt.setString(9, state.getMax());
-            pstmt.setString(10, state.getMin());
-            pstmt.setString(11, state.getIp());
-            pstmt.setString(12, state.getPort());
-            pstmt.setString(13, state.getOther());
-            pstmt.setString(14, state.getLevel());
-            pstmt.setString(15, state.getSeverity());
-            pstmt.setString(16, state.getMessage());
-            pstmt.setString(17, state.getTimeDelay() != null ? String.valueOf(state.getTimeDelay()) : null);
-            pstmt.setString(18, state.getDeadband());
-            pstmt.setString(19, state.getAckBy());
-            pstmt.setString(20, state.getStatus());
-            pstmt.setString(21, state.getSource());
-            pstmt.setString(22, state.getLocation());
-            pstmt.setString(23, state.getStage());
-            pstmt.setString(24, state.getDuration());
+            pstmt.setTimestamp(3, dataTimestamp != null ? new Timestamp(dataTimestamp) : new Timestamp(System.currentTimeMillis()));
+            pstmt.setString(4, state.getValue());
+            pstmt.setString(5, state.getType());
+            pstmt.setString(6, state.getLevel());
+            pstmt.setString(7, state.getSeverity());
+            pstmt.setString(8, state.getMessage());
+            pstmt.setString(9, state.getTimeDelay() != null ? String.valueOf(state.getTimeDelay()) : null);
+            pstmt.setString(10, state.getDeadband());
+            pstmt.setString(11, state.getAckBy());
+            pstmt.setString(12, state.getStatus());
+            pstmt.setString(13, state.getSource());
+            pstmt.setString(14, state.getLocation());
+            pstmt.setString(15, state.getStage());
+            pstmt.setString(16, state.getStageMessage());
+            pstmt.setString(17, state.getDuration());
             Long alarmStart = state.getAlarmStartTime();
-            pstmt.setTimestamp(25, alarmStart != null ? new Timestamp(alarmStart) : null);
+            pstmt.setTimestamp(18, alarmStart != null ? new Timestamp(alarmStart) : null);
 
             pstmt.executeUpdate();
         }
@@ -389,7 +373,7 @@ public class TdengineSyncService {
 
         String sql = "SELECT data_timestamp, alarm_level, alarm_severity, alarm_source, " +
                 "alarm_message, alarm_location, alarm_status, ack_by, alarm_duration, " +
-                "alarm_stage, alarm_start_time, path FROM alarm_realtime " +
+                "alarm_stage, alarm_stage_message, alarm_start_time, path FROM alarm_realtime " +
                 "ORDER BY data_timestamp DESC LIMIT 200";
 
         try (Statement stmt = connection.createStatement();
@@ -413,6 +397,7 @@ public class TdengineSyncService {
                 dto.setAckBy(rs.getString("ack_by"));
                 dto.setDuration(rs.getString("alarm_duration"));
                 dto.setStage(rs.getString("alarm_stage"));
+                dto.setStageMessage(rs.getString("alarm_stage_message"));
                 Timestamp startTs = rs.getTimestamp("alarm_start_time");
                 if (startTs != null) {
                     dto.setAlarmStartTime(LocalDateTime.ofInstant(

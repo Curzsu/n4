@@ -210,7 +210,7 @@ public class AlarmProcessingJob {
                 PointAlarmState normalState = buildState(point, null, null, null, null, null);
                 writeLatestState(normalState);
                 return String.format("\033[90m[%s] [%8s] %-40s | value=%s | string type, skipped\033[0m",
-                        ts, "STRING", point.getName(), point.getValue());
+                        ts, "STRING", pointName, point.getValue());
             }
 
             // 3. Empty alarm_code = no alarm rule = skip alarm evaluation (no _00 fallback).
@@ -219,7 +219,7 @@ public class AlarmProcessingJob {
                 PointAlarmState normalState = buildState(point, null, null, null, null, null);
                 writeLatestState(normalState);
                 return String.format("[%s] [%8s] %-40s | value=%s | no alarm_code, point=%s, type=%s",
-                        ts, "NORULE", point.getName(), point.getValue(), pointName, type);
+                        ts, "NORULE", pointName, point.getValue(), pointName, type);
             }
 
             // 4. Look up rule from Redis based on type
@@ -234,7 +234,7 @@ public class AlarmProcessingJob {
                     PointAlarmState normalState = buildState(point, null, null, null, null, null);
                     writeLatestState(normalState);
                     return String.format("[%s] [%8s] %-40s | value=%s | unknown type: %s",
-                            ts, "UNKNOWN", point.getName(), point.getValue(), type);
+                            ts, "UNKNOWN", pointName, point.getValue(), type);
                 }
             }
 
@@ -243,7 +243,7 @@ public class AlarmProcessingJob {
                 PointAlarmState normalState = buildState(point, null, null, null, null, null);
                 writeLatestState(normalState);
                 return String.format("[%s] [%8s] %-40s | value=%s | no rule found, point=%s, type=%s",
-                        ts, "NORULE", point.getName(), point.getValue(), pointName, type);
+                        ts, "NORULE", pointName, point.getValue(), pointName, type);
             }
 
             boolean isAlarm = triggered.isAlarm();
@@ -265,6 +265,7 @@ public class AlarmProcessingJob {
                 if (isAlarm) {
                     // Fresh alarm start
                     current.setStage("start");
+                    current.setStageMessage("Start");
                     current.setDuration("0");
                     current.setAckBy("-");
                     current.setStatus("Unack");
@@ -281,6 +282,7 @@ public class AlarmProcessingJob {
                 if (isAlarm) {
                     // Re-alarmed after recovery: new start, drop the frozen record
                     current.setStage("start");
+                    current.setStageMessage("Start");
                     current.setDuration("0");
                     current.setAckBy("-");
                     current.setStatus("Unack");
@@ -298,6 +300,7 @@ public class AlarmProcessingJob {
                     if (history.getLevel().equals(current.getLevel())) {
                         // Same level continues: preserve ack state so it survives across ticks
                         current.setStage("continue");
+                        current.setStageMessage("Continue");
                         current.setDuration(String.valueOf(intervalSeconds));
                         current.setStatus(history.getStatus());
                         current.setAckBy(history.getAckBy());
@@ -306,10 +309,12 @@ public class AlarmProcessingJob {
                     } else {
                         // Level escalated (e.g. High -> High-High): close old phase, start new
                         history.setStage("end");
+                        history.setStageMessage("End " + history.getLevel() + " to " + current.getLevel());
                         history.setDuration(String.valueOf(intervalSeconds));
                         publishRealTimeChannel(history, current.getTimestamp());
 
                         current.setStage("start");
+                        current.setStageMessage("Start "+history.getLevel() + " to " + current.getLevel());
                         current.setDuration("0");
                         current.setAckBy("-");
                         current.setStatus("Unack");
@@ -328,12 +333,14 @@ public class AlarmProcessingJob {
                         // and serializes), then broadcast a cleared signal to the frontend.
                         removeActive(path);
                         history.setStage("end");
+                        history.setStageMessage("End");
                         history.setDuration(String.valueOf(intervalSeconds));
                         publishNotificationChannel(history);
                         publishRealTimeChannel(history, current.getTimestamp());
                     } else {
                         // Not yet acknowledged -> freeze the alarm record with final duration
                         history.setStage("end");
+                        history.setStageMessage("End");
                         history.setDuration(String.valueOf(intervalSeconds));
                         writeActiveState(history);
 //                        publishAlarm(history);   // broadcast frozen record (frontend freezes duration)
@@ -359,11 +366,11 @@ public class AlarmProcessingJob {
                     default         -> "";
                 };
                 return String.format("%s[%s] [%8s] [%-8s] %-40s | value=%s | level=%s | %s\033[0m",
-                        color, ts, severity, current.getStage(), point.getName(),
+                        color, ts, severity, current.getStage(), pointName,
                         point.getValue(), level, alarmMessage);
             } else {
                 return String.format("\033[92m[%s] [%8s] %-40s | value=%s | normal\033[0m",
-                        ts, "NORMAL", point.getName(), point.getValue());
+                        ts, "NORMAL", pointName, point.getValue());
             }
         }
 
@@ -475,17 +482,10 @@ public class AlarmProcessingJob {
         private PointAlarmState buildState(PointData point, String level, String severity,
                                            String message, Integer timeDelay, String deadband) {
             PointAlarmState state = new PointAlarmState();
-            state.setName(point.getName());
-            state.setDisplayName(point.getDisplayName());
+            state.setClientId(point.getClientId());
             state.setPath(point.getPath());
             state.setValue(point.getValue());
             state.setType(point.getType());
-            state.setUnit(point.getUnit());
-            state.setMax(point.getMax());
-            state.setMin(point.getMin());
-            state.setIp(point.getIp());
-            state.setPort(point.getPort());
-            state.setOther(point.getOther());
             state.setTimestamp(point.getTimestamp());
 
             if (level != null) {
@@ -500,6 +500,7 @@ public class AlarmProcessingJob {
             state.setLocation(extractLocation(point.getPath()));
             state.setDuration("0");
             state.setStage("");
+            state.setStageMessage("");
             return state;
         }
 
@@ -514,7 +515,7 @@ public class AlarmProcessingJob {
             if (path == null || path.isEmpty()) return "";
             String normalized = path.startsWith("/") ? path.substring(1) : path;
             String[] parts = normalized.split("/");
-            return parts.length >= 3 ? parts[2] : "";
+            return parts.length >= 4 ? parts[3] : "";
         }
 
         private String extractSource(String path) {

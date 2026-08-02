@@ -100,6 +100,7 @@ export interface AlarmRecord {
   ackBy: string
   duration: string
   stage?: string
+  stageMessage?: string
   path?: string
 }
 

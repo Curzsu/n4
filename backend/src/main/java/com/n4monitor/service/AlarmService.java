@@ -78,6 +78,7 @@ public class AlarmService {
                 dto.setAckBy(getTextField(node, "ackBy", "-"));
                 dto.setDuration(getTextField(node, "duration", ""));
                 dto.setStage(getTextField(node, "stage", ""));
+                dto.setStageMessage(getTextField(node, "stageMessage", ""));
 
                 alarms.add(dto);
             } catch (Exception e) {
@@ -208,9 +209,11 @@ public class AlarmService {
                 // Update status/ackBy on the active record. For ongoing alarms the duration
                 // is refreshed; for recovered alarms it is left at the frozen value. The
                 // timestamp is left untouched so it keeps the alarm's historical start time.
+                // transition=Ack marks this record as a user-acknowledgement event.
                 ((com.fasterxml.jackson.databind.node.ObjectNode) node)
                         .put("status", "Ack")
-                        .put("ackBy", ackBy);
+                        .put("ackBy", ackBy)
+                        .put("stageMessage", "Ack");
                 if (!recovered) {
                     ((com.fasterxml.jackson.databind.node.ObjectNode) node)
                             .put("duration", ackDuration);
@@ -471,11 +474,14 @@ public class AlarmService {
             for (Object value : rawData.values()) {
                 try {
                     var node = objectMapper.readTree((String) value);
-                    String name = node.has("name") ? node.get("name").asText() : "Unknown";
+                    // Use the path-derived `source` (not the removed `name` field) as the
+                    // bucket key so top-sources ranking stays meaningful without name.
+                    String src = node.has("source") && !node.get("source").isNull()
+                            ? node.get("source").asText() : "Unknown";
                     String severity = node.has("severity") ? node.get("severity").asText() : "Normal";
                     // Only count non-normal alarms
                     if (!"Normal".equals(severity)) {
-                        sourceCount.merge(name, 1, Integer::sum);
+                        sourceCount.merge(src, 1, Integer::sum);
                     }
                 } catch (Exception ignored) {
                 }
