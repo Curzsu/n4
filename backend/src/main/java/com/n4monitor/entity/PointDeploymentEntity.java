@@ -18,4 +18,7 @@ public class PointDeploymentEntity {
 
     /** Alarm policy (references alarm_name in the alarm table). Empty means the point has no alarm rule */
     private String alarmCode;
+
+    /** Point data type: numeric|enum|boolean|string. Every point must have one. */
+    private String type;
 }

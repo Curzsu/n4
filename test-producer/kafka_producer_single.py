@@ -1,17 +1,17 @@
 """
 Kafka Manual Producer - 手动发送单条点位数据到 Kafka
 
-无需从 points-2.log 读取模板，数据格式固定：
-  {"name":"...","displayName":"...","path":"...","value":"...",
-   "type":null,"unit":null,"max":null,"min":null,
-   "ip":null,"port":null,"other":null,"timestamp":<毫秒时间戳>}
+数据格式精简为四部分：
+  {"clientId":"...","path":"...","timestamp":<毫秒时间戳>,"value":"..."}
+
+type 不再由消息携带，改由后端根据 point_deployment.type 按 path 解析。
 
 用法:
     pip install kafka-python
     python kafka_producer_single.py
 
 交互方式:
-    1. 输入要发送的 path（如 Drivers/ModbusTcpNetwork/LVP_A4/points/Collector/Communication_status）
+    1. 输入要发送的 path（如 slot:/Drivers/ModbusTcpNetwork/MVP_A1_EDB/Voltage_C）
     2. 输入要发送的 value
     3. 脚本按固定格式构造 JSON，时间戳设为当前时间，发送一条数据
 """
@@ -40,36 +40,21 @@ except ImportError:
 KAFKA_BROKER = "47.121.30.136:9092"
 KAFKA_TOPIC = "obix-mqtt-points"
 
+# 点位数据来源标识，写入消息的 clientId 字段
+CLIENT_ID = "clientId_1001"
+
 
 # ╔═══════════════════════════════════════════════════════════════════╗
 # ║                        消息构造                                     ║
 # ╚═══════════════════════════════════════════════════════════════════╝
 
-def extract_point_name(path: str) -> str:
-    """从 path 中提取点位名（最后一段，按 / 分隔）。"""
-    if not path:
-        return ""
-    normalized = path.strip("/")
-    parts = normalized.split("/")
-    return parts[-1] if parts else ""
-
-
-def build_payload(path: str, value: str, point_type: str) -> dict:
-    """按固定格式构造消息体。"""
-    point_name = extract_point_name(path)
+def build_payload(path: str, value: str) -> dict:
+    """按固定格式构造消息体（仅四部分：clientId/path/timestamp/value）。"""
     return {
-        "name": point_name,
-        "displayName": point_name,
+        "clientId": CLIENT_ID,
         "path": path,
-        "value": value,
-        "type": point_type,
-        "unit": None,
-        "max": None,
-        "min": None,
-        "ip": None,
-        "port": None,
-        "other": None,
         "timestamp": int(time.time() * 1000),
+        "value": value,
     }
 
 
@@ -80,7 +65,8 @@ def build_payload(path: str, value: str, point_type: str) -> dict:
 def main():
     print(f"[INFO] Kafka broker: {KAFKA_BROKER}")
     print(f"[INFO] Kafka topic : {KAFKA_TOPIC}")
-    print(f"[INFO] 数据格式: 固定（无需日志模板）")
+    print(f"[INFO] clientId    : {CLIENT_ID}")
+    print(f"[INFO] 数据格式: clientId / path / timestamp / value（无 type，由后端按 path 解析）")
     print("-" * 60)
 
     try:
@@ -101,12 +87,7 @@ def main():
 
             value = input("请输入要发送的 value: ").strip()
 
-            point_type = input("请输入 type (numeric/boolean/string/enum): ").strip().lower()
-            if point_type not in ("numeric", "boolean", "string", "enum"):
-                print(f"[WARN] 未知类型 '{point_type}'，将使用 string")
-                point_type = "string"
-
-            payload_dict = build_payload(path, value, point_type)
+            payload_dict = build_payload(path, value)
             payload = json.dumps(payload_dict, ensure_ascii=False)
 
             future = producer.send(

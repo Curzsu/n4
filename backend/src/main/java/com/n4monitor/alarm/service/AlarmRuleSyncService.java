@@ -99,24 +99,38 @@ public class AlarmRuleSyncService {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    //  Point deployment -> alarm_code map sync (path -> alarm_code)
-    //  Read by Flink per-message to look up each point's alarm rule.
+    //  Point deployment -> point metadata map sync (path -> {type, alarm_code})
+    //  Read by Flink per-message to resolve a point's data type and alarm rule.
+    //  The hash value is a small JSON object {"type":"numeric","alarm_code":"..."} so
+    //  both attributes come from the same row and stay consistent.
     // ═══════════════════════════════════════════════════════════════════════
 
     public void syncPointRuleMapToRedis() {
         List<PointDeploymentEntity> points = pointDeploymentMapper.findAllForRuleMap();
         Map<String, String> redisData = new HashMap<>();
         for (PointDeploymentEntity p : points) {
-            // Empty alarm_code = no alarm rule; skip writing to the map (Flink treats a miss as "no rule")
-            if (p.getAlarmCode() != null && !p.getAlarmCode().isBlank()) {
-                redisData.put(p.getN4Address(), p.getAlarmCode());
+            String path = p.getN4Address();
+            if (path == null || path.isBlank()) {
+                continue;
+            }
+            String type = p.getType() != null ? p.getType().trim() : "";
+            String alarmCode = p.getAlarmCode() != null ? p.getAlarmCode().trim() : "";
+            // Every point is written so its type is always resolvable at runtime.
+            // alarm_code is "" when the point has no alarm rule (Flink treats it as "no rule").
+            try {
+                var node = objectMapper.createObjectNode();
+                node.put("type", type);
+                node.put("alarm_code", alarmCode);
+                redisData.put(path, objectMapper.writeValueAsString(node));
+            } catch (Exception ex) {
+                log.error("Failed to serialize point metadata for path: {}", path, ex);
             }
         }
         redisTemplate.delete(pointRuleMapKey);
         if (!redisData.isEmpty()) {
             redisTemplate.opsForHash().putAll(pointRuleMapKey, redisData);
         }
-        log.info("Synced {} point->alarm_code mappings to Redis key '{}'", redisData.size(), pointRuleMapKey);
+        log.info("Synced {} point metadata mappings to Redis key '{}'", redisData.size(), pointRuleMapKey);
     }
 
     // ═══════════════════════════════════════════════════════════════════════

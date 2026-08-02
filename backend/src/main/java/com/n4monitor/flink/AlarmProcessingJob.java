@@ -177,7 +177,30 @@ public class AlarmProcessingJob {
             String path = point.getPath();
             if (path == null) return "[SKIP] path is null";
 
-            String type = point.getType();
+            // 1. Resolve this point's metadata (type + alarm_code) from Redis in a single hget.
+            //    The hash value is {"type":"numeric","alarm_code":"..."}; type drives rule
+            //    evaluation routing and alarm_code selects the rule. Both come from the same
+            //    point_deployment row so they stay consistent.
+            String pointMetaJson = jedis.hget(pointRuleMapKey, path);
+            String type = "";
+            String alarmName = "";
+            if (pointMetaJson != null && !pointMetaJson.isEmpty()) {
+                try {
+                    var metaNode = objectMapper.readTree(pointMetaJson);
+                    if (metaNode.has("type") && !metaNode.get("type").isNull()) {
+                        type = metaNode.get("type").asText().trim();
+                    }
+                    if (metaNode.has("alarm_code") && !metaNode.get("alarm_code").isNull()) {
+                        alarmName = metaNode.get("alarm_code").asText().trim();
+                    }
+                } catch (Exception e) {
+                    System.err.println("[FLINK] Failed to parse point metadata for path " + path + ": " + e.getMessage());
+                }
+            }
+            // Backfill the type onto the point object so downstream state (latest/active/TDengine)
+            // carries the resolved type instead of the (now absent) message type field.
+            point.setType(type.isEmpty() ? null : type);
+
             String pointName = extractPointName(path);
             String ts = formatTimestamp(point.getTimestamp());
 
@@ -190,9 +213,7 @@ public class AlarmProcessingJob {
                         ts, "STRING", point.getName(), point.getValue());
             }
 
-            // 3. Look up this point's alarm_code from Redis (path -> alarm_code).
-            //    Empty alarm_code = no alarm rule = skip alarm evaluation (no _00 fallback).
-            String alarmName = jedis.hget(pointRuleMapKey, path);
+            // 3. Empty alarm_code = no alarm rule = skip alarm evaluation (no _00 fallback).
             if (alarmName == null || alarmName.isEmpty()) {
                 // No alarm_code configured for this point: skip alarm evaluation, write normal state.
                 PointAlarmState normalState = buildState(point, null, null, null, null, null);

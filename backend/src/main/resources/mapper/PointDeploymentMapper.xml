@@ -4,7 +4,7 @@
 <mapper namespace="com.n4monitor.mapper.PointDeploymentMapper">
 
     <select id="findAllForRuleMap" resultType="com.n4monitor.entity.PointDeploymentEntity">
-        SELECT point_deploy_id, n4_address, alarm_code
+        SELECT point_deploy_id, n4_address, alarm_code, type
         FROM point_deployment
         WHERE is_deleted = 0
     </select>
