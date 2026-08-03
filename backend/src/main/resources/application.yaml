@@ -44,6 +44,7 @@ alarm:
     enabled: true
     topic: obix-mqtt-points
     group-id: n4-flink-alarm-processor
+    parallelism: 4 # Parallel alarm tasks. Must be <= min(CPU cores, Kafka topic partitions). keyBy(path) routes same-path messages to one task so concurrent tasks never race on alarm:active state.
   # Redis keys and channels used by alarm processing
   redis:
     rules-numeric-key: alarm:rules:numeric       # Numeric rules hash (field=alarm_name, value=NumericEntity JSON)

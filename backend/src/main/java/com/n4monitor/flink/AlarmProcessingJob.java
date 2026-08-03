@@ -7,6 +7,7 @@ import com.n4monitor.entity.AlarmRuleNumericEntity;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
+import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -14,7 +15,11 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.connector.kafka.source.KafkaSource;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.util.Collector;
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.JedisPoolConfig;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -52,21 +57,29 @@ public class AlarmProcessingJob {
             DEFAULT_RULES_NUMERIC_KEY, DEFAULT_RULES_ENUM_KEY,
             DEFAULT_LATEST_KEY, DEFAULT_ACTIVE_KEY,
             DEFAULT_NOTIFICATIONS_CHANNEL, DEFAULT_REALTIME_CHANNEL,
-            DEFAULT_POINT_RULE_MAP_KEY);
+            DEFAULT_POINT_RULE_MAP_KEY, 1);
     }
 
     /**
      * Start Flink job (blocking method, should be called in a separate thread).
+     * <p>
+     * Parallelism is driven by the {@code parallelism} argument (from config
+     * {@code alarm.flink.parallelism}). The Kafka source parallelism is bounded
+     * by the topic's partition count; a downstream {@code keyBy(path)} rebalances
+     * by point path so that all messages for one point always land on the same
+     * task, making the read-modify-write on Redis {@code alarm:active} safe
+     * under parallel execution. Ensure the Kafka topic has at least as many
+     * partitions as the configured parallelism, otherwise some tasks stay idle.
      */
     public static void run(String kafkaBroker, String kafkaTopic,
                            String groupId, String redisHost, int redisPort, String redisPassword,
                            String rulesNumericKey, String rulesEnumKey,
                            String latestRedisKey, String activeRedisKey,
                            String notificationChannel, String realtimeChannel,
-                           String pointRuleMapKey) throws Exception {
+                           String pointRuleMapKey, int parallelism) throws Exception {
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.setParallelism(1);
+        env.setParallelism(parallelism);
 
         KafkaSource<String> kafkaSource = KafkaSource.<String>builder()
                 .setBootstrapServers(kafkaBroker)
@@ -82,7 +95,22 @@ public class AlarmProcessingJob {
                 "kafka-alarm-source"
         );
 
-        DataStream<String> alarmStream = kafkaStream.map(
+        // Stage 1: parse raw JSON into PointData. Stateless and fully parallel;
+        // parsing failures are dropped here so downstream logic never sees a
+        // malformed record.
+        DataStream<PointData> parsedStream = kafkaStream.flatMap(
+                new ParsePointFunction(), TypeInformation.of(PointData.class));
+
+        // Stage 2: partition by point path. Same path always routes to the same
+        // task instance, so the read-modify-write sequence on alarm:active (and
+        // future per-key timing/deadband state) is serial per key and safe under
+        // parallel execution. This is the prerequisite for both parallelism and
+        // the upcoming delay-alarm / deadband features.
+        DataStream<PointData> keyedStream = parsedStream.keyBy(PointData::getPath);
+
+        // Stage 3: rule lookup + alarm lifecycle evaluation. Runs at full
+        // parallelism; keyBy guarantees one path -> one task.
+        DataStream<String> alarmStream = keyedStream.map(
                 new AlarmProcessFunction(redisHost, redisPort,
                 redisPassword,
                         rulesNumericKey, rulesEnumKey,
@@ -95,10 +123,45 @@ public class AlarmProcessingJob {
     }
 
     /**
-     * Flink MapFunction: reads rules from Redis per-message (so dynamic rule
-     * updates are picked up without restart), evaluates, and manages alarm lifecycle.
+     * Stage 1: parse raw Kafka JSON into a {@link PointData}.
+     * <p>
+     * Stateless, fully parallel. Drops malformed JSON so downstream never sees
+     * a bad record. Uses flatMap (instead of map) so unparseable messages can
+     * be silently skipped without emitting a sentinel value.
      */
-    public static class AlarmProcessFunction extends RichMapFunction<String, String> {
+    public static class ParsePointFunction extends RichFlatMapFunction<String, PointData> {
+
+        private transient ObjectMapper objectMapper;
+
+        @Override
+        public void open(Configuration parameters) {
+            objectMapper = new ObjectMapper().findAndRegisterModules();
+            System.out.println("[FLINK] Point parser started");
+        }
+
+        @Override
+        public void flatMap(String message, Collector<PointData> out) {
+            if (message == null || message.isBlank()) return;
+            try {
+                PointData point = objectMapper.readValue(message, PointData.class);
+                if (point.getPath() == null || point.getPath().isBlank()) return;
+                out.collect(point);
+            } catch (Exception e) {
+                System.err.println("[FLINK] JSON parse failed, skipping: "
+                        + e.getClass().getSimpleName() + " - " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Stage 3: rule lookup + alarm lifecycle evaluation (stateful, keyed by path).
+     * <p>
+     * Reads rules from Redis per-message (so dynamic rule updates are picked up
+     * without restart), evaluates, and manages alarm lifecycle. The preceding
+     * {@code keyBy(path)} guarantees all messages for one point reach the same
+     * task instance, making the read-modify-write on alarm:active race-free.
+     */
+    public static class AlarmProcessFunction extends RichMapFunction<PointData, String> {
 
         private final String redisHost;
         private final int redisPort;
@@ -111,8 +174,13 @@ public class AlarmProcessingJob {
         private final String realtimeChannel;
         private final String pointRuleMapKey;
 
-        private transient Jedis jedis;
+        private transient JedisPool jedisPool;
         private transient ObjectMapper objectMapper;
+
+        /** Redis socket read/connect timeout (ms). The Jedis default of 2000ms is too
+         *  tight for a remote Redis over the public internet, where occasional RTT
+         *  spikes exceed 2s and trigger SocketTimeoutException. 5s absorbs the spikes. */
+        private static final int REDIS_TIMEOUT_MS = 5000;
 
         private static final DateTimeFormatter TS_FORMAT =
                 DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
@@ -136,10 +204,22 @@ public class AlarmProcessingJob {
 
         @Override
         public void open(Configuration parameters) {
-            jedis = new Jedis(redisHost, redisPort);
-            if (redisPassword != null && !redisPassword.isBlank()) {
-                jedis.auth(redisPassword);
-            }
+            // Use a pool instead of a bare Jedis: the bare connection has a 2s default
+            // timeout (too tight for remote Redis) and a single broken connection is
+            // reused after a SocketTimeoutException, causing cascading failures. The
+            // pool validates/closes broken connections on return and gives each
+            // message a fresh, healthy connection.
+            JedisPoolConfig poolConfig = new JedisPoolConfig();
+            poolConfig.setMaxTotal(8);
+            poolConfig.setMaxIdle(4);
+            poolConfig.setMinIdle(1);
+            // Validate connections borrowed from the pool so a stale/broken socket
+            // is detected (and replaced) before we issue a command on it.
+            poolConfig.setTestOnBorrow(true);
+            poolConfig.setTestWhileIdle(true);
+
+            jedisPool = new JedisPool(poolConfig, redisHost, redisPort,
+                    REDIS_TIMEOUT_MS, redisPassword);
             objectMapper = new ObjectMapper().findAndRegisterModules();
 
             System.out.println("[FLINK] Alarm processor started");
@@ -148,12 +228,13 @@ public class AlarmProcessingJob {
             System.out.println("[FLINK] Latest state Redis key: " + latestRedisKey);
             System.out.println("[FLINK] Active alarm Redis key: " + activeRedisKey);
             System.out.println("[FLINK] Point rule map key: " + pointRuleMapKey);
+            System.out.println("[FLINK] Redis timeout: " + REDIS_TIMEOUT_MS + "ms");
         }
 
         @Override
-        public String map(String message) throws Exception {
+        public String map(PointData point) throws Exception {
             try {
-                return processMessage(message);
+                return processMessage(point);
             } catch (Exception e) {
                 // Never let an exception escape map() - an uncaught exception fails
                 // the Flink task and tears down the whole job. Log and skip the
@@ -165,17 +246,16 @@ public class AlarmProcessingJob {
             }
         }
 
-        private String processMessage(String message) throws Exception {
-            // 1. Parse Kafka message
-            PointData point;
-            try {
-                point = objectMapper.readValue(message, PointData.class);
-            } catch (Exception e) {
-                return "[SKIP] JSON parse failed";
-            }
-
+        private String processMessage(PointData point) throws Exception {
             String path = point.getPath();
             if (path == null) return "[SKIP] path is null";
+
+            // Borrow a healthy connection from the pool for this message and return
+            // it in finally. The pool closes broken connections on return, so a
+            // SocketTimeoutException no longer leaves a stale socket reused for the
+            // next message (which caused cascading failures with the bare Jedis).
+            Jedis jedis = jedisPool.getResource();
+            try {
 
             // 1. Resolve this point's metadata (type + alarm_code) from Redis in a single hget.
             //    The hash value is {"type":"numeric","alarm_code":"..."}; type drives rule
@@ -208,7 +288,7 @@ public class AlarmProcessingJob {
             if ("string".equalsIgnoreCase(type)) {
                 // Still write latest state for TDengine sync
                 PointAlarmState normalState = buildState(point, null, null, null, null, null);
-                writeLatestState(normalState);
+                writeLatestState(jedis, normalState);
                 return String.format("\033[90m[%s] [%8s] %-40s | value=%s | string type, skipped\033[0m",
                         ts, "STRING", pointName, point.getValue());
             }
@@ -217,7 +297,7 @@ public class AlarmProcessingJob {
             if (alarmName == null || alarmName.isEmpty()) {
                 // No alarm_code configured for this point: skip alarm evaluation, write normal state.
                 PointAlarmState normalState = buildState(point, null, null, null, null, null);
-                writeLatestState(normalState);
+                writeLatestState(jedis, normalState);
                 return String.format("[%s] [%8s] %-40s | value=%s | no alarm_code, point=%s, type=%s",
                         ts, "NORULE", pointName, point.getValue(), pointName, type);
             }
@@ -227,12 +307,12 @@ public class AlarmProcessingJob {
             String ruleType = type != null ? type.toLowerCase() : "";
 
             switch (ruleType) {
-                case "boolean", "enum" -> triggered = evaluateEnum(alarmName, point.getValue());
-                case "numeric" -> triggered = evaluateNumeric(alarmName, point.getValue());
+                case "boolean", "enum" -> triggered = evaluateEnum(jedis, alarmName, point.getValue());
+                case "numeric" -> triggered = evaluateNumeric(jedis, alarmName, point.getValue());
                 default -> {
                     // Unknown type or null type
                     PointAlarmState normalState = buildState(point, null, null, null, null, null);
-                    writeLatestState(normalState);
+                    writeLatestState(jedis, normalState);
                     return String.format("[%s] [%8s] %-40s | value=%s | unknown type: %s",
                             ts, "UNKNOWN", pointName, point.getValue(), type);
                 }
@@ -241,7 +321,7 @@ public class AlarmProcessingJob {
             if (triggered == null) {
                 // No rule found for this point
                 PointAlarmState normalState = buildState(point, null, null, null, null, null);
-                writeLatestState(normalState);
+                writeLatestState(jedis, normalState);
                 return String.format("[%s] [%8s] %-40s | value=%s | no rule found, point=%s, type=%s",
                         ts, "NORULE", pointName, point.getValue(), pointName, type);
             }
@@ -255,7 +335,7 @@ public class AlarmProcessingJob {
 
             // 5. Build current state and resolve stage / duration against active history
             PointAlarmState current = buildState(point, level, severity, alarmMessage, timeDelay, deadband);
-            PointAlarmState history = readActive(path);
+            PointAlarmState history = readActive(jedis, path);
             long intervalSeconds = computeIntervalSeconds(history, current);
 
 
@@ -271,10 +351,10 @@ public class AlarmProcessingJob {
                     current.setStatus("Unack");
                     // Alarm start time = this data tick's timestamp (the historical timestamp)
                     current.setAlarmStartTime(current.getTimestamp());
-                    writeActiveState(current);
+                    writeActiveState(jedis, current);
 //                    publishAlarm(current);
-                    publishNotificationChannel(current);
-                    publishRealTimeChannel(current, current.getTimestamp());
+                    publishNotificationChannel(jedis, current);
+                    publishRealTimeChannel(jedis, current, current.getTimestamp());
                 }
                 // else: still normal, nothing to do in alarm:active
             } else if ("end".equals(history.getStage())) {
@@ -288,10 +368,10 @@ public class AlarmProcessingJob {
                     current.setStatus("Unack");
                     // New alarm cycle begins: reset the start time to this tick
                     current.setAlarmStartTime(current.getTimestamp());
-                    writeActiveState(current);
+                    writeActiveState(jedis, current);
 //                    publishAlarm(current);
-                    publishNotificationChannel(current);
-                    publishRealTimeChannel(current, current.getTimestamp());
+                    publishNotificationChannel(jedis, current);
+                    publishRealTimeChannel(jedis, current, current.getTimestamp());
                 }
                 // else: still normal after recovery -> idempotent skip (keep frozen record as-is)
             } else {
@@ -311,7 +391,7 @@ public class AlarmProcessingJob {
                         history.setStage("end");
                         history.setStageMessage("End - " + history.getLevel() + " to " + current.getLevel());
                         history.setDuration(String.valueOf(intervalSeconds));
-                        publishRealTimeChannel(history, current.getTimestamp());
+                        publishRealTimeChannel(jedis, history, current.getTimestamp());
 
                         current.setStage("start");
                         current.setStageMessage("Start - "+history.getLevel() + " to " + current.getLevel());
@@ -320,10 +400,10 @@ public class AlarmProcessingJob {
                         current.setStatus("Unack");
                         // Escalation starts a new alarm phase: reset start time to this tick
                         current.setAlarmStartTime(current.getTimestamp());
-                        publishNotificationChannel(current);
-                        publishRealTimeChannel(current, current.getTimestamp());
+                        publishNotificationChannel(jedis, current);
+                        publishRealTimeChannel(jedis, current, current.getTimestamp());
                     }
-                    writeActiveState(current);
+                    writeActiveState(jedis, current);
 //                    publishAlarm(current);
                 } else {
                     // Alarm recovered
@@ -331,30 +411,30 @@ public class AlarmProcessingJob {
                         // Already acknowledged + recovered -> remove from active, signal frontend.
                         // Persist the end record to TDengine first (publishRealTimeChannel sets stage/duration
                         // and serializes), then broadcast a cleared signal to the frontend.
-                        removeActive(path);
+                        removeActive(jedis, path);
                         history.setStage("end");
                         history.setStageMessage("End");
                         history.setDuration(String.valueOf(intervalSeconds));
-                        publishNotificationChannel(history);
-                        publishRealTimeChannel(history, current.getTimestamp());
+                        publishNotificationChannel(jedis, history);
+                        publishRealTimeChannel(jedis, history, current.getTimestamp());
                     } else {
                         // Not yet acknowledged -> freeze the alarm record with final duration
                         history.setStage("end");
                         history.setStageMessage("End");
                         history.setDuration(String.valueOf(intervalSeconds));
-                        writeActiveState(history);
+                        writeActiveState(jedis, history);
 //                        publishAlarm(history);   // broadcast frozen record (frontend freezes duration)
                         // Notify with the alarm's historical start time (current carries the recovered value
                         // but should report when the alarm began).
 //                        current.setAlarmStartTime(history.getAlarmStartTime());
-                        publishNotificationChannel(history);
-                        publishRealTimeChannel(history, current.getTimestamp());
+                        publishNotificationChannel(jedis, history);
+                        publishRealTimeChannel(jedis, history, current.getTimestamp());
                     }
                 }
             }
 
             // 7. Always write the real-time value to alarm:latest
-            writeLatestState(current);
+            writeLatestState(jedis, current);
 
             // 8. Console output
             if (isAlarm) {
@@ -372,11 +452,14 @@ public class AlarmProcessingJob {
                 return String.format("\033[92m[%s] [%8s] %-40s | value=%s | normal\033[0m",
                         ts, "NORMAL", pointName, point.getValue());
             }
+            } finally {
+                jedis.close();
+            }
         }
 
         @Override
         public void close() {
-            if (jedis != null) jedis.close();
+            if (jedisPool != null) jedisPool.close();
         }
 
         // ── Rule evaluation (type-specific, reads from Redis) ──────────────────
@@ -385,7 +468,7 @@ public class AlarmProcessingJob {
         record EvalResult(boolean isAlarm, String level, String severity,
                           String message, Integer timeDelay, String deadband) {}
 
-        private EvalResult evaluateNumeric(String alarmName, String pointValue) {
+        private EvalResult evaluateNumeric(Jedis jedis, String alarmName, String pointValue) {
             String json = jedis.hget(rulesNumericKey, alarmName);
             if (json == null || json.isBlank()) return null;
 
@@ -447,7 +530,7 @@ public class AlarmProcessingJob {
             }
         }
 
-        private EvalResult evaluateEnum(String alarmName, String pointValue) {
+        private EvalResult evaluateEnum(Jedis jedis, String alarmName, String pointValue) {
             String json = jedis.hget(rulesEnumKey, alarmName);
             if (json == null || json.isBlank()) return null;
 
@@ -530,7 +613,7 @@ public class AlarmProcessingJob {
 
         // ── Redis writers ────────────────────────────────────────────────────────
 
-    private void writeLatestState(PointAlarmState state) {
+    private void writeLatestState(Jedis jedis, PointAlarmState state) {
             try {
                 String json = objectMapper.writeValueAsString(state);
                 jedis.hset(latestRedisKey, state.getPath(), json);
@@ -539,7 +622,7 @@ public class AlarmProcessingJob {
             }
         }
 
-        private void publishAlarm(PointAlarmState state) {
+        private void publishAlarm(Jedis jedis, PointAlarmState state) {
             try {
                 String json = objectMapper.writeValueAsString(state);
                 jedis.publish(notificationChannel, json);
@@ -554,7 +637,7 @@ public class AlarmProcessingJob {
      * The timestamp is forced to the alarm's historical start time so the
      * frontend always shows when the alarm began (start/continue/end alike).
      */
-    private void publishNotificationChannel(PointAlarmState state) {
+    private void publishNotificationChannel(Jedis jedis, PointAlarmState state) {
             try {
                 String json = serializeWithTimestamp(state, state.getAlarmStartTime());
                 jedis.publish(notificationChannel, json);
@@ -572,7 +655,7 @@ public class AlarmProcessingJob {
      * Accepts a nullable Long to avoid NPE from auto-unboxing when a Kafka message
      * lacks a timestamp; null falls back to the state's own timestamp.
      */
-    private void publishRealTimeChannel(PointAlarmState state, Long dataTimestamp) {
+    private void publishRealTimeChannel(Jedis jedis, PointAlarmState state, Long dataTimestamp) {
             try {
                 String json = serializeWithTimestamp(state, dataTimestamp);
                 jedis.publish(realtimeChannel, json);
@@ -585,7 +668,7 @@ public class AlarmProcessingJob {
      * Write a state to alarm:active with its timestamp forced to the alarm's
      * historical start time (so continue/end records keep the start timestamp).
      */
-    private void writeActiveState(PointAlarmState state) {
+    private void writeActiveState(Jedis jedis, PointAlarmState state) {
             try {
                 String json = serializeWithTimestamp(state, state.getAlarmStartTime());
                 jedis.hset(activeRedisKey, state.getPath(), json);
@@ -594,7 +677,7 @@ public class AlarmProcessingJob {
             }
         }
 
-        private void removeActive(String path) {
+        private void removeActive(Jedis jedis, String path) {
             try {
                 jedis.hdel(activeRedisKey, path);
             } catch (Exception e) {
@@ -602,7 +685,7 @@ public class AlarmProcessingJob {
             }
         }
 
-        private PointAlarmState readActive(String path) {
+        private PointAlarmState readActive(Jedis jedis, String path) {
             try {
                 String json = jedis.hget(activeRedisKey, path);
                 if (json == null || json.isBlank()) return null;
