@@ -309,12 +309,12 @@ public class AlarmProcessingJob {
                     } else {
                         // Level escalated (e.g. High -> High-High): close old phase, start new
                         history.setStage("end");
-                        history.setStageMessage("End " + history.getLevel() + " to " + current.getLevel());
+                        history.setStageMessage("End - " + history.getLevel() + " to " + current.getLevel());
                         history.setDuration(String.valueOf(intervalSeconds));
                         publishRealTimeChannel(history, current.getTimestamp());
 
                         current.setStage("start");
-                        current.setStageMessage("Start "+history.getLevel() + " to " + current.getLevel());
+                        current.setStageMessage("Start - "+history.getLevel() + " to " + current.getLevel());
                         current.setDuration("0");
                         current.setAckBy("-");
                         current.setStatus("Unack");
@@ -515,7 +515,7 @@ public class AlarmProcessingJob {
             if (path == null || path.isEmpty()) return "";
             String normalized = path.startsWith("/") ? path.substring(1) : path;
             String[] parts = normalized.split("/");
-            return parts.length >= 4 ? parts[3] : "";
+            return parts.length > 0 ? parts[0] : "";
         }
 
         private String extractSource(String path) {

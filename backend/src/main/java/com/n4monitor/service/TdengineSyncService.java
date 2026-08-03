@@ -374,7 +374,11 @@ public class TdengineSyncService {
         String sql = "SELECT data_timestamp, alarm_level, alarm_severity, alarm_source, " +
                 "alarm_message, alarm_location, alarm_status, ack_by, alarm_duration, " +
                 "alarm_stage, alarm_stage_message, alarm_start_time, path FROM alarm_realtime " +
-                "ORDER BY data_timestamp DESC LIMIT 200";
+                // ts (write moment) is a stable tiebreaker: when two records share the same
+                // data_timestamp (e.g. an End + Start written in the same tick during a level
+                // escalation), ts breaks the tie by insertion order so the later-written
+                // Start always sorts above the earlier-written End.
+                "ORDER BY data_timestamp DESC, ts DESC LIMIT 200";
 
         try (Statement stmt = connection.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
