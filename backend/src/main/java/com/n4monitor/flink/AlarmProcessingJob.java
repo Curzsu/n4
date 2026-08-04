@@ -8,14 +8,18 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
+import org.apache.flink.api.common.state.ValueState;
+import org.apache.flink.api.common.state.ValueStateDescriptor;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.connector.kafka.source.KafkaSource;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.util.Collector;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
@@ -26,6 +30,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.io.Serializable;
 import java.util.*;
 
 /**
@@ -106,11 +111,13 @@ public class AlarmProcessingJob {
         // future per-key timing/deadband state) is serial per key and safe under
         // parallel execution. This is the prerequisite for both parallelism and
         // the upcoming delay-alarm / deadband features.
-        DataStream<PointData> keyedStream = parsedStream.keyBy(PointData::getPath);
+        KeyedStream<PointData, String> keyedStream = parsedStream.keyBy(PointData::getPath);
 
         // Stage 3: rule lookup + alarm lifecycle evaluation. Runs at full
-        // parallelism; keyBy guarantees one path -> one task.
-        DataStream<String> alarmStream = keyedStream.map(
+        // parallelism; keyBy guarantees one path -> one task. Uses a
+        // KeyedProcessFunction so it can hold per-key pending-alarm state and
+        // register processing-time timers for delay-based alarm confirmation.
+        DataStream<String> alarmStream = keyedStream.process(
                 new AlarmProcessFunction(redisHost, redisPort,
                 redisPassword,
                         rulesNumericKey, rulesEnumKey,
@@ -161,7 +168,7 @@ public class AlarmProcessingJob {
      * {@code keyBy(path)} guarantees all messages for one point reach the same
      * task instance, making the read-modify-write on alarm:active race-free.
      */
-    public static class AlarmProcessFunction extends RichMapFunction<PointData, String> {
+    public static class AlarmProcessFunction extends KeyedProcessFunction<String, PointData, String> {
 
         private final String redisHost;
         private final int redisPort;
@@ -176,6 +183,16 @@ public class AlarmProcessingJob {
 
         private transient JedisPool jedisPool;
         private transient ObjectMapper objectMapper;
+
+        /**
+         * Pending alarm state held per key (path) while a delay-confirmation
+         * timer is running. Cleared once the timer fires (alarm confirmed) or
+         * the value returns to normal / changes level (timer cancelled).
+         * <p>
+         * Stored in Flink keyed state (RocksDB) rather than Redis so the timer
+         * and its payload live together and add no Redis round-trips.
+         */
+        private transient ValueState<PendingAlarm> pendingState;
 
         /** Redis socket read/connect timeout (ms). The Jedis default of 2000ms is too
          *  tight for a remote Redis over the public internet, where occasional RTT
@@ -222,6 +239,11 @@ public class AlarmProcessingJob {
                     REDIS_TIMEOUT_MS, redisPassword);
             objectMapper = new ObjectMapper().findAndRegisterModules();
 
+            // Per-key pending-alarm state for delay confirmation. Keyed by the
+            // process function's key (path). One pending record per point at most.
+            pendingState = getRuntimeContext().getState(
+                    new ValueStateDescriptor<>("pending-alarm", PendingAlarm.class));
+
             System.out.println("[FLINK] Alarm processor started");
             System.out.println("[FLINK] Rules numeric key: " + rulesNumericKey);
             System.out.println("[FLINK] Rules enum key: " + rulesEnumKey);
@@ -232,21 +254,22 @@ public class AlarmProcessingJob {
         }
 
         @Override
-        public String map(PointData point) throws Exception {
+        public void processElement(PointData point, Context ctx, Collector<String> out) throws Exception {
             try {
-                return processMessage(point);
+                String logLine = processMessage(point, ctx, out);
+                if (logLine != null) out.collect(logLine);
             } catch (Exception e) {
-                // Never let an exception escape map() - an uncaught exception fails
-                // the Flink task and tears down the whole job. Log and skip the
-                // offending message so the stream keeps processing subsequent data.
+                // Never let an exception escape - an uncaught exception fails the
+                // Flink task and tears down the whole job. Log and skip the offending
+                // message so the stream keeps processing subsequent data.
                 System.err.println("[FLINK] Uncaught error processing message, skipping: "
                         + e.getClass().getSimpleName() + " - " + e.getMessage());
                 e.printStackTrace();
-                return "[SKIP] uncaught error: " + e.getMessage();
+                out.collect("[SKIP] uncaught error: " + e.getMessage());
             }
         }
 
-        private String processMessage(PointData point) throws Exception {
+        private String processMessage(PointData point, Context ctx, Collector<String> out) throws Exception {
             String path = point.getPath();
             if (path == null) return "[SKIP] path is null";
 
@@ -338,12 +361,74 @@ public class AlarmProcessingJob {
             PointAlarmState history = readActive(jedis, path);
             long intervalSeconds = computeIntervalSeconds(history, current);
 
+            // 5b. Delay-confirmation handling. If a pending (unconfirmed) alarm
+            // exists for this key, the point is in its delay window: the alarm
+            // has crossed the threshold but has not yet been confirmed for the
+            // full timeDelay. While pending, no record is written to alarm:active
+            // and nothing is published - confirmation happens in onTimer().
+            //   - same level arrives  -> keep the timer, refresh value/timestamp
+            //   - different level     -> cancel old timer, start a fresh delay
+            //   - normal value        -> cancel timer, drop the pending alarm
+            // A pending alarm only coexists with history==null or stage=="end"
+            // (it is created before any active record is written), so the
+            // lifecycle block below only runs once the alarm is confirmed.
+            PendingAlarm pending = pendingState.value();
+            if (pending != null) {
+                if (isAlarm && level.equals(pending.state.getLevel())) {
+                    // Same level keeps counting. Refresh the latest value/timestamp
+                    // so onTimer fires the alarm with the freshest reading.
+                    pending.state.setValue(point.getValue());
+                    pending.state.setTimestamp(point.getTimestamp());
+                    pendingState.update(pending);
+                    // latest stays normal (no level) while still pending.
+                    PointAlarmState latestState = buildState(current, null, null, null, null, null);
+                    writeLatestState(jedis, latestState);
+                    long elapsedMs = (point.getTimestamp() != null ? point.getTimestamp() : 0L) - pending.firstEventTime;
+                    return String.format("\033[96m[%s] [%8s] %-40s | value=%s | pending %s, %ds elapsed\033[0m",
+                            ts, "PENDING", pointName, point.getValue(), level,
+                            Math.max(0, elapsedMs / 1000));
+                } else if (isAlarm) {
+                    // Different alarm level: abandon the old pending alarm and
+                    // restart the delay for the new level (matches the spec:
+                    // reaching a different threshold resets the timer).
+                    ctx.timerService().deleteProcessingTimeTimer(pending.timerTarget);
+                    long firstEventTime = current.getTimestamp() != null ? current.getTimestamp() : 0L;
+                    long target = firstEventTime + (timeDelay != null ? timeDelay : 0) * 1000L;
+                    long nowProc = ctx.timerService().currentProcessingTime();
+                    if (target < nowProc) target = nowProc;
+                    // alarmStartTime is intentionally NOT set here; onTimer sets it
+                    // to the confirmation moment when the alarm truly begins.
+                    PendingAlarm np = new PendingAlarm(current, firstEventTime, target);
+                    pendingState.update(np);
+                    ctx.timerService().registerProcessingTimeTimer(target);
+                    PointAlarmState latestState = buildState(current, null, null, null, null, null);
+                    writeLatestState(jedis, latestState);
+                    return String.format("\033[96m[%s] [%8s] %-40s | value=%s | pending %s (reset from %s), %ds delay\033[0m",
+                            ts, "PENDING", pointName, point.getValue(), level,
+                            pending.state.getLevel(), timeDelay != null ? timeDelay : 0);
+                } else {
+                    // Value returned to normal during the delay window: cancel
+                    // the pending alarm before it is ever confirmed.
+                    ctx.timerService().deleteProcessingTimeTimer(pending.timerTarget);
+                    pendingState.clear();
+                    writeLatestState(jedis, current);
+                    return String.format("\033[92m[%s] [%8s] %-40s | value=%s | pending %s cancelled (normal)\033[0m",
+                            ts, "CANCEL", pointName, point.getValue(), pending.state.getLevel());
+                }
+            }
 
             // 6. Resolve alarm lifecycle and update alarm:active accordingly
             if (history == null || isBlank(history.getLevel())) {
                 // No active alarm record (or last record was non-alarm)
                 if (isAlarm) {
-                    // Fresh alarm start
+                    // Fresh alarm start. If a delay is configured, enter the
+                    // pending state and register a processing-time timer instead
+                    // of firing immediately; onTimer() confirms the alarm once
+                    // the value has stayed above threshold for timeDelay seconds.
+                    if (timeDelay != null && timeDelay > 0) {
+                        return enterPending(ctx, jedis, current, timeDelay, ts, pointName, out);
+                    }
+                    // No delay: fire immediately.
                     current.setStage("start");
                     current.setStageMessage("Start");
                     current.setDuration("0");
@@ -360,7 +445,11 @@ public class AlarmProcessingJob {
             } else if ("end".equals(history.getStage())) {
                 // History is a frozen (recovered) alarm record
                 if (isAlarm) {
-                    // Re-alarmed after recovery: new start, drop the frozen record
+                    // Re-alarmed after recovery: new start, drop the frozen record.
+                    // Same delay rule as a fresh start.
+                    if (timeDelay != null && timeDelay > 0) {
+                        return enterPending(ctx, jedis, current, timeDelay, ts, pointName, out);
+                    }
                     current.setStage("start");
                     current.setStageMessage("Start");
                     current.setDuration("0");
@@ -460,6 +549,155 @@ public class AlarmProcessingJob {
         @Override
         public void close() {
             if (jedisPool != null) jedisPool.close();
+        }
+
+        // ── Delay-confirmation helpers ─────────────────────────────────────────
+
+        /**
+         * Enter the pending (delay-confirmation) state for the current key:
+         * register a processing-time timer {@code timeDelay} seconds ahead and
+         * stash the would-be alarm state so {@link #onTimer} can fire it later.
+         * Returns the console log line for this message.
+         */
+        private String enterPending(Context ctx, Jedis jedis, PointAlarmState current,
+                                    int timeDelay, String ts, String pointName, Collector<String> out) throws Exception {
+            // The confirmation window starts from the data's own timestamp (first
+            // threshold crossing), not from processing time. Because the producer
+            // stamps messages with wall-clock time at send, event time ~= processing
+            // time in practice, but using the event time keeps the delay anchored to
+            // the data domain as required.
+            long firstEventTime = current.getTimestamp() != null ? current.getTimestamp() : 0L;
+            long target = firstEventTime + timeDelay * 1000L;
+            // Floor the timer target to "now" so a message that arrived late (its
+            // event time + delay already in the past) fires promptly instead of
+            // registering a timer in the past (which would trigger immediately
+            // anyway, but this makes the intent explicit and avoids log noise).
+            long nowProc = ctx.timerService().currentProcessingTime();
+            if (target < nowProc) {
+                target = nowProc;
+            }
+            // alarmStartTime is NOT set here: the alarm has not truly started yet.
+            // It is set in onTimer when the alarm is confirmed, to the moment of
+            // confirmation (the triggering tick's time).
+            PendingAlarm pending = new PendingAlarm(current, firstEventTime, target);
+            pendingState.update(pending);
+            ctx.timerService().registerProcessingTimeTimer(target);
+
+            // While pending, alarm:latest must reflect a NORMAL state: the alarm
+            // has not been confirmed, so level/severity/message are empty. Only
+            // the live value/path/type/timestamp are written so TDengine snapshots
+            // and charts show the current reading without a phantom alarm.
+            PointAlarmState latestState = buildState(current, null, null, null, null, null);
+            writeLatestState(jedis, latestState);
+
+            long remainingMs = target - nowProc;
+            return String.format("\033[96m[%s] [%8s] %-40s | value=%s | pending %s, %ds delay (%.1fs left)\033[0m",
+                    ts, "PENDING", pointName, current.getValue(), current.getLevel(),
+                    timeDelay, remainingMs / 1000.0);
+        }
+
+        /**
+         * Processing-time timer callback: a pending alarm's delay window has
+         * elapsed with no normal value (and no level change) observed, so the
+         * alarm is now confirmed. Promote the pending state into alarm:active
+         * and publish the start notification + TDengine realtime record.
+         * <p>
+         * Uses processing time (wall clock) rather than event time so the alarm
+         * still fires when no further data arrives during the delay window -
+         * matching the spec: "if no new data arrives, the value is assumed to
+         * hold and the alarm fires after the delay".
+         */
+        @Override
+        public void onTimer(long timestamp, OnTimerContext ctx, Collector<String> out) throws Exception {
+            PendingAlarm pending = pendingState.value();
+            if (pending == null) {
+                // Timer fired but pending was already cleared (e.g. value went
+                // normal and the delete raced). Nothing to do.
+                return;
+            }
+            // Defensive: only fire the timer we registered. A stale timer for a
+            // previously cancelled pending (timerTarget mismatch) is ignored.
+            if (pending.timerTarget != timestamp) {
+                return;
+            }
+
+            PointAlarmState state = pending.state;
+            // The alarm is confirmed NOW (timer fired). alarmStartTime is the
+            // confirmation moment, not the first-threshold-crossing time: the
+            // delay window means the threshold crossing alone did not constitute
+            // an alarm. Use the timer's processing time as the authoritative
+            // "alarm began" instant.
+            long confirmProcTime = timestamp;  // == pending.timerTarget, verified above
+            try (Jedis jedis = jedisPool.getResource()) {
+                // Confirm the alarm: mark as a fresh start and persist to active.
+                state.setStage("start");
+                state.setStageMessage("Start");
+                state.setDuration("0");
+                state.setAckBy("-");
+                state.setStatus("Unack");
+                state.setAlarmStartTime(confirmProcTime);
+                // Force the state's own timestamp to the confirmation moment too,
+                // so all four writes share one consistent timestamp:
+                //   writeActiveState      -> getAlarmStartTime()        = confirmProcTime
+                //   publishNotification   -> getAlarmStartTime()        = confirmProcTime
+                //   publishRealTime       -> passed dataTimestamp       = confirmProcTime
+                //   writeLatestState      -> state.getTimestamp()       = confirmProcTime (set here)
+                // Without this, writeLatestState would carry the last pending tick's
+                // event time, disagreeing with the other three.
+                state.setTimestamp(confirmProcTime);
+                writeActiveState(jedis, state);
+                publishNotificationChannel(jedis, state);
+                publishRealTimeChannel(jedis, state, confirmProcTime);
+                writeLatestState(jedis, state);
+            }
+
+            pendingState.clear();
+
+            String ts = formatTimestamp(confirmProcTime);
+            String pointName = extractPointName(state.getPath());
+            String color = switch (state.getSeverity() != null ? state.getSeverity() : "") {
+                case "Critical" -> "\033[91m";
+                case "Major"    -> "\033[93m";
+                case "Minor"    -> "\033[33m";
+                case "Warning"  -> "\033[94m";
+                default         -> "";
+            };
+            out.collect(String.format("%s[%s] [%8s] [%-8s] %-40s | value=%s | level=%s | delay confirmed, ALARM\033[0m",
+                    color, ts, state.getSeverity(), state.getStage(), pointName,
+                    state.getValue(), state.getLevel()));
+        }
+
+        /**
+         * In-flight (unconfirmed) alarm held in keyed state while a delay timer
+         * runs. Carries the would-be alarm state so {@link #onTimer} can fire it
+         * without the original PointData, plus timing metadata.
+         */
+        public static class PendingAlarm implements Serializable {
+            /** Would-be alarm state captured at first threshold crossing; value/timestamp
+             *  refreshed on each same-level tick during the delay window. Level/severity/
+             *  message are kept so onTimer knows which alarm to raise, but they are NOT
+             *  written to alarm:latest while pending (a separate normal-state write is
+             *  used for latest during the delay window). */
+            public PointAlarmState state;
+            /** Event-time timestamp of the first threshold crossing (the data tick's
+             *  own timestamp). The confirmation timer target is derived from this
+             *  (firstEventTime + timeDelay), not from processing time, so the delay
+             *  is measured in the data's own time domain as required. */
+            public long firstEventTime;
+            /** Target processing time of the confirmation timer (used to identify
+             *  the timer when cancelling / firing). Computed as firstEventTime +
+             *  timeDelay, floored to current processing time so a delayed message
+             *  whose delay window already passed fires promptly rather than in the
+             *  past. */
+            public long timerTarget;
+
+            public PendingAlarm() {}
+
+            public PendingAlarm(PointAlarmState state, long firstEventTime, long timerTarget) {
+                this.state = state;
+                this.firstEventTime = firstEventTime;
+                this.timerTarget = timerTarget;
+            }
         }
 
         // ── Rule evaluation (type-specific, reads from Redis) ──────────────────
