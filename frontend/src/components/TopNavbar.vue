@@ -14,11 +14,15 @@
       </div>
     </div>
     <div class="navbar-right">
-      <div class="alert-badges" @click="openRightPanel">
-        <span class="badge critical">{{ alarmSummary?.critical || 0 }}</span>
-        <span class="badge major">{{ alarmSummary?.major || 0 }}</span>
-        <span class="badge minor">{{ alarmSummary?.minor || 0 }}</span>
-        <span class="badge warning">{{ alarmSummary?.warning || 0 }}</span>
+      <div class="alert-badges">
+        <span
+          v-for="b in alarmBadges"
+          :key="b.key"
+          class="badge"
+          :style="{ '--badge-color': severityColors[b.severity] }"
+          :title="b.severity"
+          @click.stop="handleBadgeClick(b.severity)"
+        >{{ alarmSummary?.[b.key] || 0 }}</span>
       </div>
       <el-icon class="search-icon"><Search /></el-icon>
       <div class="user-profile">
@@ -30,16 +34,58 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Search, UserFilled } from '@element-plus/icons-vue'
 import { useDashboardStore } from '@/stores/dashboard'
+import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
+import { alarmApi } from '@/api/alarm'
+import { severityColors } from '@/config/severityColors'
 
 const router = useRouter()
 const route = useRoute()
 
 const store = useDashboardStore()
-const alarmSummary = computed(() => store.alarmSummary)
+const { summaryData } = useAlarmWebSocket()
+
+// Live alarm counts from the WebSocket stream (same source as Active Alarms).
+// Fall back to the REST snapshot so the badges are non-zero before the first
+// WS frame arrives.
+const alarmSummary = computed(() => {
+  const live = summaryData.value
+  const rest = store.alarmSummary
+  return {
+    critical: live.critical || rest?.critical || 0,
+    major: live.major || rest?.major || 0,
+    minor: live.minor || rest?.minor || 0,
+    warning: live.warning || rest?.warning || 0,
+  }
+})
+
+// Seed summaryData with the real-time alarm summary on mount. Without this the
+// badges stay at 0 until either an alarm fires (WS push) or the right panel
+// (AlarmSummaryPanel) is opened - because summaryData's initial value is all
+// zeros and only AlarmSummaryPanel.onMounted fetched it before. Doing the fetch
+// here guarantees correct counts immediately on page load and after refresh,
+// independent of the right panel.
+onMounted(async () => {
+  try {
+    const data = await alarmApi.getAlarmSummary()
+    summaryData.value = data
+  } catch (e) {
+    console.error('Failed to fetch alarm summary:', e)
+  }
+})
+
+// Badge order left-to-right: Critical, Major, Minor, Warning. Each badge maps
+// to a canonical severity label (used both for the title tooltip and for the
+// Active Alarms query param) and to an AlarmSummary count key.
+const alarmBadges = [
+  { key: 'critical', severity: 'Critical' },
+  { key: 'major', severity: 'Major' },
+  { key: 'minor', severity: 'Minor' },
+  { key: 'warning', severity: 'Warning' },
+] as const
 
 const navTabs = [
   'Dashboard',
@@ -75,8 +121,10 @@ function handleTabClick(tab: string) {
   }
 }
 
-function openRightPanel() {
-  store.isRightCollapsed = false
+// Clicking a severity badge opens Active Alarms pre-filtered to that severity.
+// The query param is consumed by AlarmView -> AlarmTable.
+function handleBadgeClick(severity: string) {
+  router.push({ path: '/alarm', query: { severity } })
 }
 </script>
 
@@ -148,22 +196,27 @@ function openRightPanel() {
 .alert-badges {
   display: flex;
   gap: 8px;
-  cursor: pointer;
   transition: opacity 0.2s;
-  &:hover {
-    opacity: 0.8;
-  }
 }
 
+// Each badge color is driven by the --badge-color CSS variable, set inline from
+// config/severityColors.ts so the navbar matches the Severity tags exactly.
 .badge {
   padding: 2px 8px;
   border-radius: 4px;
   font-size: 12px;
   font-weight: 600;
-  &.critical { background: rgba($accent-red, 0.2); color: $accent-red; }
-  &.major { background: rgba($accent-orange, 0.2); color: $accent-orange; }
-  &.minor { background: rgba($accent-yellow, 0.2); color: $accent-yellow; }
-  &.warning { background: rgba($accent-blue, 0.2); color: $accent-blue; }
+  cursor: pointer;
+  color: var(--badge-color, #6b7280);
+  background: color-mix(in srgb, var(--badge-color, #6b7280) 20%, transparent);
+  transition: transform 0.15s, filter 0.15s;
+  &:hover {
+    filter: brightness(1.15);
+    transform: translateY(-1px);
+  }
+  &:active {
+    transform: translateY(0);
+  }
 }
 
 .search-icon {

@@ -224,7 +224,13 @@ import type { AlarmRecord } from '@/api/types'
 
 // When deviceName is provided, only alarms whose path contains that device name
 // as a segment are shown. Used by DeviceDetailView to scope the alarm list.
-const props = defineProps<{ deviceName?: string }>()
+// initialSeverity, when set to a valid severity label, seeds the Severity column
+// filter on mount (and whenever it changes) so the table opens pre-filtered -
+// e.g. arriving from a top-navbar badge click (?severity=Critical).
+const props = defineProps<{
+  deviceName?: string
+  initialSeverity?: string
+}>()
 
 const loading = ref(false)
 const tableData = ref<AlarmRecord[]>([])
@@ -336,6 +342,27 @@ function hasFilter(field: string): boolean {
 
 const severityOptions = ['Critical', 'Major', 'Minor', 'Warning']
 const statusOptions = ['Unack', 'Ack']
+
+// ── External severity pre-filter (from route query) ──
+// When a valid severity arrives via the initialSeverity prop, push it into both
+// the committed filters and the popover draft so the Severity column shows the
+// active-filter indicator and filteredData narrows automatically. An empty
+// value clears the pre-filter (e.g. navigating to /alarm with no query).
+function applyInitialSeverity(severity: string | undefined) {
+  const valid = severityOptions.includes(severity ?? '') ? (severity as string) : ''
+  if (valid) {
+    filters.value.severity = [valid]
+    draft.value.severity = [valid]
+  } else if (severity !== undefined && severity !== '') {
+    // Unknown severity label: clear the pre-filter so nothing stale lingers.
+    filters.value.severity = []
+    draft.value.severity = []
+  }
+}
+
+// immediate so the filter is applied on first mount; react to later changes
+// (e.g. clicking a different badge while already on the alarm page).
+watch(() => props.initialSeverity, applyInitialSeverity, { immediate: true })
 
 // ── Column sorting ──
 const sortField = ref<string | null>(null)
