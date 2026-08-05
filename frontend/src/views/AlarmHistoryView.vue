@@ -38,7 +38,11 @@
             <span :class="['status-text', row.status.toLowerCase()]">{{ row.status }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="duration" label="Duration" width="100" />
+        <el-table-column prop="duration" label="Duration" width="120">
+          <template #default="{ row }">
+            <span class="duration-text">{{ formatDuration(Number(row.duration) || 0) }}</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="ackBy" label="Ack. By" width="100" show-overflow-tooltip />
       </el-table>
     </div>
@@ -51,6 +55,7 @@ import { Refresh } from '@element-plus/icons-vue'
 import { alarmApi } from '@/api/alarm'
 import { normalizeRecord } from '@/utils/alarm'
 import { getSeverityColor } from '@/config/severityColors'
+import { formatDuration } from '@/utils/time'
 import type { AlarmRecord } from '@/api/types'
 
 const loading = ref(false)
@@ -147,6 +152,12 @@ onMounted(() => {
 
 .stage-message-text {
   font-size: 10px;
+  color: #e5e7eb;
+}
+
+.duration-text {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
   color: #e5e7eb;
 }
 

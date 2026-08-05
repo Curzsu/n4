@@ -717,10 +717,7 @@ onUpdate((data: any) => {
   tableData.value.push(newRecord)
   tableData.value.sort((a, b) => b.time.localeCompare(a.time))
 
-  // Keep max 100 rows
-  if (tableData.value.length > 100) {
-    tableData.value = tableData.value.slice(0, 100)
-  }
+  // All active alarms are shown; no row cap so operators see the full picture.
 
   // Recompute visible rows so Select All works immediately after a WS push,
   // not only after a manual page refresh or Ack.
@@ -968,11 +965,16 @@ onBeforeUnmount(() => {
 
 // Shrink checkboxes to fit the compact 20px row height (Element Plus default is 32px)
 :deep(.el-checkbox) {
-  height: 18px;
+  height: 16px;
   .el-checkbox__inner {
-    width: 14px;
-    height: 14px;
+    width: 12px;
+    height: 12px;
     border-radius: 2px;
+    // Scale the checkmark down to match the smaller box
+    // &::after {
+    //   width: 3px;
+    //   height: 7px;
+    // }
   }
   .el-checkbox__label {
     font-size: 10px;
