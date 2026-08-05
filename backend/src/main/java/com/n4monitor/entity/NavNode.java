@@ -10,6 +10,7 @@ public class NavNode {
     private String nodeName;
     private Integer nodeLevel;
     private String nodeType;
+    private Integer maxLevel;
     private String icon;
     private Integer sortOrder;
     private Boolean isDeleted;

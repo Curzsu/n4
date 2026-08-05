@@ -45,7 +45,7 @@ const navTabs = [
   'Dashboard',
   'Alarms',
   'Device Template',
-  'Device Deployment',
+  'System Deployment',
   'Trend',
   'Report',
   'System'
@@ -58,8 +58,8 @@ const activeTab = computed(() => {
   if (route.path === '/device-template') {
     return 'Device Template'
   }
-  if (route.path === '/device-deployment') {
-    return 'Device Deployment'
+  if (route.path === '/system-deployment') {
+    return 'System Deployment'
   }
   return 'Dashboard'
 })
@@ -68,7 +68,7 @@ const routeMap: Record<string, string> = {
   'Dashboard': '/',
   'Alarms': '/alarm',
   'Device Template': '/device-template',
-  'Device Deployment': '/device-deployment',
+  'System Deployment': '/system-deployment',
 }
 
 function handleTabClick(tab: string) {

@@ -47,7 +47,7 @@
               ></span>
               
               <!-- Node Icon based on type -->
-              <el-icon class="node-icon" v-if="getNodeIcon(data)">
+              <el-icon class="node-icon" :class="{ 'real-data-icon': data.hasRealData }" v-if="getNodeIcon(data)">
                 <component :is="getNodeIcon(data)" />
               </el-icon>
               
@@ -86,7 +86,9 @@ import {
   Cpu,
   FolderOpened,
   Grid,
+  Box,
   Monitor,
+  DataLine,
   DataAnalysis
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -140,11 +142,12 @@ const visibleTreeData = computed(() => {
         label: '全部设备模板 (数据库真实表)',
         type: 'site',
         status: 1,
-        children: store.allProducts.map(p => ({
-          id: p.productId || 0,
-          label: p.productName,
+        children: store.allTemplates.map(t => ({
+          id: t.deviceTmplId || 0,
+          label: t.deviceTmplName + (t.isReal ? '' : ' (Mock)'),
           type: 'product',
           status: 1,
+          isMock: !t.isReal,
           children: []
         }))
       }
@@ -157,14 +160,16 @@ const visibleTreeData = computed(() => {
 
 // NavTreeNode 转 el-tree 节点
 function toTreeNode(n: NavTreeNode): any {
+  const isLeafGroup = !n.children || n.children.length === 0
   return {
     id: n.nodeId,
-    label: n.nodeLevel === 2 && n.deviceCount != null
+    label: isLeafGroup && n.deviceCount != null
       ? `${n.nodeName} (${n.deviceCount})`
       : n.nodeName,
-    type: n.nodeLevel === 1 ? 'system-group' : 'system-sub',
+    type: n.nodeLevel === 1 ? 'system-group' : n.nodeLevel === 2 ? 'system-sub' : 'system-sub-deep',
     status: 1,
     nodeLevel: n.nodeLevel,
+    hasRealData: !!n.hasRealData,
     raw: n,
     children: (n.children || []).map(toTreeNode)
   }
@@ -180,8 +185,10 @@ function getNodeIcon(data: any) {
   if (data.type === 'site') return Location
   if (data.type === 'device') return Monitor
   if (data.type === 'product') return Cpu
+  if (data.hasRealData) return DataLine
   if (data.type === 'system-group') return FolderOpened
   if (data.type === 'system-sub') return Grid
+  if (data.type === 'system-sub-deep') return Box
   return OfficeBuilding
 }
 
@@ -338,6 +345,10 @@ watch(searchText, (val) => {
     color: $text-secondary;
   }
 
+  .real-data-icon {
+    color: $accent-green;
+  }
+
   .label-text {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -373,6 +384,11 @@ watch(searchText, (val) => {
 .node-system-sub {
   color: $text-primary;
   font-weight: 500;
+}
+.node-system-sub-deep {
+  color: $text-primary;
+  font-weight: 400;
+  padding-left: 4px;
 }
 .node-device {
   color: $text-muted;

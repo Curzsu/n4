@@ -210,6 +210,35 @@ export interface Product {
   isDeleted?: boolean
 }
 
+// ===== Device Template Types (device_template / point_template 表) =====
+
+export interface DeviceTemplate {
+  deviceTmplId?: number
+  deviceTmplName: string
+  deviceType: string
+  model?: string
+  manufacturer?: string
+  manuDate?: string
+  functionalArea?: string
+  /** 该模板下的点位数量 */
+  pointCount?: number
+  /** 是否真实数据（与远程库模板一致） */
+  isReal?: boolean
+}
+
+export interface PointTemplateItem {
+  pointTmplId?: number
+  deviceTmplId?: number
+  pointName: string
+  /** DI|DO|AI|AO */
+  pointType?: string
+  /** numeric|enum|boolean|string */
+  dataType?: string
+  unit?: string
+  displayPrecision?: number
+  isReal?: boolean
+}
+
 // ===== Dashboard Nav Types =====
 
 export interface NavTreeNode {
@@ -218,7 +247,14 @@ export interface NavTreeNode {
   nodeLevel: number
   icon?: string
   sortOrder: number
+  /** 一级节点允许的最大层级（2/3/...），子节点继承；未配置按两级 */
+  maxLevel?: number
+  /** 叶子分组节点的设备数；非叶子节点为 null */
   deviceCount?: number
+  /** 叶子分组节点下的真实设备数（非 MOCK_ 前缀） */
+  realDeviceCount?: number
+  /** 该节点子树内是否含真实设备 */
+  hasRealData?: boolean
   children: NavTreeNode[]
 }
 
@@ -232,5 +268,64 @@ export interface DeviceDeployItem {
   manufacturer: string | null
   model: string | null
   isMock: boolean
+}
+
+// ===== Device Deployment Types (device_deployment / point_deployment 表) =====
+
+export interface DeviceDeployment {
+  deviceDeployId?: number
+  deviceTmplId?: number
+  navNodeId?: number
+  facePlateId?: string
+  alarmCode?: string
+  deviceDeployName: string
+  deviceAlias?: string
+  n4Address?: string
+  ipAddress?: string
+  macAddress?: string
+  status?: number
+  installDate?: string
+  warrantyExpire?: string
+  location?: string
+  department?: string
+  responsiblePerson?: string
+  contactPhone?: string
+  extraAttrs?: string
+  deviceType?: string
+  manufacturer?: string
+  model?: string
+  isMock?: boolean
+}
+
+export interface PointDeploymentItem {
+  pointDeployId?: number
+  pointTmplId?: number
+  deviceDeployId?: number
+  alarmCode?: string
+  pointName: string
+  n4Address?: string
+  pointCode?: string
+  register?: string
+  pointType?: string
+  dataType?: string
+  unit?: string
+  displayPrecision?: number
+  isReal?: boolean
+}
+
+/** 删除导航节点时的影响预览 */
+export interface DeleteImpact {
+  /** 将被级联删除的二级子节点数 */
+  childCount: number
+  /** 将被解绑的设备数 */
+  deviceCount: number
+}
+
+/** 新增/编辑节点表单数据 */
+export interface NavNodeForm {
+  nodeName: string
+  parentId: number | null
+  icon: string | null
+  sortOrder: number
 }
 

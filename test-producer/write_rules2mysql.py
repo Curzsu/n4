@@ -25,12 +25,12 @@ import pymysql
 # 配置
 # ═══════════════════════════════════════════════════════════════════════
 
-LOG_FILE = str(Path(__file__).parent.parent / "材料" / "points-2.log")
+LOG_FILE = str(Path(__file__).parent.parent / "backend" / "materials" / "points-2.log")
 
 MYSQL_HOST = "localhost"
 MYSQL_PORT = 3306
 MYSQL_USER = "root"
-MYSQL_PASSWORD = "1234"
+MYSQL_PASSWORD = "123456"
 MYSQL_DB = "n4_monitor"
 
 # 日志行正则
@@ -271,8 +271,8 @@ def main():
             continue
 
         # Assign sequence number
-        seq = seq_counters[point_name]
-        seq_counters[point_name] += 1
+        seq = seq_counters[point_name.lower()]
+        seq_counters[point_name.lower()] += 1
         alarm_name = f"{point_name}_{seq:02d}"
 
         if ptype == "BOOL":

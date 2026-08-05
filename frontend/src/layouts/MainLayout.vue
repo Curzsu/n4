@@ -3,7 +3,7 @@
     <TopNavbar />
     <div class="layout-body">
       <AlarmSidebar v-if="isAlarmRoute" :default-collapsed="true" />
-      <LeftSidebar v-else :mode="isNavRoute ? 'nav' : 'default'"
+      <LeftSidebar v-else-if="!isSystemDeploymentRoute" :mode="isNavRoute ? 'nav' : 'default'"
                    :nav-tree="store.navTree" :loading="store.navLoading"
                    @node-click="store.selectNavNode" />
 
@@ -60,8 +60,11 @@ const route = useRoute()
 const store = useDashboardStore()
 
 const isAlarmRoute = computed(() => route.path.startsWith('/alarm'))
-// 只有首页用新的两级导航栏，其他页面(device-template/device-deployment等)用原来的导航栏
+// 只有首页用新的两级导航栏，其他页面(device-template等)用原来的导航栏
 const isNavRoute = computed(() => route.path === '/')
+// SystemDeployment 页面自带导航结构面板，隐藏全局左侧导航栏
+const isSystemDeploymentRoute = computed(() =>
+  route.path === '/system-deployment')
 
 const isRightCollapsed = computed({
   get: () => store.isRightCollapsed,

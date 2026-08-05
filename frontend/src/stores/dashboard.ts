@@ -4,7 +4,8 @@ import { dashboardApi } from '@/api/dashboard'
 import { deviceApi } from '@/api/device'
 import { productApi } from '@/api/product'
 import { dashboardNavApi } from '@/api/dashboardNav'
-import type { KpiMetrics, AlarmSummary, AlarmItem, SystemStatusItem, TrendData, DeviceTreeNode, Product, NavTreeNode, DeviceDeployItem } from '@/api/types'
+import { templateApi } from '@/api/template'
+import type { KpiMetrics, AlarmSummary, AlarmItem, SystemStatusItem, TrendData, DeviceTreeNode, Product, NavTreeNode, DeviceDeployItem, DeviceTemplate } from '@/api/types'
 
 export const useDashboardStore = defineStore('dashboard', () => {
   const kpiMetrics = ref<KpiMetrics | null>(null)
@@ -17,6 +18,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const temperatureTrend = ref<TrendData | null>(null)
   const deviceTree = ref<DeviceTreeNode[]>([])
   const allProducts = ref<Product[]>([])
+  const allTemplates = ref<DeviceTemplate[]>([])
   const selectedNode = ref<any | null>(null)
   const loading = ref(false)
   const isRightCollapsed = ref(true)
@@ -39,20 +41,23 @@ export const useDashboardStore = defineStore('dashboard', () => {
     }
   }
 
+  /** 收集节点下所有叶子分组节点ID：叶子返回自身，非叶子递归聚合后代叶子 */
+  function collectLeafGroupIds(node: NavTreeNode): number[] {
+    if (!node.children || node.children.length === 0) {
+      return [node.nodeId]
+    }
+    return node.children.flatMap(collectLeafGroupIds)
+  }
+
   async function selectNavNode(node: NavTreeNode) {
     currentNavNode.value = node
     devicesLoading.value = true
     try {
-      if (node.nodeLevel === 1) {
-        // 一级节点：聚合所有二级 children 的设备
-        const childIds = node.children.map(c => c.nodeId)
-        const results = await Promise.all(
-          childIds.map(id => dashboardNavApi.getDevicesByNode(id))
-        )
-        currentDevices.value = results.flat()
-      } else {
-        currentDevices.value = await dashboardNavApi.getDevicesByNode(node.nodeId)
-      }
+      const leafIds = collectLeafGroupIds(node)
+      const results = await Promise.all(
+        leafIds.map(id => dashboardNavApi.getDevicesByNode(id))
+      )
+      currentDevices.value = results.flat()
     } catch (e) {
       console.error('加载设备列表失败', e)
       currentDevices.value = []
@@ -87,10 +92,20 @@ export const useDashboardStore = defineStore('dashboard', () => {
       allProducts.value = productsList
 
       deviceTree.value = devicesTreeFromBackend
+      await loadTemplates()
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
     } finally {
       loading.value = false
+    }
+  }
+
+  /** 加载设备模板列表（device_template 表，含真实/Mock 标识） */
+  async function loadTemplates() {
+    try {
+      allTemplates.value = await templateApi.listTemplates()
+    } catch (e) {
+      console.error('加载设备模板列表失败', e)
     }
   }
 
@@ -105,10 +120,12 @@ export const useDashboardStore = defineStore('dashboard', () => {
     temperatureTrend,
     deviceTree,
     allProducts,
+    allTemplates,
     selectedNode,
     loading,
     isRightCollapsed,
     fetchAllDashboardData,
+    loadTemplates,
     navTree,
     navLoading,
     currentDevices,

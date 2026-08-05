@@ -76,6 +76,14 @@ html, body, #app {
     }
   }
 
+  // 斑马纹（stripe）行暗色覆盖，避免默认白色背景
+  .el-table__row--striped > td.el-table__cell {
+    background-color: rgba(255, 255, 255, 0.03) !important;
+  }
+  .el-table__row--striped:hover > td.el-table__cell {
+    background-color: $bg-card-hover !important;
+  }
+
   // 当前选中行
   .el-table__body tr.current-row > td.el-table__cell {
     background-color: rgba($accent-green, 0.12) !important;

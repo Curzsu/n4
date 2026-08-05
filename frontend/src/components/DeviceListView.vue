@@ -5,16 +5,17 @@
       <span class="device-count">共 {{ devices.length }} 台设备</span>
     </div>
     <el-table :data="devices" style="width: 100%" v-loading="loading" empty-text="暂无设备">
-      <el-table-column prop="deviceDeployId" label="设备ID" width="90" />
+      <el-table-column prop="deviceDeployId" label="设备ID" min-width="90" />
       <el-table-column prop="deviceDeployName" label="设备名称" min-width="200">
         <template #default="{ row }">
           <span :class="{ 'mock-name': row.isMock }">{{ row.deviceDeployName }}</span>
           <el-tag v-if="row.isMock" size="small" type="info" class="mock-tag">示例数据</el-tag>
+          <el-tag v-else size="small" type="success" effect="dark" class="real-tag">真实数据</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="deviceType" label="设备类型" width="120" />
-      <el-table-column prop="manufacturer" label="厂商" width="120" />
-      <el-table-column label="状态" width="100">
+      <el-table-column prop="deviceType" label="设备类型" min-width="120" />
+      <el-table-column prop="manufacturer" label="厂商" min-width="120" />
+      <el-table-column label="状态" min-width="100">
         <template #default="{ row }">
           <span class="status-dot" :class="getStatusClass(row.status)"></span>
           <span class="status-text">{{ getStatusText(row.status) }}</span>
@@ -98,6 +99,9 @@ function getStatusText(status: number): string {
   background-color: $bg-card-hover !important;
   border-color: $border-color !important;
   color: $text-secondary !important;
+}
+.real-tag {
+  margin-left: 8px;
 }
 
 .status-dot {

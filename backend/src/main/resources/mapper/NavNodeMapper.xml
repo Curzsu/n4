@@ -4,7 +4,7 @@
 <mapper namespace="com.n4monitor.mapper.NavNodeMapper">
 
     <select id="findAll" resultType="com.n4monitor.entity.NavNode">
-        SELECT node_id, parent_id, node_name, node_level, node_type, icon, sort_order,
+        SELECT node_id, parent_id, node_name, node_level, node_type, max_level, icon, sort_order,
                is_deleted, create_time, update_time
         FROM nav_node
         WHERE is_deleted = 0
@@ -12,7 +12,9 @@
     </select>
 
     <select id="countDevicesByNode" resultType="map">
-        SELECT dd.nav_node_id AS nodeId, COUNT(*) AS deviceCount
+        SELECT dd.nav_node_id AS nodeId,
+               COUNT(*) AS deviceCount,
+               SUM(dd.device_deploy_name NOT LIKE 'MOCK_%') AS realCount
         FROM device_deployment dd
         WHERE dd.is_deleted = 0 AND dd.nav_node_id IS NOT NULL
         GROUP BY dd.nav_node_id
@@ -47,6 +49,92 @@
         FROM device_deployment dd
         LEFT JOIN device_template dt ON dd.device_tmpl_id = dt.device_tmpl_id
         WHERE dd.is_deleted = 0 AND dd.device_deploy_id = #{deviceDeployId}
+    </select>
+
+    <!-- ===== System Deployment 页写操作 ===== -->
+
+    <select id="findByNodeId" resultType="com.n4monitor.entity.NavNode">
+        SELECT node_id, parent_id, node_name, node_level, node_type, max_level, icon, sort_order,
+               is_deleted, create_time, update_time
+        FROM nav_node
+        WHERE node_id = #{nodeId}
+    </select>
+
+    <select id="findChildren" resultType="com.n4monitor.entity.NavNode">
+        SELECT node_id, parent_id, node_name, node_level, node_type, max_level, icon, sort_order,
+               is_deleted, create_time, update_time
+        FROM nav_node
+        WHERE parent_id = #{parentId} AND is_deleted = 0
+        ORDER BY sort_order, node_id
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="nodeId">
+        INSERT INTO nav_node (node_name, parent_id, node_level, node_type, max_level, icon, sort_order)
+        VALUES (#{nodeName}, #{parentId}, #{nodeLevel}, #{nodeType}, #{maxLevel}, #{icon}, #{sortOrder})
+    </insert>
+
+    <update id="update">
+        UPDATE nav_node
+        SET node_name   = #{nodeName},
+            parent_id   = #{parentId},
+            node_level  = #{nodeLevel},
+            max_level   = #{maxLevel},
+            icon        = #{icon},
+            sort_order  = #{sortOrder},
+            update_time = NOW()
+        WHERE node_id = #{nodeId}
+    </update>
+
+    <update id="logicalDelete">
+        UPDATE nav_node
+        SET is_deleted = 1, update_time = NOW()
+        WHERE node_id = #{nodeId}
+    </update>
+
+    <!-- ===== 设备挂载相关 ===== -->
+
+    <select id="findUnmountedDevices" resultType="map">
+        SELECT dd.device_deploy_id   AS deviceDeployId,
+               dd.device_deploy_name AS deviceDeployName,
+               dd.device_alias       AS deviceAlias,
+               dd.status             AS status,
+               dd.n4_address         AS n4Address,
+               dt.device_type        AS deviceType,
+               dt.manufacturer       AS manufacturer,
+               dt.model              AS model,
+               (dd.device_deploy_name LIKE 'MOCK_%') AS isMock
+        FROM device_deployment dd
+        LEFT JOIN device_template dt ON dd.device_tmpl_id = dt.device_tmpl_id
+        WHERE dd.is_deleted = 0 AND dd.nav_node_id IS NULL
+        ORDER BY dd.device_deploy_id
+    </select>
+
+    <update id="mountDevices">
+        UPDATE device_deployment
+        SET nav_node_id = #{nodeId}
+        WHERE is_deleted = 0 AND nav_node_id IS NULL
+          AND device_deploy_id IN
+        <foreach collection="deviceIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
+
+    <update id="unmountDevice">
+        UPDATE device_deployment
+        SET nav_node_id = NULL
+        WHERE device_deploy_id = #{deviceDeployId}
+    </update>
+
+    <update id="unmountAllByNode">
+        UPDATE device_deployment
+        SET nav_node_id = NULL
+        WHERE nav_node_id = #{nodeId} AND is_deleted = 0
+    </update>
+
+    <select id="countDevicesByNodeId" resultType="int">
+        SELECT COUNT(*)
+        FROM device_deployment
+        WHERE nav_node_id = #{nodeId} AND is_deleted = 0
     </select>
 
 </mapper>

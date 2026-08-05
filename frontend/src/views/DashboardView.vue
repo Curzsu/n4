@@ -33,10 +33,12 @@ const router = useRouter()
 
 const currentTitle = computed(() => {
   if (!store.currentNavNode) return '设备列表'
-  if (store.currentNavNode.nodeLevel === 1) {
-    return `${store.currentNavNode.nodeName} - 全部设备`
+  const node = store.currentNavNode
+  const isLeafGroup = !node.children || node.children.length === 0
+  if (!isLeafGroup) {
+    return `${node.nodeName} - 全部设备`
   }
-  return store.currentNavNode.nodeName
+  return node.nodeName
 })
 
 function goMonitor(device: DeviceDeployItem) {
