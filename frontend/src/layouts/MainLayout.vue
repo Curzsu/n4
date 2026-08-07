@@ -3,7 +3,9 @@
     <TopNavbar />
     <div class="layout-body">
       <AlarmSidebar v-if="isAlarmRoute" :default-collapsed="true" />
-      <LeftSidebar v-else />
+      <LeftSidebar v-else-if="!isSystemDeploymentRoute" :mode="isNavRoute ? 'nav' : 'default'"
+                   :nav-tree="store.navTree" :loading="store.navLoading"
+                   @node-click="store.selectNavNode" />
 
       <div class="layout-content">
         <slot />
@@ -39,7 +41,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, watch, onMounted } from 'vue'
 import { Bell, Setting, Fold } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
 import TopNavbar from '@/components/TopNavbar.vue'
@@ -57,11 +59,15 @@ import { useDashboardStore } from '@/stores/dashboard'
 const route = useRoute()
 const store = useDashboardStore()
 
-// /alarm/config belongs to the System menu, so it must NOT be treated as an
-// alarm route (which would show AlarmSidebar + alarm right panel).
-const systemPaths = ['/device-template', '/device-deployment', '/alarm/config']
+// /alarm/config belongs to the System menu and must not use alarm layout panels.
+const systemPaths = ['/device-template', '/device-deployment', '/alarm/config', '/system-deployment']
 const isSystemRoute = computed(() => systemPaths.includes(route.path))
 const isAlarmRoute = computed(() => route.path.startsWith('/alarm') && !isSystemRoute.value)
+// The home page uses the new two-level navigation mode.
+const isNavRoute = computed(() => route.path === '/')
+// System Deployment provides its own nav panel, so hide the global left sidebar.
+const isSystemDeploymentRoute = computed(() =>
+  route.path === '/system-deployment')
 
 const isRightCollapsed = computed({
   get: () => store.isRightCollapsed,
@@ -79,6 +85,13 @@ watch(isAlarmRoute, (alarm) => {
     store.isRightCollapsed = true
   }
 }, { immediate: true })
+
+// Load the two-level nav tree.
+onMounted(() => {
+  if (!store.navTree.length) {
+    store.loadNavTree()
+  }
+})
 </script>
 
 <style scoped lang="scss">

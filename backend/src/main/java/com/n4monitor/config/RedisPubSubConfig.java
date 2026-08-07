@@ -44,6 +44,7 @@ public class RedisPubSubConfig {
                 new ChannelTopic(alarmNotificationChannel));
         container.addMessageListener(alarmRealtimeListener,
                 new ChannelTopic(alarmRealtimeChannel));
+        container.setAutoStartup(false);
         return container;
     }
 }
