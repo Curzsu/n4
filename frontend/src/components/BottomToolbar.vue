@@ -16,7 +16,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Bell, TrendCharts, Document, Tools, Setting, Clock, Cpu, Connection } from '@element-plus/icons-vue'
+import { Bell, TrendCharts, Document, Tools, Setting, Clock, Cpu, Connection, Operation } from '@element-plus/icons-vue'
 import { useDashboardStore } from '@/stores/dashboard'
 
 const store = useDashboardStore()
@@ -25,7 +25,7 @@ const router = useRouter()
 
 // System second-level routes take precedence over the /alarm prefix check,
 // because /alarm/config now belongs to the System menu (not the Alarms menu).
-const systemPaths = ['/device-template', '/device-deployment', '/alarm/config']
+const systemPaths = ['/device-template', '/device-deployment', '/system-deployment', '/alarm/config']
 const isSystemRoute = computed(() => systemPaths.includes(route.path))
 const isAlarmRoute = computed(() => route.path.startsWith('/alarm') && !isSystemRoute.value)
 
@@ -51,6 +51,7 @@ const alarmItems = computed(() => [
 const systemItems = computed(() => [
   { label: 'Device Template', icon: Cpu, badge: null, active: route.path === '/device-template', to: '/device-template' },
   { label: 'Device Deployment', icon: Connection, badge: null, active: route.path === '/device-deployment', to: '/device-deployment' },
+  { label: 'System Deployment', icon: Operation, badge: null, active: route.path === '/system-deployment', to: '/system-deployment' },
   { label: 'Alarm Configuration', icon: Setting, badge: null, active: route.path === '/alarm/config', to: '/alarm/config' },
 ])
 

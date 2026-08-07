@@ -9,4 +9,71 @@
         WHERE is_deleted = 0
     </select>
 
+    <select id="findByDeviceDeployId" resultType="com.n4monitor.entity.PointDeployment">
+        SELECT point_deploy_id, point_tmpl_id, device_deploy_id, alarm_code, point_name,
+               n4_address, point_code, register, point_type, data_type, unit, display_precision,
+               is_deleted, create_time, update_time
+        FROM point_deployment
+        WHERE device_deploy_id = #{deviceDeployId} AND is_deleted = 0
+        ORDER BY point_deploy_id
+    </select>
+
+    <select id="findByPointDeployId" resultType="com.n4monitor.entity.PointDeployment">
+        SELECT point_deploy_id, point_tmpl_id, device_deploy_id, alarm_code, point_name,
+               n4_address, point_code, register, point_type, data_type, unit, display_precision,
+               is_deleted, create_time, update_time
+        FROM point_deployment
+        WHERE point_deploy_id = #{pointDeployId} AND is_deleted = 0
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="pointDeployId">
+        INSERT INTO point_deployment (
+            point_tmpl_id, device_deploy_id, alarm_code, point_name, n4_address,
+            point_code, register, point_type, data_type, unit, display_precision
+        ) VALUES (
+            #{pointTmplId}, #{deviceDeployId}, #{alarmCode}, #{pointName}, #{n4Address},
+            #{pointCode}, #{register}, #{pointType}, #{dataType}, #{unit}, #{displayPrecision}
+        )
+    </insert>
+
+    <insert id="insertBatch">
+        INSERT INTO point_deployment (
+            point_tmpl_id, device_deploy_id, alarm_code, point_name, n4_address,
+            point_code, register, point_type, data_type, unit, display_precision
+        ) VALUES
+        <foreach collection="points" item="p" separator=",">
+            (#{p.pointTmplId}, #{p.deviceDeployId}, #{p.alarmCode}, #{p.pointName}, #{p.n4Address},
+             #{p.pointCode}, #{p.register}, #{p.pointType}, #{p.dataType}, #{p.unit}, #{p.displayPrecision})
+        </foreach>
+    </insert>
+
+    <update id="update">
+        UPDATE point_deployment
+        SET alarm_code = #{alarmCode},
+            point_name = #{pointName},
+            n4_address = #{n4Address},
+            point_code = #{pointCode},
+            register = #{register},
+            point_type = #{pointType},
+            data_type = #{dataType},
+            unit = #{unit},
+            display_precision = #{displayPrecision},
+            update_time = NOW()
+        WHERE point_deploy_id = #{pointDeployId}
+    </update>
+
+    <update id="updateNamePrefix">
+        UPDATE point_deployment
+        SET point_name = CONCAT(#{newPrefix}, SUBSTRING(point_name, LENGTH(#{oldPrefix}) + 1)),
+            n4_address = CONCAT(
+                'slot:/Drivers/ModbusTcpNetwork/', #{nodeName}, '/points/MqttNetwork/',
+                #{newPrefix}, SUBSTRING(point_name, LENGTH(#{oldPrefix}) + 1)),
+            update_time = NOW()
+        WHERE device_deploy_id = #{deviceDeployId} AND is_deleted = 0
+    </update>
+
+    <delete id="deleteByDeviceDeployId">
+        DELETE FROM point_deployment WHERE device_deploy_id = #{deviceDeployId}
+    </delete>
+
 </mapper>

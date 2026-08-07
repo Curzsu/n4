@@ -30,7 +30,8 @@ const router = createRouter({
     },
     {
       path: '/device-deployment',
-      redirect: '/system-deployment',
+      name: 'device-deployment',
+      component: () => import('@/views/device-deploy/DeviceDeploymentView.vue'),
     },
     {
       path: '/system-deployment',

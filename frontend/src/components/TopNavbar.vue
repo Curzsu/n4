@@ -97,7 +97,7 @@ const navTabs = [
 
 const activeTab = computed(() => {
   // System second-level routes: device template, device deployment, alarm configuration
-  if (route.path === '/device-template' || route.path === '/device-deployment' || route.path === '/alarm/config') {
+  if (route.path === '/device-template' || route.path === '/device-deployment' || route.path === '/system-deployment' || route.path === '/alarm/config') {
     return 'System'
   }
   if (route.path.startsWith('/alarm')) {
