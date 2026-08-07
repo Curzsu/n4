@@ -26,12 +26,14 @@ public class AlarmRealtimeListener implements MessageListener {
 
     @Override
     public void onMessage(Message message, byte[] pattern) {
+        String channel = pattern != null ? new String(pattern) : "unknown";
+        log.info("Received Redis pub/sub message on channel: {}", channel);
         try {
             String alarmJson = new String(message.getBody());
-            log.debug("Received realtime alarm from Redis: {}",
-                    alarmJson.substring(0, Math.min(100, alarmJson.length())));
 
             PointAlarmState state = objectMapper.readValue(alarmJson, PointAlarmState.class);
+            log.info("Persisting realtime alarm to TDengine: path={}, stage={}, level={}",
+                    state.getPath(), state.getStage(), state.getLevel());
             tdengineSyncService.writeRealtimeAlarm(state);
         } catch (Exception e) {
             log.error("Failed to process realtime alarm message", e);

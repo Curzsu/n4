@@ -259,13 +259,16 @@ public class TdengineSyncService {
         asyncExecutor.submit(() -> {
             try {
                 if (!ensureConnected()) {
-                    log.warn("TDengine not available, dropping realtime alarm: {}", state.getPath());
+                    log.error("TDengine not available, dropping realtime alarm: path={}, stage={}",
+                            state.getPath(), state.getStage());
                     return;
                 }
                 writeToRealtimeSupertable(state);
-                log.debug("Wrote realtime alarm to TDengine: {}", state.getPath());
+                log.info("Wrote realtime alarm to TDengine: path={}, stage={}, level={}",
+                        state.getPath(), state.getStage(), state.getLevel());
             } catch (Exception e) {
-                log.error("Failed to write realtime alarm for path: {}", state.getPath(), e);
+                log.error("Failed to write realtime alarm for path: {}, stage: {}",
+                        state.getPath(), state.getStage(), e);
             }
         });
     }

@@ -104,6 +104,38 @@
             <artifactId>jedis</artifactId>
         </dependency>
 
+        <!-- Netty native epoll transport (Linux only). Enables fine-grained TCP keepalive
+             options (idle/interval/count) on Lettuce Redis connections so that half-open
+             subscription sockets (dropped by NAT/firewall after idle period) are detected
+             and Lettuce auto-reconnect resubscribes. Optional: absent on Windows, Lettuce
+             falls back to NIO with the plain SO_KEEPALIVE toggle. -->
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-transport-native-epoll</artifactId>
+            <classifier>linux-x86_64</classifier>
+            <optional>true</optional>
+        </dependency>
+        <!-- Epoll/KQueue API classes (compile-time). The native binaries above/below
+             provide the actual implementation; these classes expose isAvailable() so
+             TCP_USER_TIMEOUT can be applied only where a native transport is present. -->
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-transport-classes-epoll</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-transport-classes-kqueue</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <!-- macOS kqueue native binary (optional, macOS only). -->
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-transport-native-kqueue</artifactId>
+            <classifier>osx-x86_64</classifier>
+            <optional>true</optional>
+        </dependency>
+
         <!-- TDengine JDBC driver -->
         <dependency>
             <groupId>com.taosdata.jdbc</groupId>
