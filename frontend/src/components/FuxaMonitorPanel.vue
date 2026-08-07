@@ -41,7 +41,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { FullScreen, Monitor } from '@element-plus/icons-vue'
 import { deviceApi } from '@/api/device'
-import type { DeviceTreeNode } from '@/api/types'
+import type { DeviceTreeNode, FuxaBinding } from '@/api/types'
 
 const props = defineProps<{
   device: DeviceTreeNode | null
@@ -75,14 +75,21 @@ function buildDefaultFuxaUrl() {
   const configured = import.meta.env.VITE_FUXA_URL
     || 'http://127.0.0.1:1881/home?viewName=H1_EMSB_A4_03_EM'
   const url = new URL(configured, window.location.origin)
-  if (!url.searchParams.has('deviceName')) {
-    url.searchParams.set('deviceName', 'H1_EMSB_A4_03_EM')
+  if (!url.searchParams.has('sourceDeviceId')) {
+    url.searchParams.set('sourceDeviceId', 'd_f1431d5e-58774643')
   }
   return url.toString()
 }
 
 const defaultFuxaUrl = buildDefaultFuxaUrl()
 const fuxaUrl = ref(defaultFuxaUrl)
+
+function buildBindingFuxaUrl(binding: FuxaBinding) {
+  const url = new URL(binding.iframeUrl, window.location.origin)
+  url.searchParams.set('viewName', binding.viewName)
+  url.searchParams.set('sourceDeviceId', binding.fuxaDeviceId)
+  return url.toString()
+}
 
 function handleFrameLoad() {
   if (frameReadyTimer) clearTimeout(frameReadyTimer)
@@ -107,7 +114,7 @@ async function loadDeviceBinding(device: DeviceTreeNode | null) {
   }
   try {
     const binding = await deviceApi.getFuxaBinding(device.id)
-    fuxaUrl.value = binding.iframeUrl
+    fuxaUrl.value = buildBindingFuxaUrl(binding)
   } catch (error) {
     // Node-RED may not have discovered this device yet; keep the template visible.
     console.warn(`FUXA binding is not ready for device ${device.id}`, error)

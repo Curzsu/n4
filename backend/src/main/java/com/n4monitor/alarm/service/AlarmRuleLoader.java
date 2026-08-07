@@ -142,7 +142,8 @@ public class AlarmRuleLoader {
 
         log.info("Reading Excel rule config: {}", excelFile.getAbsolutePath());
 
-        try (Workbook wb = new XSSFWorkbook(excelFile)) {
+        try (InputStream input = new BufferedInputStream(new FileInputStream(excelFile));
+             Workbook wb = new XSSFWorkbook(input)) {
             Sheet sheet = wb.getSheet("Alarm Rules");
             if (sheet == null) {
                 sheet = wb.getSheetAt(0);

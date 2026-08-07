@@ -63,6 +63,12 @@
       </div>
     </div>
 
+    <FuxaCabinMonitorPanel
+      v-if="isConfiguredCabin"
+      :key="currentNodeName"
+      :cabin-name="currentNodeName"
+    />
+
     <!-- Main Content Area: Device Table -->
     <div class="content-card">
       <div class="content-card-header">
@@ -155,11 +161,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { 
   ArrowLeft, Monitor, CircleCheck, CircleClose, Warning, Search
 } from '@element-plus/icons-vue'
 import { useDashboardStore } from '@/stores/dashboard'
+import FuxaCabinMonitorPanel from '@/components/FuxaCabinMonitorPanel.vue'
+import { deviceApi } from '@/api/device'
 import type { DeviceTreeNode } from '@/api/types'
 import axios from 'axios'
 
@@ -169,6 +177,7 @@ const drawerVisible = ref(false)
 const selectedDevice = ref<DeviceTreeNode | null>(null)
 const monitorPoints = ref<any[]>([])
 const loadingPoints = ref(false)
+const configuredCabins = ref<string[]>([])
 
 const currentTime = computed(() => {
   const d = new Date()
@@ -176,6 +185,9 @@ const currentTime = computed(() => {
 })
 
 const currentNodeName = computed(() => store.selectedNode?.label || 'System Devices')
+const isConfiguredCabin = computed(() => configuredCabins.value.some(
+  cabin => cabin.toLowerCase() === currentNodeName.value.toLowerCase(),
+))
 const currentNodeType = computed(() => {
   const t = store.selectedNode?.type || ''
   switch (t) {
@@ -273,6 +285,18 @@ async function viewMonitorPoints(row: DeviceTreeNode) {
     loadingPoints.value = false
   }
 }
+
+async function loadConfiguredCabins() {
+  try {
+    configuredCabins.value = await deviceApi.getConfiguredFuxaCabins()
+  } catch (error) {
+    console.warn('Failed to load FUXA cabin-client mappings', error)
+    configuredCabins.value = []
+  }
+}
+
+onMounted(loadConfiguredCabins)
+watch(() => store.selectedNode?.label, loadConfiguredCabins)
 </script>
 
 <style scoped lang="scss">

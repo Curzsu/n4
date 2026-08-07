@@ -73,6 +73,19 @@ export interface FuxaBinding {
   status: 'READY' | 'ERROR'
 }
 
+export interface FuxaCabinSession {
+  cabinName: string
+  sessionId?: string
+  fuxaDeviceId: string
+  fuxaDeviceName: string
+  viewName: string
+  iframeUrl: string
+  enabled: boolean
+  sessionActive: boolean
+  activeSessionCount: number
+  heartbeatIntervalSeconds: number
+}
+
 export interface MonitorPoint {
   pointId: number
   registerId: string

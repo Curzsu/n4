@@ -4,6 +4,9 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 @Data
 @Configuration
 @ConfigurationProperties(prefix = "fuxa")
@@ -14,6 +17,27 @@ public class FuxaProperties {
     private String templateTopicDeviceId;
     private String templateViewId;
     private String templateViewName;
-    private String adapterId;
-    private String adapterName;
+    /** Session heartbeat timeout for on-demand cabin MQTT clients. */
+    private long cabinSessionTimeoutSeconds = 45;
+    /** How often the frontend renews an active cabin monitor session. */
+    private long cabinHeartbeatIntervalSeconds = 20;
+    /** Keep a client warm briefly after its last viewer leaves. */
+    private long cabinIdleShutdownDelaySeconds = 60;
+    /** Maximum JSON string length accepted when reading the FUXA project. */
+    private int projectMaxStringLength = 64_000_000;
+    /**
+     * Cabin name to FUXA MQTT client/view mapping.  The Client is disabled by
+     * default in FUXA and is enabled only when its cabin monitor is opened.
+     */
+    private Map<String, CabinClient> cabinClients = new LinkedHashMap<>();
+
+    @Data
+    public static class CabinClient {
+        /** Stable FUXA device id. Preferred over deviceName when both are set. */
+        private String deviceId;
+        /** Human-readable FUXA MQTT client name. */
+        private String deviceName;
+        /** FUXA view rendered for this cabin. */
+        private String viewName;
+    }
 }

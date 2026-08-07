@@ -23,11 +23,15 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class FuxaBindingService {
     private static final String SCRIPT_ID = "s_n4_dynamic_device_selector";
+    private static final String SOURCE_DEVICE_STYLE_START = "/* N4 source-device page begin */";
+    private static final String SOURCE_DEVICE_STYLE_END = "/* N4 source-device page end */";
 
     private final FuxaProperties properties;
     private final FuxaBindingRepository repository;
@@ -114,27 +118,11 @@ public class FuxaBindingService {
         );
         ObjectNode tags = requireObject(templateDevice.path("tags"), "Template device has no tags");
 
-        ObjectNode adapter = objectMapper.createObjectNode();
-        adapter.put("id", properties.getAdapterId());
-        adapter.put("name", properties.getAdapterName());
-        adapter.put("type", "internal");
-        adapter.put("enabled", true);
-        adapter.put("polling", 1000);
-        adapter.set("property", objectMapper.createObjectNode());
-
-        ObjectNode adapterTags = objectMapper.createObjectNode();
         Map<String, String> replacements = new HashMap<>();
         tags.fields().forEachRemaining(entry -> {
-            ObjectNode sourceTag = (ObjectNode) entry.getValue();
-            String adapterTagId = stableId("t_n4a_", sourceTag.path("name").asText());
-            ObjectNode adapterTag = sourceTag.deepCopy();
-            adapterTag.put("id", adapterTagId);
-            adapterTag.remove(java.util.List.of("value", "timestamp", "address", "options"));
-            adapterTags.set(adapterTagId, adapterTag);
-            replacements.put(entry.getKey(), adapterTagId);
+            String tagName = entry.getValue().path("name").asText();
+            replacements.put(entry.getKey(), "@" + tagName);
         });
-        adapter.set("tags", adapterTags);
-        setProjectData("set-device", adapter);
 
         ObjectNode view = findView(project);
         int replacementCount = replaceTextValues(view, replacements);
@@ -142,7 +130,7 @@ public class FuxaBindingService {
 
         ObjectNode script = objectMapper.createObjectNode();
         script.put("id", SCRIPT_ID);
-        script.put("name", "n4SelectFuxaDevice");
+        script.put("name", "n4OpenSourceDeviceView");
         script.put("mode", "CLIENT");
         script.put("sync", false);
         script.put("permission", 0);
@@ -150,34 +138,69 @@ public class FuxaBindingService {
         script.set("permissionRoles", objectMapper.createObjectNode().set("enabled", objectMapper.createArrayNode()));
         script.set("scheduling", objectMapper.createObjectNode()
             .put("mode", "interval")
-            .put("interval", 1)
+            .put("interval", 0.1)
             .set("schedules", objectMapper.createArrayNode()));
         script.put("code", """
-            const selectedDevice = new URLSearchParams(window.location.search).get('deviceName');
-            if (selectedDevice && window.__n4FuxaDevice !== selectedDevice) {
-              await $setAdapterToDevice('%s', selectedDevice);
-              window.__n4FuxaDevice = selectedDevice;
-              $setView('%s', true);
+            const sourceDeviceId = new URLSearchParams(window.location.search).get('sourceDeviceId');
+            document.documentElement.classList.toggle('n4-source-device-mode', Boolean(sourceDeviceId));
+            if (sourceDeviceId && window.__n4FuxaSourceDeviceId !== sourceDeviceId) {
+              window.__n4FuxaSourceDeviceId = sourceDeviceId;
+              $openCard('%s', {
+                hideClose: true,
+                left: 0,
+                top: 54,
+                relativeFrom: 'window',
+                singleCard: true,
+                sourceDeviceId
+              });
             }
             """.formatted(
-                properties.getAdapterName().replace("'", "\\'"),
                 properties.getTemplateViewName().replace("'", "\\'")
             ));
         setClientScript(script);
 
-        ObjectNode clientAccess = objectMapper.createObjectNode();
-        ArrayNode functions = objectMapper.createArrayNode();
-        functions.add("$setAdapterToDevice");
-        functions.add("$setView");
-        clientAccess.set("scriptSystemFunctions", functions);
-        setProjectData("client-access", clientAccess);
+        ObjectNode layout = requireObject(project.path("hmi").path("layout"), "FUXA layout not found");
+        String sourceDeviceStyles = """
+            %s
+            html.n4-source-device-mode app-fuxa-view#home > .view-container {
+              visibility: hidden !important;
+            }
+            html.n4-source-device-mode .fab-card:has(app-fuxa-view svg[width="1215"]) {
+              width: 1215px !important;
+              height: 548px !important;
+              overflow: hidden !important;
+              background: #050505 !important;
+              border: 0 !important;
+              border-radius: 0 !important;
+              box-shadow: none !important;
+            }
+            html.n4-source-device-mode .fab-card:has(app-fuxa-view svg[width="1215"]) > .card-move-area,
+            html.n4-source-device-mode .fab-card:has(app-fuxa-view svg[width="1215"]) .card-close {
+              display: none !important;
+            }
+            html.n4-source-device-mode .fab-card:has(app-fuxa-view svg[width="1215"]) > app-fuxa-view {
+              display: block !important;
+              width: 1215px !important;
+              height: 548px !important;
+              transform: none !important;
+            }
+            %s
+            """.formatted(SOURCE_DEVICE_STYLE_START, SOURCE_DEVICE_STYLE_END);
+        layout.put("customStyles", upsertMarkedBlock(
+            layout.path("customStyles").asText(""),
+            SOURCE_DEVICE_STYLE_START,
+            SOURCE_DEVICE_STYLE_END,
+            sourceDeviceStyles
+        ));
+        setProjectData("layout", layout);
 
         return Map.of(
-            "adapterName", properties.getAdapterName(),
+            "mode", "placeholder-source-device",
             "viewName", properties.getTemplateViewName(),
-            "tagCount", adapterTags.size(),
+            "tagCount", tags.size(),
             "bindingReplacements", replacementCount,
-            "scriptId", SCRIPT_ID
+            "scriptId", SCRIPT_ID,
+            "queryParameter", "sourceDeviceId"
         );
     }
 
@@ -302,6 +325,23 @@ public class FuxaBindingService {
         return count;
     }
 
+    private static String upsertMarkedBlock(
+        String existing,
+        String startMarker,
+        String endMarker,
+        String replacement
+    ) {
+        String current = existing == null ? "" : existing;
+        int start = current.indexOf(startMarker);
+        int end = start >= 0 ? current.indexOf(endMarker, start) : -1;
+        if (start >= 0 && end >= 0) {
+            current = current.substring(0, start)
+                + current.substring(end + endMarker.length());
+        }
+        current = current.trim();
+        return current.isEmpty() ? replacement.trim() : current + "\n\n" + replacement.trim();
+    }
+
     private ObjectNode getProject() {
         String result = fuxaClient.get().uri("/api/project").retrieve().body(String.class);
         try {
@@ -350,6 +390,20 @@ public class FuxaBindingService {
         scripts.add(script);
         project.set("scripts", scripts);
 
+        ObjectNode clientAccess = project.path("client-access").isObject()
+            ? ((ObjectNode) project.path("client-access")).deepCopy()
+            : objectMapper.createObjectNode();
+        Set<String> allowedFunctions = new LinkedHashSet<>();
+        JsonNode existingFunctions = clientAccess.path("scriptSystemFunctions");
+        if (existingFunctions.isArray()) {
+            existingFunctions.forEach(function -> allowedFunctions.add(function.asText()));
+        }
+        allowedFunctions.add("$openCard");
+        ArrayNode functions = objectMapper.createArrayNode();
+        allowedFunctions.forEach(functions::add);
+        clientAccess.set("scriptSystemFunctions", functions);
+        project.set("client-access", clientAccess);
+
         try {
             fuxaClient.post()
                 .uri("/api/project")
@@ -366,7 +420,7 @@ public class FuxaBindingService {
         String iframeUrl = UriComponentsBuilder.fromUriString(properties.getBaseUrl())
             .path("/home")
             .queryParam("viewName", binding.getViewName())
-            .queryParam("deviceName", binding.getFuxaDeviceName())
+            .queryParam("sourceDeviceId", binding.getFuxaDeviceId())
             .build().encode().toUriString();
         return FuxaBindingDto.builder()
             .deviceId(binding.getDeviceId())
