@@ -48,21 +48,29 @@ public class AlarmWebSocketHandler extends TextWebSocketHandler {
      */
     public void broadcast(String message) {
         if (sessions.isEmpty()) {
-            log.debug("No WebSocket clients connected, skipping broadcast");
+            // No connected frontend is a real signal (e.g. user closed the page),
+            // not a debug detail - surface it so a missing push can be told apart
+            // from a missing subscriber upstream.
+            log.warn("No WebSocket clients connected, alarm broadcast skipped");
             return;
         }
-        log.info("Broadcasting alarm update to {} WebSocket clients", sessions.size());
+        log.info("Broadcasting alarm update to {} WebSocket client(s)", sessions.size());
         TextMessage textMessage = new TextMessage(message);
+        int sent = 0;
+        int failed = 0;
         for (WebSocketSession session : sessions) {
             if (session.isOpen()) {
                 // Synchronize per session to prevent concurrent write errors
                 synchronized (session) {
                     try {
                         session.sendMessage(textMessage);
+                        sent++;
                     } catch (IOException e) {
+                        failed++;
                         log.warn("Failed to send WebSocket message to session {}: {}",
                                 session.getId(), e.getMessage());
                     } catch (IllegalStateException e) {
+                        failed++;
                         log.warn("WebSocket session {} in invalid state, removing: {}",
                                 session.getId(), e.getMessage());
                         sessions.remove(session);
@@ -70,6 +78,7 @@ public class AlarmWebSocketHandler extends TextWebSocketHandler {
                 }
             }
         }
+        log.info("WebSocket broadcast done: sent={}, failed={}", sent, failed);
     }
 
     /**

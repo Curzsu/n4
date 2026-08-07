@@ -259,13 +259,16 @@ public class TdengineSyncService {
         asyncExecutor.submit(() -> {
             try {
                 if (!ensureConnected()) {
-                    log.warn("TDengine not available, dropping realtime alarm: {}", state.getPath());
+                    log.error("TDengine not available, dropping realtime alarm: path={}, stage={}",
+                            state.getPath(), state.getStage());
                     return;
                 }
                 writeToRealtimeSupertable(state);
-                log.debug("Wrote realtime alarm to TDengine: {}", state.getPath());
+                log.info("Wrote realtime alarm to TDengine: path={}, stage={}, level={}",
+                        state.getPath(), state.getStage(), state.getLevel());
             } catch (Exception e) {
-                log.error("Failed to write realtime alarm for path: {}", state.getPath(), e);
+                log.error("Failed to write realtime alarm for path: {}, stage: {}",
+                        state.getPath(), state.getStage(), e);
             }
         });
     }
@@ -287,9 +290,15 @@ public class TdengineSyncService {
             pstmt.setString(1, path);
 
             // VALUES
-            pstmt.setTimestamp(2, new Timestamp(System.currentTimeMillis()));
+            // Timestamps are bound as raw epoch-millis longs (setLong) instead of
+            // java.sql.Timestamp (setTimestamp). Under the REST driver (jdbc:TAOS-RS)
+            // setTimestamp serializes the value to a naive datetime string using the
+            // JVM local timezone, while the TDengine server parses it as UTC - an
+            // 8-hour mismatch when the two zones differ. Passing the millis directly
+            // lets TDengine interpret it as an absolute UTC instant, timezone-safe.
+            pstmt.setLong(2, System.currentTimeMillis());
             Long dataTimestamp = state.getTimestamp();
-            pstmt.setTimestamp(3, dataTimestamp != null ? new Timestamp(dataTimestamp) : new Timestamp(System.currentTimeMillis()));
+            pstmt.setLong(3, dataTimestamp != null ? dataTimestamp : System.currentTimeMillis());
             pstmt.setString(4, state.getValue());
             pstmt.setString(5, state.getType());
             pstmt.setString(6, state.getLevel());
@@ -305,7 +314,7 @@ public class TdengineSyncService {
             pstmt.setString(16, state.getStageMessage());
             pstmt.setString(17, state.getDuration());
             Long alarmStart = state.getAlarmStartTime();
-            pstmt.setTimestamp(18, alarmStart != null ? new Timestamp(alarmStart) : null);
+            pstmt.setLong(18, alarmStart != null ? alarmStart : 0L);
 
             pstmt.executeUpdate();
         }
@@ -328,9 +337,12 @@ public class TdengineSyncService {
             pstmt.setString(1, path);
 
             // VALUES
-            pstmt.setTimestamp(2, new Timestamp(System.currentTimeMillis()));
+            // Raw epoch-millis (setLong) avoids the REST driver's local-zone
+            // string serialization that shifts timestamps by the JVM/server TZ
+            // offset. See writeToSnapshotSupertable for the full rationale.
+            pstmt.setLong(2, System.currentTimeMillis());
             Long dataTimestamp = state.getTimestamp();
-            pstmt.setTimestamp(3, dataTimestamp != null ? new Timestamp(dataTimestamp) : new Timestamp(System.currentTimeMillis()));
+            pstmt.setLong(3, dataTimestamp != null ? dataTimestamp : System.currentTimeMillis());
             pstmt.setString(4, state.getValue());
             pstmt.setString(5, state.getType());
             pstmt.setString(6, state.getLevel());
@@ -346,7 +358,7 @@ public class TdengineSyncService {
             pstmt.setString(16, state.getStageMessage());
             pstmt.setString(17, state.getDuration());
             Long alarmStart = state.getAlarmStartTime();
-            pstmt.setTimestamp(18, alarmStart != null ? new Timestamp(alarmStart) : null);
+            pstmt.setLong(18, alarmStart != null ? alarmStart : 0L);
 
             pstmt.executeUpdate();
         }
