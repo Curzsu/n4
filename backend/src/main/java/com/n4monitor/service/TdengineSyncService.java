@@ -314,7 +314,15 @@ public class TdengineSyncService {
             pstmt.setString(16, state.getStageMessage());
             pstmt.setString(17, state.getDuration());
             Long alarmStart = state.getAlarmStartTime();
-            pstmt.setLong(18, alarmStart != null ? alarmStart : 0L);
+            // alarm_start_time is NULL for non-alarm rows (no alarm has begun).
+            // Use setNull so TDengine stores a true NULL instead of epoch 0
+            // (which displays as 1970-01-01). Non-null values still use setLong
+            // for timezone-safe epoch-millis binding.
+            if (alarmStart != null) {
+                pstmt.setLong(18, alarmStart);
+            } else {
+                pstmt.setNull(18, Types.TIMESTAMP);
+            }
 
             pstmt.executeUpdate();
         }
@@ -358,7 +366,11 @@ public class TdengineSyncService {
             pstmt.setString(16, state.getStageMessage());
             pstmt.setString(17, state.getDuration());
             Long alarmStart = state.getAlarmStartTime();
-            pstmt.setLong(18, alarmStart != null ? alarmStart : 0L);
+            if (alarmStart != null) {
+                pstmt.setLong(18, alarmStart);
+            } else {
+                pstmt.setNull(18, Types.TIMESTAMP);
+            }
 
             pstmt.executeUpdate();
         }
