@@ -17,14 +17,8 @@ public class FuxaProperties {
     private String templateTopicDeviceId;
     private String templateViewId;
     private String templateViewName;
-    /** Session heartbeat timeout for on-demand cabin MQTT clients. */
-    private long cabinSessionTimeoutSeconds = 45;
-    /** How often the frontend renews an active cabin monitor session. */
-    private long cabinHeartbeatIntervalSeconds = 20;
     /** Keep a client warm briefly after its last viewer leaves. */
     private long cabinIdleShutdownDelaySeconds = 60;
-    /** Maximum JSON string length accepted when reading the FUXA project. */
-    private int projectMaxStringLength = 64_000_000;
     /**
      * Cabin name to FUXA MQTT client/view mapping.  The Client is disabled by
      * default in FUXA and is enabled only when its cabin monitor is opened.

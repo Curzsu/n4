@@ -15,5 +15,4 @@ public class FuxaCabinSessionDto {
     private boolean enabled;
     private boolean sessionActive;
     private int activeSessionCount;
-    private long heartbeatIntervalSeconds;
 }

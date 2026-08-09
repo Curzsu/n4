@@ -8,7 +8,7 @@ spring:
   datasource:
     url: jdbc:mysql://localhost:3306/n4_monitor?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
     username: root
-    password: 123456
+    password: zs156987
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   kafka:
@@ -61,10 +61,7 @@ fuxa:
   template-topic-device-id: ${FUXA_TEMPLATE_TOPIC_DEVICE_ID:EMSB_03_EM32}
   template-view-id: ${FUXA_TEMPLATE_VIEW_ID:v_h1_emsb_a4_03_em}
   template-view-name: ${FUXA_TEMPLATE_VIEW_NAME:H1_EMSB_A4_03_EM}
-  cabin-session-timeout-seconds: ${FUXA_CABIN_SESSION_TIMEOUT_SECONDS:20}
-  cabin-heartbeat-interval-seconds: ${FUXA_CABIN_HEARTBEAT_INTERVAL_SECONDS:10}
-  cabin-idle-shutdown-delay-seconds: ${FUXA_CABIN_IDLE_SHUTDOWN_DELAY_SECONDS:20}
-  project-max-string-length: ${FUXA_PROJECT_MAX_STRING_LENGTH:64000000}
+  cabin-idle-shutdown-delay-seconds: ${FUXA_CABIN_IDLE_SHUTDOWN_DELAY_SECONDS:60}
   # One preconfigured FUXA MQTT client represents one cabin. Keep that client
   # disabled in FUXA; the N4 monitor opens it on demand before loading the iframe.
   # cabin-clients:
@@ -75,7 +72,7 @@ fuxa:
   cabin-clients:
     J1_LVP_A1:                       # N4 前端树里的方舱名称
       device-name: LVP_A1   # FUXA 设备页中 MQTT Client 的名称
-      view-name: VARIABLE_MAPPING_TEST  # FUXA 方舱视图名称
+      view-name: A1_MVP_A1_CABIN_OVERVIEW  # FUXA 方舱视图名称
 
 logging:
   level:

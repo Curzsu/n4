@@ -1,9 +1,5 @@
 package com.n4monitor.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.n4monitor.config.FuxaProperties;
 import com.n4monitor.dto.FuxaCabinSessionDto;
 import org.springframework.http.HttpHeaders;
@@ -23,6 +19,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -33,20 +30,14 @@ import java.util.concurrent.ConcurrentHashMap;
 public class FuxaCabinClientService {
     private static final Logger LOGGER = LoggerFactory.getLogger(FuxaCabinClientService.class);
     private final FuxaProperties properties;
-    private final ObjectMapper objectMapper;
     private final RestClient fuxaClient;
     private final Map<String, Object> cabinLocks = new ConcurrentHashMap<>();
-    private final Map<String, Map<String, Instant>> sessionsByCabin = new ConcurrentHashMap<>();
+    private final Map<String, Set<String>> sessionsByCabin = new ConcurrentHashMap<>();
     private final Map<String, Instant> idleSinceByCabin = new ConcurrentHashMap<>();
+    private final Set<String> enabledCabins = ConcurrentHashMap.newKeySet();
 
-    public FuxaCabinClientService(FuxaProperties properties, ObjectMapper objectMapper) {
+    public FuxaCabinClientService(FuxaProperties properties) {
         this.properties = properties;
-        this.objectMapper = objectMapper.copy();
-        this.objectMapper.getFactory().setStreamReadConstraints(
-            StreamReadConstraints.builder()
-                .maxStringLength(properties.getProjectMaxStringLength())
-                .build()
-        );
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Duration.ofSeconds(5));
         requestFactory.setReadTimeout(Duration.ofSeconds(15));
@@ -63,35 +54,18 @@ public class FuxaCabinClientService {
 
     public FuxaCabinSessionDto openSession(String cabinName, String sessionId) {
         requireSessionId(sessionId);
+        LOGGER.info("Opening FUXA cabin session: cabin='{}', session='{}'", cabinName, sessionId);
         return withCabinLock(cabinName, () -> {
             FuxaProperties.CabinClient cabin = getCabin(cabinName);
-            Map<String, Instant> sessions = sessionsByCabin.computeIfAbsent(
-                normalize(cabinName), ignored -> new ConcurrentHashMap<>());
-            discardExpiredSessions(cabinName, sessions, Instant.now());
-            sessions.put(sessionId, Instant.now());
+            Set<String> sessions = getSessions(cabinName);
+            if (!enabledCabins.contains(normalize(cabinName))) {
+                enableDevice(cabin, true);
+                enabledCabins.add(normalize(cabinName));
+            }
+            sessions.add(sessionId);
             idleSinceByCabin.remove(normalize(cabinName));
-
-            ObjectNode device = findDevice(getProject(), cabin);
-            if (!device.path("enabled").asBoolean(false)) {
-                device.put("enabled", true);
-                setProjectData("set-device", device);
-            }
-            return toDto(cabinName, device, cabin, sessionId, true, sessions.size());
-        });
-    }
-
-    public FuxaCabinSessionDto heartbeat(String cabinName, String sessionId) {
-        requireSessionId(sessionId);
-        return withCabinLock(cabinName, () -> {
-            FuxaProperties.CabinClient cabin = getCabin(cabinName);
-            Map<String, Instant> sessions = getSessions(cabinName);
-            discardExpiredSessions(cabinName, sessions, Instant.now());
-            if (!sessions.containsKey(sessionId)) {
-                throw new IllegalArgumentException("Cabin monitor session has expired");
-            }
-            sessions.put(sessionId, Instant.now());
-            ObjectNode device = findDevice(getProject(), cabin);
-            return toDto(cabinName, device, cabin, sessionId, true, sessions.size());
+            LOGGER.info("Opened FUXA cabin session: cabin='{}', activeSessions={}", cabinName, sessions.size());
+            return toDto(cabinName, cabin, sessionId, true, sessions.size());
         });
     }
 
@@ -99,28 +73,25 @@ public class FuxaCabinClientService {
         requireSessionId(sessionId);
         return withCabinLock(cabinName, () -> {
             FuxaProperties.CabinClient cabin = getCabin(cabinName);
-            Map<String, Instant> sessions = getSessions(cabinName);
+            Set<String> sessions = getSessions(cabinName);
             sessions.remove(sessionId);
             if (sessions.isEmpty()) {
                 idleSinceByCabin.putIfAbsent(normalize(cabinName), Instant.now());
             }
-            ObjectNode device = findDevice(getProject(), cabin);
-            return toDto(cabinName, device, cabin, sessionId, false, sessions.size());
+            return toDto(cabinName, cabin, sessionId, false, sessions.size());
         });
     }
 
     public FuxaCabinSessionDto status(String cabinName) {
         return withCabinLock(cabinName, () -> {
             FuxaProperties.CabinClient cabin = getCabin(cabinName);
-            Map<String, Instant> sessions = getSessions(cabinName);
-            discardExpiredSessions(cabinName, sessions, Instant.now());
-            ObjectNode device = findDevice(getProject(), cabin);
-            return toDto(cabinName, device, cabin, null, false, sessions.size());
+            Set<String> sessions = getSessions(cabinName);
+            return toDto(cabinName, cabin, null, false, sessions.size());
         });
     }
 
     @Scheduled(fixedDelayString = "${fuxa.cabin-session-reaper-ms:10000}")
-    public void releaseExpiredSessions() {
+    public void disableIdleCabinClients() {
         var cabinKeys = new HashSet<String>();
         cabinKeys.addAll(sessionsByCabin.keySet());
         cabinKeys.addAll(idleSinceByCabin.keySet());
@@ -128,9 +99,8 @@ public class FuxaCabinClientService {
             try {
                 withCabinLock(cabinKey, () -> {
                     FuxaProperties.CabinClient cabin = getCabin(cabinKey);
-                    Map<String, Instant> sessions = getSessions(cabinKey);
+                    Set<String> sessions = getSessions(cabinKey);
                     Instant now = Instant.now();
-                    discardExpiredSessions(cabinKey, sessions, now);
                     if (!sessions.isEmpty()) {
                         idleSinceByCabin.remove(normalize(cabinKey));
                         return null;
@@ -139,11 +109,10 @@ public class FuxaCabinClientService {
                     Instant idleSince = idleSinceByCabin.putIfAbsent(normalize(cabinKey), now);
                     if (idleSince != null && Duration.between(idleSince, now).toSeconds()
                         >= properties.getCabinIdleShutdownDelaySeconds()) {
-                        ObjectNode device = findDevice(getProject(), cabin);
-                        if (device.path("enabled").asBoolean(false)) {
-                            device.put("enabled", false);
-                            setProjectData("set-device", device);
-                            LOGGER.info("Disabled idle FUXA cabin MQTT client '{}'", device.path("name").asText());
+                        if (enabledCabins.contains(normalize(cabinKey))) {
+                            enableDevice(cabin, false);
+                            enabledCabins.remove(normalize(cabinKey));
+                            LOGGER.info("Disabled idle FUXA cabin MQTT client '{}'", cabin.getDeviceName());
                         }
                         sessionsByCabin.remove(normalize(cabinKey));
                         idleSinceByCabin.remove(normalize(cabinKey));
@@ -169,53 +138,21 @@ public class FuxaCabinClientService {
                 "No FUXA cabin client mapping exists for '" + cabinName + "'"));
     }
 
-    private ObjectNode getProject() {
-        try {
-            String result = fuxaClient.get().uri("/api/project").retrieve().body(String.class);
-            JsonNode project = objectMapper.readTree(result);
-            if (project == null || !project.isObject()) {
-                throw new IllegalStateException("FUXA returned an invalid project document");
-            }
-            return (ObjectNode) project;
-        } catch (Exception ex) {
-            throw new IllegalStateException("Cannot read the FUXA project: " + ex.getMessage(), ex);
+    private void enableDevice(FuxaProperties.CabinClient cabin, boolean enable) {
+        if (!hasText(cabin.getDeviceName())) {
+            throw new IllegalArgumentException("Mapped FUXA MQTT client name is required");
         }
-    }
-
-    private ObjectNode findDevice(ObjectNode project, FuxaProperties.CabinClient cabin) {
-        JsonNode devices = project.path("devices");
-        if (!devices.isObject()) {
-            throw new IllegalStateException("FUXA project contains no devices");
-        }
-
-        if (hasText(cabin.getDeviceId())) {
-            JsonNode byId = devices.path(cabin.getDeviceId().trim());
-            if (byId.isObject()) {
-                return ((ObjectNode) byId).deepCopy();
-            }
-        }
-
-        if (hasText(cabin.getDeviceName())) {
-            var fields = devices.fields();
-            while (fields.hasNext()) {
-                Map.Entry<String, JsonNode> entry = fields.next();
-                if (cabin.getDeviceName().trim().equals(entry.getValue().path("name").asText())) {
-                    return ((ObjectNode) entry.getValue()).deepCopy();
-                }
-            }
-        }
-        throw new IllegalArgumentException("Mapped FUXA MQTT client was not found");
-    }
-
-    private void setProjectData(String command, JsonNode data) {
-        ObjectNode body = objectMapper.createObjectNode();
-        body.put("cmd", command);
-        body.set("data", data);
+        Map<String, Object> body = Map.of(
+            "params", Map.of(
+                "functionName", "$enableDevice",
+                "parameters", List.of(cabin.getDeviceName().trim(), enable)
+            )
+        );
         try {
             fuxaClient.post()
-                .uri("/api/projectData")
+                .uri("/api/runSysFunction")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(objectMapper.writeValueAsString(body))
+                .body(body)
                 .retrieve()
                 .toBodilessEntity();
         } catch (Exception ex) {
@@ -225,7 +162,6 @@ public class FuxaCabinClientService {
 
     private FuxaCabinSessionDto toDto(
         String cabinName,
-        ObjectNode device,
         FuxaProperties.CabinClient cabin,
         String sessionId,
         boolean sessionActive,
@@ -236,8 +172,9 @@ public class FuxaCabinClientService {
             ? UriComponentsBuilder.fromUriString(properties.getBaseUrl())
                 // FUXA's dedicated view route renders the HMI only, without
                 // the Home page navigation and editor-facing chrome.
-                .path("/view")
-                .queryParam("name", viewName)
+                .path("/home")
+                .queryParam("viewName", viewName)
+                .queryParam("mqttDeviceName", cabin.getDeviceName())
                 .build()
                 .encode()
                 .toUriString()
@@ -245,33 +182,19 @@ public class FuxaCabinClientService {
         return FuxaCabinSessionDto.builder()
             .cabinName(cabinName)
             .sessionId(sessionId)
-            .fuxaDeviceId(device.path("id").asText())
-            .fuxaDeviceName(device.path("name").asText())
+            .fuxaDeviceId(cabin.getDeviceId())
+            .fuxaDeviceName(cabin.getDeviceName())
             .viewName(viewName)
             .iframeUrl(iframeUrl)
-            .enabled(device.path("enabled").asBoolean(false))
+            .enabled(enabledCabins.contains(normalize(cabinName)))
             .sessionActive(sessionActive)
             .activeSessionCount(activeSessionCount)
-            .heartbeatIntervalSeconds(getHeartbeatIntervalSeconds())
             .build();
     }
 
-    private long getHeartbeatIntervalSeconds() {
-        long timeout = properties.getCabinSessionTimeoutSeconds();
-        long configured = properties.getCabinHeartbeatIntervalSeconds();
-        return Math.max(5, Math.min(configured, Math.max(5, timeout - 5)));
-    }
-
-    private Map<String, Instant> getSessions(String cabinName) {
-        return sessionsByCabin.computeIfAbsent(normalize(cabinName), ignored -> new ConcurrentHashMap<>());
-    }
-
-    private void discardExpiredSessions(String cabinName, Map<String, Instant> sessions, Instant now) {
-        long timeoutSeconds = properties.getCabinSessionTimeoutSeconds();
-        sessions.entrySet().removeIf(entry -> Duration.between(entry.getValue(), now).toSeconds() > timeoutSeconds);
-        if (sessions.isEmpty()) {
-            idleSinceByCabin.putIfAbsent(normalize(cabinName), now);
-        }
+    private Set<String> getSessions(String cabinName) {
+        return sessionsByCabin.computeIfAbsent(
+            normalize(cabinName), ignored -> ConcurrentHashMap.newKeySet());
     }
 
     private <T> T withCabinLock(String cabinName, CabinAction<T> action) {

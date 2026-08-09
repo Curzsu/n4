@@ -68,20 +68,6 @@ public class FuxaBindingController {
         }
     }
 
-    @PostMapping("/cabins/{cabinName}/sessions/{sessionId}/heartbeat")
-    public ApiResponse<FuxaCabinSessionDto> heartbeatCabinSession(
-        @PathVariable String cabinName,
-        @PathVariable String sessionId
-    ) {
-        try {
-            return ApiResponse.success(cabinClientService.heartbeat(cabinName, sessionId));
-        } catch (IllegalArgumentException ex) {
-            return ApiResponse.error(404, ex.getMessage());
-        } catch (IllegalStateException ex) {
-            return ApiResponse.error(502, ex.getMessage());
-        }
-    }
-
     @DeleteMapping("/cabins/{cabinName}/sessions/{sessionId}")
     public ApiResponse<FuxaCabinSessionDto> releaseCabinSession(
         @PathVariable String cabinName,

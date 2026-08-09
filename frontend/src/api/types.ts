@@ -83,7 +83,6 @@ export interface FuxaCabinSession {
   enabled: boolean
   sessionActive: boolean
   activeSessionCount: number
-  heartbeatIntervalSeconds: number
 }
 
 export interface MonitorPoint {

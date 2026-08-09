@@ -6,6 +6,7 @@
         <h3>{{ cabinName }} Graphical Monitor</h3>
         <span :class="['connection-state', { active: monitoring && session?.enabled }]">
           {{ monitoring && session?.enabled ? 'MQTT connected' : 'MQTT stopped' }}
+          <template v-if="session"> · {{ session.activeSessionCount }} viewer(s)</template>
         </span>
       </div>
       <el-tooltip :content="monitoring ? 'Stop this monitor session' : 'Start this monitor session'" placement="top">
@@ -56,7 +57,7 @@ const monitoring = ref(false)
 const sessionId = typeof crypto !== 'undefined' && crypto.randomUUID
   ? crypto.randomUUID()
   : `cabin-${Date.now()}-${Math.random().toString(36).slice(2)}`
-let heartbeatTimer: ReturnType<typeof setInterval> | undefined
+let releaseRequested = false
 
 async function openCabin() {
   loading.value = true
@@ -65,7 +66,7 @@ async function openCabin() {
   try {
     session.value = await deviceApi.openFuxaCabinSession(props.cabinName, sessionId)
     monitoring.value = true
-    startHeartbeat()
+    releaseRequested = false
   } catch (error) {
     console.error(`Failed to open FUXA cabin ${props.cabinName}`, error)
     errorMessage.value = error instanceof Error
@@ -80,13 +81,11 @@ async function toggleCabin() {
   changingState.value = true
   try {
     if (monitoring.value) {
-      session.value = await deviceApi.releaseFuxaCabinSession(props.cabinName, sessionId)
-      monitoring.value = false
-      stopHeartbeat()
+      await releaseCabin()
     } else {
       session.value = await deviceApi.openFuxaCabinSession(props.cabinName, sessionId)
       monitoring.value = true
-      startHeartbeat()
+      releaseRequested = false
     }
   } catch (error) {
     console.error(`Failed to toggle FUXA cabin ${props.cabinName}`, error)
@@ -95,30 +94,38 @@ async function toggleCabin() {
   }
 }
 
-function startHeartbeat() {
-  stopHeartbeat()
-  heartbeatTimer = setInterval(async () => {
-    if (!monitoring.value) return
-    try {
-      session.value = await deviceApi.heartbeatFuxaCabinSession(props.cabinName, sessionId)
-    } catch (error) {
-      console.warn(`FUXA cabin session heartbeat failed for ${props.cabinName}`, error)
-    }
-  }, (session.value?.heartbeatIntervalSeconds ?? 20) * 1000)
+async function releaseCabin() {
+  if (!monitoring.value || releaseRequested) return
+  releaseRequested = true
+  try {
+    session.value = await deviceApi.releaseFuxaCabinSession(props.cabinName, sessionId)
+    monitoring.value = false
+  } finally {
+    releaseRequested = false
+  }
 }
 
-function stopHeartbeat() {
-  if (heartbeatTimer) clearInterval(heartbeatTimer)
-  heartbeatTimer = undefined
+function releaseOnPageExit() {
+  if (!monitoring.value || releaseRequested) return
+  releaseRequested = true
+  monitoring.value = false
+  const cabin = encodeURIComponent(props.cabinName)
+  const viewer = encodeURIComponent(sessionId)
+  void fetch(`/api/fuxa/cabins/${cabin}/sessions/${viewer}`, {
+    method: 'DELETE',
+    credentials: 'same-origin',
+    keepalive: true,
+  })
 }
 
-onMounted(openCabin)
+onMounted(() => {
+  window.addEventListener('pagehide', releaseOnPageExit)
+  void openCabin()
+})
 
 onBeforeUnmount(() => {
-  stopHeartbeat()
-  if (monitoring.value) {
-    void deviceApi.releaseFuxaCabinSession(props.cabinName, sessionId)
-  }
+  window.removeEventListener('pagehide', releaseOnPageExit)
+  releaseOnPageExit()
 })
 </script>
 
