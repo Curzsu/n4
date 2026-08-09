@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.n4monitor.mapper.AlarmRuleEnumMapper">
+
+    <select id="findAll" resultType="com.n4monitor.entity.AlarmRuleEnumEntity">
+        SELECT * FROM alarm_rule_enum WHERE is_deleted = 0 ORDER BY alarm_name, enum_value
+    </select>
+
+    <select id="findByAlarmName" resultType="com.n4monitor.entity.AlarmRuleEnumEntity">
+        SELECT * FROM alarm_rule_enum WHERE alarm_name = #{alarmName} AND is_deleted = 0 ORDER BY enum_value
+    </select>
+
+    <select id="findAlarmNamesByPointNamePrefix" resultType="java.lang.String">
+        SELECT DISTINCT alarm_name FROM alarm_rule_enum
+        WHERE alarm_name LIKE CONCAT(#{prefix}, '_%')
+    </select>
+
+    <insert id="insert" parameterType="com.n4monitor.entity.AlarmRuleEnumEntity"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO alarm_rule_enum (
+            alarm_name, point_type, enum_value, enum_meaning, severity, message
+        ) VALUES (
+            #{alarmName}, #{pointType}, #{enumValue}, #{enumMeaning}, #{severity}, #{message}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.n4monitor.entity.AlarmRuleEnumEntity">
+        UPDATE alarm_rule_enum SET
+            alarm_name    = #{alarmName},
+            enum_value    = #{enumValue},
+            enum_meaning  = #{enumMeaning},
+            severity      = #{severity},
+            message       = #{message}
+        WHERE id = #{id} AND is_deleted = 0
+    </update>
+
+    <!-- Physical delete: the unique index uk_alarm_name_enum(alarm_name, enum_value)
+         covers all rows including logically-deleted ones, so a soft delete would
+         cause DuplicateKeyException when re-inserting the same enum values.
+         Physical delete frees the index slots for the re-insert in updateEnumRules. -->
+    <delete id="deleteByAlarmName">
+        DELETE FROM alarm_rule_enum WHERE alarm_name = #{alarmName}
+    </delete>
+
+    <delete id="deleteById">
+        DELETE FROM alarm_rule_enum WHERE id = #{id}
+    </delete>
+
+</mapper>

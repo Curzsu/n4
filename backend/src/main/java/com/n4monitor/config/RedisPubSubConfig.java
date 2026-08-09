@@ -26,10 +26,10 @@ import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 @RequiredArgsConstructor
 public class RedisPubSubConfig {
 
-    @Value("${alarm.redis.notification-channel:alarm:notifications}")
+    @Value("${alarm.redis.notification-channel}")
     private String alarmNotificationChannel;
 
-    @Value("${alarm.redis.realtime-channel:alarm:realtime}")
+    @Value("${alarm.redis.realtime-channel}")
     private String alarmRealtimeChannel;
 
     private final AlarmNotificationListener alarmNotificationListener;

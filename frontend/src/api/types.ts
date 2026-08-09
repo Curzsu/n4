@@ -161,9 +161,9 @@ export interface AlarmSourceData {
   items: SourceItem[]
 }
 
-// ===== Alarm Rule (alarm_rule table) =====
+// ===== Alarm Rules (three type-specific tables) =====
 
-export interface AlarmRuleItem {
+export interface BooleanRuleItem {
   id?: number
   alarmName: string
   pointName?: string
@@ -171,14 +171,23 @@ export interface AlarmRuleItem {
   booleanValue?: string
   booleanSeverity?: string
   booleanMessage?: string
-  highValue?: string
-  highSeverity?: string
-  highMessage?: string
-  highHysteresis?: string
+  createTime?: string
+  updateTime?: string
+}
+
+export interface NumericRuleItem {
+  id?: number
+  alarmName: string
+  pointName?: string
+  pointType?: string
   highHighValue?: string
   highHighSeverity?: string
   highHighMessage?: string
   highHighHysteresis?: string
+  highValue?: string
+  highSeverity?: string
+  highMessage?: string
+  highHysteresis?: string
   lowValue?: string
   lowSeverity?: string
   lowMessage?: string
@@ -190,4 +199,27 @@ export interface AlarmRuleItem {
   createTime?: string
   updateTime?: string
 }
+
+export interface EnumRuleItem {
+  id?: number
+  alarmName: string
+  pointName?: string
+  pointType?: string
+  enumValue: number
+  enumMeaning?: string
+  severity?: string
+  message?: string
+  createTime?: string
+  updateTime?: string
+}
+export interface Product {
+  productId?: number
+  productName: string
+  productType: string
+  model?: string
+  manufacturer?: string
+  manuDate?: string
+  isDeleted?: boolean
+}
+
 

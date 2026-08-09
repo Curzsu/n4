@@ -54,7 +54,7 @@ def extract_point_name(path: str) -> str:
     return parts[-1] if parts else ""
 
 
-def build_payload(path: str, value: str) -> dict:
+def build_payload(path: str, value: str, point_type: str) -> dict:
     """按固定格式构造消息体。"""
     point_name = extract_point_name(path)
     return {
@@ -62,7 +62,7 @@ def build_payload(path: str, value: str) -> dict:
         "displayName": point_name,
         "path": path,
         "value": value,
-        "type": None,
+        "type": point_type,
         "unit": None,
         "max": None,
         "min": None,
@@ -101,7 +101,12 @@ def main():
 
             value = input("请输入要发送的 value: ").strip()
 
-            payload_dict = build_payload(path, value)
+            point_type = input("请输入 type (numeric/boolean/string/enum): ").strip().lower()
+            if point_type not in ("numeric", "boolean", "string", "enum"):
+                print(f"[WARN] 未知类型 '{point_type}'，将使用 string")
+                point_type = "string"
+
+            payload_dict = build_payload(path, value, point_type)
             payload = json.dumps(payload_dict, ensure_ascii=False)
 
             future = producer.send(

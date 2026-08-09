@@ -11,7 +11,7 @@
         {{ tab.label }}
         <span v-if="tab.count" class="tab-count">{{ tab.count }}</span>
       </div>
-      <div class="tab-actions">
+      <div v-if="activeTab !== 'cleared'" class="tab-actions">
         <el-button
           :type="isAllSelected ? 'primary' : 'default'"
           size="small"
@@ -42,7 +42,7 @@
       border
       v-loading="loading"
     >
-      <el-table-column width="48" align="center">
+      <el-table-column v-if="activeTab !== 'cleared'" width="48" align="center">
         <template #default="{ row }">
           <el-checkbox
             :model-value="selectedIds.has(row.id)"
@@ -54,9 +54,12 @@
       <el-table-column prop="time" label="Time" width="130" show-overflow-tooltip />
       <el-table-column prop="severity" label="Severity" width="90">
         <template #default="{ row }">
-          <el-tag class="severity-tag" :type="severityTagType(row.severity)" size="small" effect="dark">
+          <span
+            class="severity-tag"
+            :style="severityStyle(row)"
+          >
             {{ row.severity }}
-          </el-tag>
+          </span>
         </template>
       </el-table-column>
       <el-table-column prop="source" label="Source" min-width="200" show-overflow-tooltip />
@@ -81,7 +84,8 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { alarmApi } from '@/api/alarm'
 import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
-import { normalizeRecord, severityTagType } from '@/utils/alarm'
+import { normalizeRecord } from '@/utils/alarm'
+import { getSeverityColor } from '@/config/severityColors'
 import ElapsedDuration from '@/components/ElapsedDuration.vue'
 import type { AlarmRecord } from '@/api/types'
 
@@ -91,6 +95,7 @@ const props = defineProps<{ deviceName?: string }>()
 
 const loading = ref(false)
 const tableData = ref<AlarmRecord[]>([])
+const clearedData = ref<AlarmRecord[]>([])
 const activeTab = ref('active')
 const selectedIds = ref<Set<string>>(new Set())
 const tablePanelRef = ref<HTMLDivElement>()
@@ -115,6 +120,20 @@ function matchesDevice(record: AlarmRecord): boolean {
   }
   // Fallback: substring match
   return path.includes(props.deviceName)
+}
+
+/** Build inline style for the severity tag.
+ *  - Normal: colored text + semi-transparent bg + colored border
+ *  - Reversed (recovered unack, stage=end + Unack): background = table bg,
+ *    text + border = severity color (inverted effect) */
+function severityStyle(row: AlarmRecord): Record<string, string> {
+  const color = getSeverityColor(row.severity)
+  const isReversed = row.stage === 'end'
+  return {
+    color: isReversed ? color : '#111827',
+    backgroundColor: isReversed ? '#111827' : color,
+    borderColor: isReversed ? color : '#111827',
+  }
 }
 
 function updateTableHeight() {
@@ -207,18 +226,30 @@ const tabs = computed(() => [
 ])
 
 const filteredData = computed(() => {
-  const deviceFiltered = props.deviceName
-    ? tableData.value.filter(a => matchesDevice(a))
-    : tableData.value
   switch (activeTab.value) {
-    case 'unacknowledged':
+    case 'unacknowledged': {
+      const deviceFiltered = props.deviceName
+        ? tableData.value.filter(a => matchesDevice(a))
+        : tableData.value
       return deviceFiltered.filter(a => a.status === 'Unack')
-    case 'acknowledged':
+    }
+    case 'acknowledged': {
+      const deviceFiltered = props.deviceName
+        ? tableData.value.filter(a => matchesDevice(a))
+        : tableData.value
       return deviceFiltered.filter(a => a.status === 'Ack')
+    }
     case 'cleared':
-      return deviceFiltered.filter(a => a.status === 'Cleared')
-    default:
+      // Cleared data comes from TDengine, not Redis tableData
+      return props.deviceName
+        ? clearedData.value.filter(a => matchesDevice(a))
+        : clearedData.value
+    default: {
+      const deviceFiltered = props.deviceName
+        ? tableData.value.filter(a => matchesDevice(a))
+        : tableData.value
       return deviceFiltered
+    }
   }
 })
 
@@ -248,7 +279,7 @@ async function ackSelected() {
 const headerCellStyle = {
   backgroundColor: '#0d1117',
   color: '#e5e7eb',
-  fontSize: '12px',
+  fontSize: '10px',
   fontWeight: '600',
   borderBottom: '1px solid #2d3748',
 }
@@ -256,7 +287,7 @@ const headerCellStyle = {
 const cellStyle = {
   backgroundColor: '#111827',
   color: '#e5e7eb',
-  fontSize: '12px',
+  fontSize: '10px',
   borderBottom: '1px solid #1f2937',
 }
 
@@ -277,10 +308,27 @@ async function fetchData() {
   }
 }
 
+async function fetchClearedAlarms() {
+  loading.value = true
+  try {
+    const raw = await alarmApi.getClearedAlarms()
+    clearedData.value = raw.map(normalizeRecord)
+    nextTick(updateVisibleRows)
+  } catch (e) {
+    console.error('Failed to fetch cleared alarms:', e)
+  } finally {
+    loading.value = false
+  }
+}
+
 function onTabChange(tab: string) {
   activeTab.value = tab
   selectedIds.value.clear()
-  nextTick(updateVisibleRows)
+  if (tab === 'cleared') {
+    fetchClearedAlarms()
+  } else {
+    nextTick(updateVisibleRows)
+  }
 }
 
 // Handle real-time WebSocket updates
@@ -289,6 +337,7 @@ onUpdate((data: any) => {
 
   const newRecord = normalizeRecord(data.alarm)
 
+  //TODO: 这个代码是否多余？
   // When scoped to a device, skip records that don't belong to it — but still
   // process cleared signals so a device's removed alarm disappears.
   if (props.deviceName && !matchesDevice(newRecord)) {
@@ -440,7 +489,7 @@ onBeforeUnmount(() => {
 }
 
 .status-text {
-  font-size: 12px;
+  font-size: 10px;
   &.unack { color: $accent-red; }
   &.ack { color: $accent-green; }
   &.cleared { color: $text-muted; }
@@ -481,6 +530,29 @@ onBeforeUnmount(() => {
   td, th {
     border-bottom: 1px solid #1f2937;
   }
+
+  // Compact row height: reduce cell padding + line-height
+  .el-table__cell {
+    padding: 0 4px !important;
+  }
+  .el-table__header-cell {
+    padding: 0 4px !important;
+  }
+  // .cell is the inner div — Element Plus sets line-height: 23px which
+  // dominates the row height. Override with higher specificity + !important.
+  td.el-table__cell .cell,
+  th.el-table__header-cell .cell {
+    padding: 0 4px !important;
+    line-height: 20px !important;
+    height: 20px !important;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+  }
+  // Center-align cells that use text (non-flex content)
+  td.el-table__cell.is-center .cell {
+    justify-content: center;
+  }
 }
 
 :deep(.el-table__empty-block) {
@@ -501,10 +573,19 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
 }
 
+
 .severity-tag {
-  width: 70px;
+  width: 55px;
+  height: 16px;
+  line-height: 16px;
   display: inline-flex;
+  align-items: center;
   justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  border: 1px solid;
+  border-radius: 3px;
+  /* color / backgroundColor / borderColor set via inline style from severityStyle() */
 }
 
 // Disabled checkboxes (Ack rows) must be visually obvious — Element Plus's
@@ -521,6 +602,20 @@ onBeforeUnmount(() => {
     // A checked+disabled box stays grey so it reads as "locked", not "selected"
     background-color: #4b5563;
     border-color: #6b7280;
+  }
+}
+
+// Shrink checkboxes to fit the compact 20px row height (Element Plus default is 32px)
+:deep(.el-checkbox) {
+  height: 18px;
+  .el-checkbox__inner {
+    width: 14px;
+    height: 14px;
+    border-radius: 2px;
+  }
+  .el-checkbox__label {
+    font-size: 10px;
+    padding-left: 6px;
   }
 }
 </style>

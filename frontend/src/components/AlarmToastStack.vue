@@ -5,13 +5,15 @@
         v-for="(toast, index) in toasts"
         :key="toast.toastId"
         class="alarm-toast"
-        :class="toast.severity.toLowerCase()"
-        :style="toastStyle(index)"
+        :style="[toastStyle(index), { borderLeftColor: getSeverityColor(toast.severity) }]"
       >
-        <span class="toast-time">{{ toast.time }}</span>
-        <el-tag class="severity-tag" :type="severityTagType(toast.severity)" size="small" effect="dark">
+        <span class="toast-time">{{ formatTimeOnly(toast.time) }}</span>
+        <span
+          class="severity-tag"
+          :style="{ color: '#111827', backgroundColor: getSeverityColor(toast.severity), borderColor: '#111827' }"
+        >
           {{ toast.severity }}
-        </el-tag>
+        </span>
         <span class="toast-source" :title="toast.source">{{ toast.source }}</span>
         <el-icon class="close-btn" @click="removeToast(toast.toastId)"><Close /></el-icon>
       </div>
@@ -24,8 +26,17 @@ import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { Close } from '@element-plus/icons-vue'
 import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
 import { alarmAudioConfig } from '@/config/alarmAudio'
-import { normalizeRecord, severityTagType } from '@/utils/alarm'
+import { getSeverityColor } from '@/config/severityColors'
+import { normalizeRecord } from '@/utils/alarm'
 import type { AlarmRecord } from '@/api/types'
+
+/** Extract HH:mm:ss from a "yyyy-MM-dd HH:mm:ss" time string */
+function formatTimeOnly(time: string): string {
+  if (!time) return '-'
+  // Take the part after the first space, or the whole string if no space
+  const spaceIdx = time.indexOf(' ')
+  return spaceIdx >= 0 ? time.substring(spaceIdx + 1) : time
+}
 
 interface ToastItem extends AlarmRecord {
   toastId: string
@@ -149,16 +160,11 @@ $toast-height: 48px;
   gap: 10px;
   background-color: $bg-card;
   border: 1px solid $border-card;
-  border-left: 4px solid $text-muted;
+  border-left: 4px solid $text-muted;  /* overridden by inline style */
   border-radius: 8px;
   padding: 0 12px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   pointer-events: auto;
-
-  &.critical { border-left-color: $accent-red; }
-  &.major { border-left-color: $accent-orange; }
-  &.minor { border-left-color: $accent-yellow; }
-  &.warning { border-left-color: $accent-blue; }
 }
 
 .toast-time {
@@ -169,10 +175,18 @@ $toast-height: 48px;
 }
 
 .severity-tag {
-  width: 70px;
+  width: 55px;
+  height: 18px;
+  line-height: 18px;
   display: inline-flex;
+  align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid;
+  border-radius: 3px;
+  /* color / backgroundColor / borderColor set via inline style */
 }
 
 .toast-source {

@@ -18,6 +18,16 @@ const router = createRouter({
       name: 'alarm-config',
       component: () => import('@/views/AlarmConfigView.vue'),
     },
+    {
+      path: '/device-template',
+      name: 'device-template',
+      component: () => import('@/views/device-deploy/ProductManagerView.vue'),
+    },
+    {
+      path: '/device-deployment',
+      name: 'device-deployment',
+      component: () => import('@/views/device-deploy/DeviceDeploymentView.vue'),
+    },
   ],
 })
 

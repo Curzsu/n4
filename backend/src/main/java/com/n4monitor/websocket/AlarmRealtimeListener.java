@@ -22,7 +22,7 @@ import org.springframework.stereotype.Component;
 public class AlarmRealtimeListener implements MessageListener {
 
     private final TdengineSyncService tdengineSyncService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     @Override
     public void onMessage(Message message, byte[] pattern) {

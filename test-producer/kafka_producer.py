@@ -37,7 +37,7 @@ KAFKA_TOPIC = "obix-mqtt-points"
 LOG_FILE = str(Path(__file__).parent.parent / "材料" / "points-2.log")
 
 # Seconds between each message (1.0 = one message per second)
-SEND_INTERVAL = 1.0
+SEND_INTERVAL = 2
 
 # Whether to loop continuously after reaching the end of the file
 LOOP = True
@@ -99,6 +99,20 @@ def parse_log_line(line: str) -> dict | None:
     }
 
 
+def infer_type(value: str) -> str:
+    """Infer the point type from its value: boolean | numeric | string."""
+    if not value:
+        return "string"
+    v = value.strip().lower()
+    if v in ("true", "false"):
+        return "boolean"
+    try:
+        float(v)
+        return "numeric"
+    except ValueError:
+        return "string"
+
+
 # ── Main producer loop ─────────────────────────────────────────────
 def run():
     log_path = Path(LOG_FILE)
@@ -158,6 +172,8 @@ def run():
                 try:
                     obj = json.loads(value_str)
                     obj["timestamp"] = int(time.time() * 1000)
+                    # Infer and set type from value
+                    obj["type"] = infer_type(str(obj.get("value", "")))
                     value_str = json.dumps(obj, ensure_ascii=False)
                 except Exception:
                     pass

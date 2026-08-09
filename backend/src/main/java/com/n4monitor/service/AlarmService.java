@@ -25,10 +25,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AlarmService {
 
-    @Value("${alarm.redis.active-key:alarm:active}")
+    @Value("${alarm.redis.active-key}")
     private String activeRedisKey;
 
-    @Value("${alarm.redis.notification-channel:alarm:notifications}")
+    @Value("${alarm.redis.notification-channel}")
     private String notificationChannel;
 
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -36,7 +36,7 @@ public class AlarmService {
 
     private final StringRedisTemplate redisTemplate;
     private final TdengineSyncService tdengineSyncService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     /**
      * Read all alarm states from Redis and convert to AlarmRecordDto list.
@@ -113,6 +113,14 @@ public class AlarmService {
                     .filter(a -> "Cleared".equals(a.getStatus())).collect(Collectors.toList());
             default -> allAlarms;
         };
+    }
+
+    /**
+     * Get cleared alarms (stage=end + status=Ack) from TDengine.
+     * These are historical alarm records that have been acknowledged and recovered.
+     */
+    public List<AlarmRecordDto> getClearedAlarms() {
+        return tdengineSyncService.queryClearedAlarms();
     }
 
     /**

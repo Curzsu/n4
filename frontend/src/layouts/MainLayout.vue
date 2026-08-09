@@ -2,28 +2,25 @@
   <div class="main-layout">
     <TopNavbar />
     <div class="layout-body">
-      <!-- Conditional left sidebar -->
-      <AlarmSidebar v-if="isAlarmRoute" :default-collapsed="isAlarmRoute" />
+      <AlarmSidebar v-if="isAlarmRoute" :default-collapsed="true" />
       <LeftSidebar v-else />
 
       <div class="layout-content">
         <slot />
       </div>
 
-      <!-- Conditional right panel with collapse toggle -->
-      <div :class="['layout-right-panel', { collapsed: isRightPanelCollapsed }]">
-        <div class="right-panel-header">
-          <span v-show="!isRightPanelCollapsed" class="right-panel-title">
-            {{ isAlarmRoute ? 'Alarm Info' : 'Overview' }}
-          </span>
-          <div class="collapse-btn" @click="isRightPanelCollapsed = !isRightPanelCollapsed">
-            <el-icon>
-              <Fold v-if="!isRightPanelCollapsed" />
-              <Expand v-else />
+      <div :class="['layout-right-panel', { collapsed: isRightCollapsed }]">
+        <div v-if="isRightCollapsed" class="right-panel-collapsed-icons" @click="toggleRightCollapse">
+          <el-icon class="collapsed-icon"><Bell /></el-icon>
+          <el-icon class="collapsed-icon"><Setting /></el-icon>
+        </div>
+        <div class="right-panel-body" v-else>
+          <div class="right-panel-header">
+            <span class="panel-title">{{ isAlarmRoute ? 'Alarm Overview' : 'System Status' }}</span>
+            <el-icon class="collapse-btn" @click="toggleRightCollapse">
+              <Fold />
             </el-icon>
           </div>
-        </div>
-        <div v-show="!isRightPanelCollapsed" class="right-panel-inner">
           <template v-if="isAlarmRoute">
             <AlarmSummaryPanel />
             <AlarmSystemChart />
@@ -42,9 +39,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, watch } from 'vue'
+import { Bell, Setting, Fold } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
-import { Fold, Expand } from '@element-plus/icons-vue'
 import TopNavbar from '@/components/TopNavbar.vue'
 import LeftSidebar from '@/components/LeftSidebar.vue'
 import BottomToolbar from '@/components/BottomToolbar.vue'
@@ -55,17 +52,29 @@ import AlarmSummaryPanel from '@/components/AlarmSummaryPanel.vue'
 import AlarmSystemChart from '@/components/charts/AlarmSystemChart.vue'
 import AlarmSourcesChart from '@/components/charts/AlarmSourcesChart.vue'
 import AlarmQuickActions from '@/components/AlarmQuickActions.vue'
+import { useDashboardStore } from '@/stores/dashboard'
 
 const route = useRoute()
-const isAlarmRoute = computed(() => route.path.startsWith('/alarm'))
-const isRightPanelCollapsed = ref(isAlarmRoute.value)
+const store = useDashboardStore()
 
-// When entering the Alarms route, default both side panels to collapsed
-watch(isAlarmRoute, (alarm) => {
-  if (alarm) {
-    isRightPanelCollapsed.value = true
+const isAlarmRoute = computed(() => route.path.startsWith('/alarm'))
+
+const isRightCollapsed = computed({
+  get: () => store.isRightCollapsed,
+  set: (val) => {
+    store.isRightCollapsed = val
   }
 })
+
+function toggleRightCollapse() {
+  isRightCollapsed.value = !isRightCollapsed.value
+}
+
+watch(isAlarmRoute, (alarm) => {
+  if (alarm) {
+    store.isRightCollapsed = true
+  }
+}, { immediate: true })
 </script>
 
 <style scoped lang="scss">
@@ -94,16 +103,15 @@ watch(isAlarmRoute, (alarm) => {
 
 .layout-right-panel {
   width: $right-panel-width;
-  max-width: $right-panel-width;
-  min-width: 0;
+  background-color: $bg-card;
+  border-left: 1px solid $border-color;
   display: flex;
   flex-direction: column;
-  padding: 12px;
+  transition: width 0.3s, padding 0.3s;
   flex-shrink: 0;
   overflow-y: auto;
   overflow-x: hidden;
   box-sizing: border-box;
-  transition: width 0.3s, padding 0.3s;
 
   &.collapsed {
     width: $right-panel-collapsed-width;
@@ -111,61 +119,58 @@ watch(isAlarmRoute, (alarm) => {
   }
 }
 
-.right-panel-header {
+.right-panel-collapsed-icons {
+  flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-  min-height: 24px;
-
-  .layout-right-panel.collapsed & {
-    justify-content: center;
-    margin-bottom: 8px;
-  }
-}
-
-.right-panel-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: $text-secondary;
-}
-
-.collapse-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 4px;
-  color: $text-muted;
+  gap: 20px;
+  padding-top: 24px;
   cursor: pointer;
-  transition: color 0.2s, background-color 0.2s;
 
-  &:hover {
-    color: $text-primary;
-    background-color: $bg-card-hover;
+  .collapsed-icon {
+    font-size: 20px;
+    color: $text-secondary;
+    transition: color 0.2s;
+
+    &:hover {
+      color: $text-primary;
+    }
   }
 }
 
-.right-panel-inner {
+.right-panel-body {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding: 16px 12px;
+  overflow-y: auto;
 }
 
-@media (max-width: 1100px) {
-  .layout-right-panel {
-    width: $right-panel-collapsed-width;
-    padding: 12px 4px;
-  }
+.right-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid $border-color;
+  margin-bottom: 4px;
+}
 
-  .right-panel-header {
-    justify-content: center;
-  }
+.panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: $text-primary;
+}
 
-  .right-panel-title,
-  .right-panel-inner {
-    display: none;
+.collapse-btn {
+  font-size: 12px;
+  color: $text-secondary;
+  cursor: pointer;
+  transition: color 0.2s;
+
+  &:hover {
+    color: $text-primary;
   }
 }
 </style>
