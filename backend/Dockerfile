@@ -13,6 +13,16 @@ RUN mvn -B dependency:go-offline
 COPY src ./src
 RUN mvn -B clean package -DskipTests
 
+# Extract the fat jar into a directory layout here (the JDK 'jar' tool is available
+# in this builder stage). The runtime stage (JRE only) has no 'jar' command, so we
+# extract now and copy the directory over. A flat layout of BOOT-INF/classes +
+# BOOT-INF/lib/*.jar gives Flink's classloader standard file:// URLs it can load
+# from, avoiding the nested-jar URL issue (nested:...!/BOOT-INF/lib/...) that breaks
+# Flink's InstantiationUtil when running via java -jar.
+RUN mkdir -p /app-extracted \
+    && cd /app-extracted \
+    && jar xf /build/target/n4-monitor-0.0.1-SNAPSHOT.jar
+
 # ---- Stage 2: runtime JRE ----
 FROM eclipse-temurin:21-jre
 
@@ -28,16 +38,8 @@ RUN apt-get update \
 
 WORKDIR /app
 
-# Extract the Spring Boot fat jar into a directory layout so that every dependency
-# is a plain file under BOOT-INF/lib/*.jar. Flink's embedded local runtime uses its
-# own classloader (InstantiationUtil) to deserialize scheduler config, and it cannot
-# resolve classes from the nested-jar URL scheme (nested:...!/BOOT-INF/lib/...) that
-# java -jar uses. A flat classpath of real files sidesteps this entirely.
-COPY --from=builder /build/target/n4-monitor-0.0.1-SNAPSHOT.jar app.jar
-RUN mkdir -p app-extracted \
-    && cd app-extracted \
-    && jar xf ../app.jar \
-    && rm ../app.jar
+# Copy the extracted fat jar layout (classes + dependencies as plain files)
+COPY --from=builder /app-extracted ./app-extracted
 
 # Spring Boot exposes the API + WebSocket on 8089
 EXPOSE 8089
