@@ -246,8 +246,8 @@ public class TdengineSyncService {
             }
         }
 
-        if (successCount > 0) {
-            log.info("Synced {} entries to TDengine snapshot (failed: {})", successCount, failCount);
+        if (failCount > 0) {
+            log.error("TDengine snapshot sync had failures: {} succeeded, {} failed", successCount, failCount);
         }
     }
 

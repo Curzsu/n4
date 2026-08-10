@@ -66,8 +66,4 @@ fuxa:
   adapter-id: ${FUXA_ADAPTER_ID:d_n4_spm32_adapter}
   adapter-name: ${FUXA_ADAPTER_NAME:N4 SPM32 Adapter}
 
-logging:
-  level:
-    org.apache.flink: WARN
-    org.apache.kafka: WARN
-    org.apache.pekko: WARN
+# Logging is configured in logback-spring.xml (console + rolling file output).

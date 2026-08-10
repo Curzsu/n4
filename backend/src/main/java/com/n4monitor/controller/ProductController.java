@@ -3,10 +3,12 @@ package com.n4monitor.controller;
 import com.n4monitor.dto.ApiResponse;
 import com.n4monitor.entity.Product;
 import com.n4monitor.service.ProductService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/products")
 public class ProductController {
@@ -43,10 +45,10 @@ public class ProductController {
             productService.createProduct(product);
             return ApiResponse.success(product);
         } catch (IllegalArgumentException e) {
-            e.printStackTrace();
+            log.error("Invalid product argument", e);
             return ApiResponse.error(400, e.getMessage());
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("Unexpected error creating product", e);
             return ApiResponse.error(500, e.getMessage());
         }
     }

@@ -46,6 +46,10 @@ services:
       options:
         max-size: "50m"
         max-file: "5"
+    # Persist logback file logs (logs/n4-monitor.log inside container) to a named
+    # volume so they survive container restarts and can be inspected on the host.
+    volumes:
+      - n4-monitor-logs:/app/logs
 
   n4-monitor-frontend:
     build:
@@ -68,3 +72,7 @@ services:
       options:
         max-size: "20m"
         max-file: "5"
+
+# Named volume for backend logback file output (logs/n4-monitor.log).
+volumes:
+  n4-monitor-logs:

@@ -21,6 +21,8 @@ import org.apache.flink.connector.kafka.source.KafkaSource;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
 import org.apache.flink.util.Collector;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
@@ -47,6 +49,8 @@ import java.util.*;
  * has no rule and is skipped (no evaluation). String-type messages are also skipped.
  */
 public class AlarmProcessingJob {
+
+    private static final Logger log = LoggerFactory.getLogger(AlarmProcessingJob.class);
 
     private static final String DEFAULT_RULES_NUMERIC_KEY = "alarm:rules:numeric";
     private static final String DEFAULT_RULES_ENUM_KEY = "alarm:rules:enum";
@@ -138,12 +142,14 @@ public class AlarmProcessingJob {
      */
     public static class ParsePointFunction extends RichFlatMapFunction<String, PointData> {
 
+        private static final Logger log = LoggerFactory.getLogger(ParsePointFunction.class);
+
         private transient ObjectMapper objectMapper;
 
         @Override
         public void open(Configuration parameters) {
             objectMapper = new ObjectMapper().findAndRegisterModules();
-            System.out.println("[FLINK] Point parser started");
+            log.info("Point parser started");
         }
 
         @Override
@@ -154,8 +160,7 @@ public class AlarmProcessingJob {
                 if (point.getPath() == null || point.getPath().isBlank()) return;
                 out.collect(point);
             } catch (Exception e) {
-                System.out.println("[FLINK][ERROR][PARSE] JSON parse failed, skipping: "
-                        + e.getClass().getSimpleName() + " - " + e.getMessage());
+                log.warn("JSON parse failed, skipping: {} - {}", e.getClass().getSimpleName(), e.getMessage());
             }
         }
     }
@@ -169,6 +174,8 @@ public class AlarmProcessingJob {
      * task instance, making the read-modify-write on alarm:active race-free.
      */
     public static class AlarmProcessFunction extends KeyedProcessFunction<String, PointData, String> {
+
+        private static final Logger log = LoggerFactory.getLogger(AlarmProcessFunction.class);
 
         private final String redisHost;
         private final int redisPort;
@@ -244,13 +251,13 @@ public class AlarmProcessingJob {
             pendingState = getRuntimeContext().getState(
                     new ValueStateDescriptor<>("pending-alarm", PendingAlarm.class));
 
-            System.out.println("[FLINK] Alarm processor started");
-            System.out.println("[FLINK] Rules numeric key: " + rulesNumericKey);
-            System.out.println("[FLINK] Rules enum key: " + rulesEnumKey);
-            System.out.println("[FLINK] Latest state Redis key: " + latestRedisKey);
-            System.out.println("[FLINK] Active alarm Redis key: " + activeRedisKey);
-            System.out.println("[FLINK] Point rule map key: " + pointRuleMapKey);
-            System.out.println("[FLINK] Redis timeout: " + REDIS_TIMEOUT_MS + "ms");
+            log.info("Alarm processor started");
+            log.info("Rules numeric key: {}", rulesNumericKey);
+            log.info("Rules enum key: {}", rulesEnumKey);
+            log.info("Latest state Redis key: {}", latestRedisKey);
+            log.info("Active alarm Redis key: {}", activeRedisKey);
+            log.info("Point rule map key: {}", pointRuleMapKey);
+            log.info("Redis timeout: {}ms", REDIS_TIMEOUT_MS);
         }
 
         @Override
@@ -262,9 +269,8 @@ public class AlarmProcessingJob {
                 // Never let an exception escape - an uncaught exception fails the
                 // Flink task and tears down the whole job. Log and skip the offending
                 // message so the stream keeps processing subsequent data.
-                System.out.println("[FLINK][ERROR][SKIP] Uncaught error processing message, skipping: "
-                        + e.getClass().getSimpleName() + " - " + e.getMessage());
-                e.printStackTrace();
+                log.error("Uncaught error processing message, skipping: {} - {}",
+                        e.getClass().getSimpleName(), e.getMessage(), e);
                 out.collect("[SKIP] uncaught error: " + e.getMessage());
             }
         }
@@ -297,7 +303,7 @@ public class AlarmProcessingJob {
                         alarmName = metaNode.get("alarm_code").asText().trim();
                     }
                 } catch (Exception e) {
-                    System.out.println("[FLINK][ERROR][META] Failed to parse point metadata for path " + path + ": " + e.getMessage());
+                    log.warn("Failed to parse point metadata for path {}: {}", path, e.getMessage());
                 }
             }
             // Backfill the type onto the point object so downstream state (latest/active/TDengine)
@@ -359,8 +365,6 @@ public class AlarmProcessingJob {
             // 5. Build current state and resolve stage / duration against active history
             PointAlarmState current = buildState(point, level, severity, alarmMessage, timeDelay, deadband);
             PointAlarmState history = readActive(jedis, path);
-            System.out.println("Current: "+current);
-            System.out.println("History: "+history);
             long intervalSeconds = computeIntervalSeconds(history, current);
 
             // 5a. Deadband (hysteresis) gate for alarm recovery.
@@ -790,7 +794,7 @@ public class AlarmProcessingJob {
                 // always be instantaneous regardless of the configured deadband.
                 return new EvalResult(false, null, null, null, timeDelay, deadband);
             } catch (Exception e) {
-                System.out.println("[FLINK][ERROR][RULE-NUM] Failed to deserialize numeric rule: " + alarmName + " - " + e.getMessage());
+                log.warn("Failed to deserialize numeric rule: {} - {}", alarmName, e.getMessage());
                 return null;
             }
         }
@@ -910,7 +914,7 @@ public class AlarmProcessingJob {
                 // No matching enum value
                 return new EvalResult(false, null, null, null, null, null);
             } catch (Exception e) {
-                System.out.println("[FLINK][ERROR][RULE-ENUM] Failed to deserialize enum rules: " + alarmName + " - " + e.getMessage());
+                log.warn("Failed to deserialize enum rules: {} - {}", alarmName, e.getMessage());
                 return null;
             }
         }
@@ -976,9 +980,9 @@ public class AlarmProcessingJob {
             try {
                 String json = objectMapper.writeValueAsString(state);
                 jedis.hset(latestRedisKey, state.getPath(), json);
-                System.out.println("[FLINK][LATEST] " + state.getPath() + " value=" + state.getValue());
+                log.debug("LATEST {} value={}", state.getPath(), state.getValue());
             } catch (Exception e) {
-                System.out.println("[FLINK][ERROR][LATEST] " + state.getPath() + " - " + e.getMessage());
+                log.warn("Failed to write latest state for {}: {}", state.getPath(), e.getMessage());
             }
         }
 
@@ -988,7 +992,7 @@ public class AlarmProcessingJob {
                 jedis.publish(notificationChannel, json);
                 jedis.publish(realtimeChannel, json);
             } catch (Exception e) {
-                System.out.println("[FLINK][ERROR][PUB-ALARM] " + state.getPath() + " - " + e.getMessage());
+                log.warn("Failed to publish alarm for {}: {}", state.getPath(), e.getMessage());
             }
         }
 
@@ -1001,10 +1005,9 @@ public class AlarmProcessingJob {
             try {
                 String json = serializeWithTimestamp(state, state.getAlarmStartTime());
                 jedis.publish(notificationChannel, json);
-                System.out.println("[FLINK][PUB-NOTIFY] " + state.getPath()
-                        + " stage=" + state.getStage() + " -> " + notificationChannel);
+                log.debug("PUB-NOTIFY {} stage={} -> {}", state.getPath(), state.getStage(), notificationChannel);
             } catch (Exception e) {
-                System.out.println("[FLINK][ERROR][PUB-NOTIFY] " + state.getPath() + " - " + e.getMessage());
+                log.warn("Failed to publish notification for {}: {}", state.getPath(), e.getMessage());
             }
         }
 
@@ -1021,10 +1024,9 @@ public class AlarmProcessingJob {
             try {
                 String json = serializeWithTimestamp(state, dataTimestamp);
                 jedis.publish(realtimeChannel, json);
-                System.out.println("[FLINK][PUB-REALTIME] " + state.getPath()
-                        + " stage=" + state.getStage() + " -> " + realtimeChannel);
+                log.debug("PUB-REALTIME {} stage={} -> {}", state.getPath(), state.getStage(), realtimeChannel);
             } catch (Exception e) {
-                System.out.println("[FLINK][ERROR][PUB-REALTIME] " + state.getPath() + " - " + e.getMessage());
+                log.warn("Failed to publish realtime for {}: {}", state.getPath(), e.getMessage());
             }
         }
 
@@ -1036,19 +1038,18 @@ public class AlarmProcessingJob {
             try {
                 String json = serializeWithTimestamp(state, state.getAlarmStartTime());
                 jedis.hset(activeRedisKey, state.getPath(), json);
-                System.out.println("[FLINK][ACTIVE] " + state.getPath()
-                        + " stage=" + state.getStage() + " level=" + state.getLevel());
+                log.debug("ACTIVE {} stage={} level={}", state.getPath(), state.getStage(), state.getLevel());
             } catch (Exception e) {
-                System.out.println("[FLINK][ERROR][ACTIVE] " + state.getPath() + " - " + e.getMessage());
+                log.warn("Failed to write active state for {}: {}", state.getPath(), e.getMessage());
             }
         }
 
         private void removeActive(Jedis jedis, String path) {
             try {
                 jedis.hdel(activeRedisKey, path);
-                System.out.println("[FLINK][ACTIVE-REMOVE] " + path);
+                log.debug("ACTIVE-REMOVE {}", path);
             } catch (Exception e) {
-                System.out.println("[FLINK][ERROR][ACTIVE-REMOVE] " + path + " - " + e.getMessage());
+                log.warn("Failed to remove active alarm for {}: {}", path, e.getMessage());
             }
         }
 
@@ -1058,7 +1059,7 @@ public class AlarmProcessingJob {
                 if (json == null || json.isBlank()) return null;
                 return objectMapper.readValue(json, PointAlarmState.class);
             } catch (Exception e) {
-                System.out.println("[FLINK][ERROR][READ-ACTIVE] Failed to read active alarm: " + path + " - " + e.getMessage());
+                log.warn("Failed to read active alarm for {}: {}", path, e.getMessage());
                 return null;
             }
         }
