@@ -1,0 +1,70 @@
+# N4 Monitor - Docker Compose deployment
+# Deploys the backend (Spring Boot + embedded Flink) and frontend (Nginx) containers.
+# External middleware (MySQL/Redis/Kafka/TDengine) and FUXA are assumed to already
+# be running on the host; connection addresses are injected via environment below.
+#
+# Usage:
+#   docker compose build
+#   docker compose up -d
+#   docker compose logs -f
+
+services:
+  n4-monitor-backend:
+    build: ./backend
+    image: n4-monitor-backend:latest
+    container_name: n4-monitor-backend
+    restart: unless-stopped
+    ports:
+      - "8089:8089"
+    environment:
+      TZ: Asia/Shanghai
+      # JVM options (heap, encoding). Adjust -Xmx to fit the host memory.
+      JAVA_OPTS: "-Xms512m -Xmx1024m -Dfile.encoding=UTF-8"
+      # ---- External middleware connection (override defaults in application.yaml) ----
+      # All default to 47.121.30.136. Change the host/port here if middleware moves.
+      MYSQL_URL: jdbc:mysql://47.121.30.136:3306/n4_monitor?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+      MYSQL_USERNAME: root
+      MYSQL_PASSWORD: Password@mysql
+      KAFKA_BOOTSTRAP_SERVERS: 47.121.30.136:9092
+      REDIS_HOST: 47.121.30.136
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: Password@redis
+      TDENGINE_URL: jdbc:TAOS-RS://47.121.30.136:6041/n4
+      TDENGINE_USERNAME: root
+      TDENGINE_PASSWORD: taosdata
+      # FUXA is already running on the host; backend calls it for template provisioning
+      FUXA_BASE_URL: http://47.121.30.136:1881
+      # Alarm Flink job toggle (set false to disable embedded Flink processing)
+      ALARM_FLINK_ENABLED: "true"
+    # Flink embedded execution benefits from ample file descriptors
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  n4-monitor-frontend:
+    build:
+      context: ./frontend
+      args:
+        # Build-time FUXA URL baked into the SPA bundle (iframe src).
+        # Browser loads it directly, so it must be reachable from the client.
+        VITE_FUXA_URL: http://47.121.30.136:1881/home?viewName=H1_EMSB_A4_03_EM
+    image: n4-monitor-frontend:latest
+    container_name: n4-monitor-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - n4-monitor-backend
+    environment:
+      TZ: Asia/Shanghai
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
