@@ -359,7 +359,30 @@ public class AlarmProcessingJob {
             // 5. Build current state and resolve stage / duration against active history
             PointAlarmState current = buildState(point, level, severity, alarmMessage, timeDelay, deadband);
             PointAlarmState history = readActive(jedis, path);
+            System.out.println("Current: "+current);
+            System.out.println("History: "+history);
             long intervalSeconds = computeIntervalSeconds(history, current);
+
+            // 5a. Deadband (hysteresis) gate for alarm recovery.
+            // Only applies to numeric points: when the value no longer trips any
+            // raw threshold (isAlarm == false) but an alarm is still active, the
+            // deadband keeps the alarm alive until the value moves past the
+            // recovery boundary (threshold -/+ deadband). This runs before the
+            // pending state machine and lifecycle block so both treat a
+            // within-deadband value as "still in alarm" (continue / keep timer)
+            // instead of recovering. Level escalation/de-escalation is unaffected
+            // because the gate only fires when isAlarm is already false.
+            if (!isAlarm && "numeric".equals(ruleType)
+                    && history != null && !isBlank(history.getLevel())
+                    && !"end".equals(history.getStage())) {
+                if (isInDeadband(jedis, alarmName, history, current)) {
+                    isAlarm = true;
+                    level = history.getLevel();
+                    severity = history.getSeverity();
+                    alarmMessage = history.getMessage();
+                    current = buildState(point, level, severity, alarmMessage, timeDelay, deadband);
+                }
+            }
 
             // 5b. Delay-confirmation handling. If a pending (unconfirmed) alarm
             // exists for this key, the point is in its delay window: the alarm
@@ -761,11 +784,105 @@ public class AlarmProcessingJob {
                     } catch (NumberFormatException ignored) {}
                 }
 
-                return new EvalResult(false, null, null, null, null, null);
+                // Value is normal (no threshold tripped). Still carry timeDelay and
+                // deadband so the hysteresis gate in processMessage can read them
+                // from the current state - without deadband here, recovery would
+                // always be instantaneous regardless of the configured deadband.
+                return new EvalResult(false, null, null, null, timeDelay, deadband);
             } catch (Exception e) {
                 System.out.println("[FLINK][ERROR][RULE-NUM] Failed to deserialize numeric rule: " + alarmName + " - " + e.getMessage());
                 return null;
             }
+        }
+
+        /** Resolve the raw threshold value string for a given alarm level. */
+        private String getThresholdForLevel(AlarmRuleNumericEntity rule, String level) {
+            if (level == null) return null;
+            return switch (level) {
+                case "High-High" -> rule.getHighHighValue();
+                case "High"      -> rule.getHighValue();
+                case "Low-Low"   -> rule.getLowLowValue();
+                case "Low"       -> rule.getLowValue();
+                default          -> null;
+            };
+        }
+
+        /**
+         * Deadband (hysteresis) gate for alarm recovery.
+         * <p>
+         * When the value no longer trips any raw threshold (the caller has
+         * already determined isAlarm == false) but an alarm is still active,
+         * the deadband keeps the alarm alive until the value moves past the
+         * recovery boundary:
+         * <ul>
+         *   <li>High side (High-High / High): alarm persists while
+         *       {@code value >= threshold - deadband}; recovers only when
+         *       {@code value < threshold - deadband}.</li>
+         *   <li>Low side (Low-Low / Low): alarm persists while
+         *       {@code value <= threshold + deadband}; recovers only when
+         *       {@code value > threshold + deadband}.</li>
+         * </ul>
+         * If the deadband is absent, zero, or unparseable, no hysteresis is
+         * applied and the alarm recovers at the raw threshold (current
+         * behavior), preserving backward compatibility.
+         *
+         * @param jedis    Redis connection for re-reading the rule
+         * @param alarmName the rule's alarm code (hash field key)
+         * @param history  the currently active alarm record (carries the level)
+         * @param current  the latest point state (carries the value + deadband)
+         * @return {@code true} if the value is still within the deadband band
+         *         and the alarm should be kept alive; {@code false} to proceed
+         *         with normal recovery
+         */
+        private boolean isInDeadband(Jedis jedis, String alarmName,
+                                     PointAlarmState history, PointAlarmState current) {
+            String deadbandStr = current.getDeadband();
+            if (isBlank(deadbandStr)) return false;
+            double deadband;
+            try {
+                deadband = Double.parseDouble(deadbandStr.trim());
+            } catch (NumberFormatException e) {
+                return false;
+            }
+            if (deadband <= 0) return false;
+
+            // Re-read the rule to resolve the threshold for the active level.
+            String json = jedis.hget(rulesNumericKey, alarmName);
+            if (json == null || json.isBlank()) return false;
+            AlarmRuleNumericEntity rule;
+            try {
+                rule = objectMapper.readValue(json, AlarmRuleNumericEntity.class);
+            } catch (Exception e) {
+                return false;
+            }
+
+            String level = history.getLevel();
+            String thresholdStr = getThresholdForLevel(rule, level);
+            if (thresholdStr == null || thresholdStr.isBlank()) return false;
+
+            double threshold;
+            try {
+                threshold = Double.parseDouble(thresholdStr.trim());
+            } catch (NumberFormatException e) {
+                return false;
+            }
+
+            double value;
+            try {
+                value = Double.parseDouble(current.getValue().trim());
+            } catch (Exception e) {
+                return false; // cannot evaluate, let normal recovery proceed
+            }
+
+            // High side: alarm persists while value >= threshold - deadband.
+            if ("High-High".equals(level) || "High".equals(level)) {
+                return value >= threshold - deadband;
+            }
+            // Low side: alarm persists while value <= threshold + deadband.
+            if ("Low-Low".equals(level) || "Low".equals(level)) {
+                return value <= threshold + deadband;
+            }
+            return false;
         }
 
         private EvalResult evaluateEnum(Jedis jedis, String alarmName, String pointValue) {
@@ -786,7 +903,7 @@ public class AlarmProcessingJob {
                                     rule.getMessage(), rule.getTimeDelay(), null);
                         } else {
                             // Empty severity -> normal value, not an alarm
-                            return new EvalResult(false, null, null, null, null, null);
+                            return new EvalResult(false, null, null, null, rule.getTimeDelay(), null);
                         }
                     }
                 }
@@ -813,9 +930,13 @@ public class AlarmProcessingJob {
                 state.setLevel(level);
                 state.setSeverity(severity);
                 state.setMessage(message);
-                state.setTimeDelay(timeDelay);
-                state.setDeadband(deadband);
             }
+            // timeDelay and deadband are rule metadata needed regardless of
+            // whether this tick is an alarm - the deadband hysteresis gate reads
+            // current.getDeadband() even when level is null (normal value), so
+            // they must always be set.
+            state.setTimeDelay(timeDelay);
+            state.setDeadband(deadband);
 
             state.setSource(extractSource(point.getPath()));
             state.setLocation(extractLocation(point.getPath()));
