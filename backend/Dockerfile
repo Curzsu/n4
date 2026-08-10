@@ -28,11 +28,24 @@ RUN apt-get update \
 
 WORKDIR /app
 
-# The fat jar name follows the default artifactId-version convention (no finalName in pom.xml)
+# Extract the Spring Boot fat jar into a directory layout so that every dependency
+# is a plain file under BOOT-INF/lib/*.jar. Flink's embedded local runtime uses its
+# own classloader (InstantiationUtil) to deserialize scheduler config, and it cannot
+# resolve classes from the nested-jar URL scheme (nested:...!/BOOT-INF/lib/...) that
+# java -jar uses. A flat classpath of real files sidesteps this entirely.
 COPY --from=builder /build/target/n4-monitor-0.0.1-SNAPSHOT.jar app.jar
+RUN mkdir -p app-extracted \
+    && cd app-extracted \
+    && jar xf ../app.jar \
+    && rm ../app.jar
 
 # Spring Boot exposes the API + WebSocket on 8089
 EXPOSE 8089
 
-# Exec form so JAVA_OPTS is split into separate args by the shell entrypoint
-ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]
+# Build a flat classpath (BOOT-INF/classes + every jar in BOOT-INF/lib) and launch
+# the Spring Boot main class directly with -cp instead of -jar. The nested-jar URL
+# scheme (nested:...!/BOOT-INF/lib/...) used by java -jar is not understood by
+# Flink's classloader (InstantiationUtil), which causes ClassNotFoundException
+# for core Flink classes during JobMaster initialization. A flat classpath of
+# real files sidesteps this entirely while keeping identical runtime behavior.
+ENTRYPOINT ["sh", "-c", "CP=\"app-extracted/BOOT-INF/classes\"; for j in app-extracted/BOOT-INF/lib/*.jar; do CP=\"$CP:$j\"; done; exec java $JAVA_OPTS -cp \"$CP\" com.n4monitor.N4MonitorApplication"]
