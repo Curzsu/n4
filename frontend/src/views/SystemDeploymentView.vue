@@ -190,7 +190,7 @@
                 </el-table-column>
                 <el-table-column prop="dataType" label="数据类型" width="100" align="center" />
                 <el-table-column prop="unit" label="单位" width="80" align="center" />
-                <el-table-column label="数据来源" width="100" align="center">
+                <el-table-column label="数据来源" width="110" align="center">
                   <template #default="{ row }">
                     <el-tag size="small" :type="row.isReal ? 'success' : 'warning'" effect="dark">
                       {{ row.isReal ? '真实数据' : 'Mock' }}
@@ -329,7 +329,6 @@
                 <el-table-column label="操作" width="200" align="center" fixed="right">
                   <template #default="{ row }">
                     <el-button type="primary" link size="small" @click="viewDeviceDetail(row)">编辑</el-button>
-                    <el-button type="primary" link size="small" @click="openMoveDialog(row)">移动</el-button>
                     <el-button type="primary" link size="small" @click="handleUnmount(row)">卸载</el-button>
                     <el-button type="danger" link size="small" @click="deleteDeviceFromTable(row)">删除</el-button>
                   </template>
@@ -380,6 +379,7 @@
             :props="parentCascaderProps"
             placeholder="请选择父级节点"
             :clearable="false"
+            popper-class="dark-cascader-dropdown"
             style="width: 100%"
           />
           <div class="form-tip">只能选择同层级的合法分组作为目标父级</div>
@@ -510,50 +510,7 @@
         <el-button size="small" @click="deployDialogVisible = false">取消</el-button>
         <el-button size="small" type="primary" :loading="deploySubmitting" @click="submitDeploy">部署并生成点位</el-button>
       </template>
-    </el-dialog>
-
-    <!-- ===== 弹窗：移动设备 ===== -->
-    <el-dialog
-      v-model="moveDialogVisible"
-      :title="isBatchMove ? '批量移动设备部署位置' : '移动设备部署位置'"
-      width="540px"
-      append-to-body
-      class="dark-dialog"
-    >
-      <div style="margin-bottom: 12px; font-size: 13px;" class="text-secondary" v-if="!isBatchMove">
-        当前设备: <strong style="color: #10b981;">{{ moveDeviceName }}</strong>
-      </div>
-      <div style="margin-bottom: 12px; font-size: 13px;" class="text-secondary" v-else>
-        已选择设备: <span style="color: #10b981;">共 {{ selectedDevices.length }} 个设备</span>
-      </div>
-
-      <div style="border: 1px solid #1f2937; border-radius: 6px; padding: 10px; max-height: 200px; overflow-y: auto; background-color: #0b1119; margin-bottom: 16px;">
-        <el-tree
-          :data="treeData"
-          :props="treeProps"
-          node-key="nodeId"
-          @node-click="handleMoveTargetSelect"
-          highlight-current
-        />
-      </div>
-
-      <div style="margin-top: 16px; font-size: 13px;" v-if="moveTargetNode">
-        目标节点: <strong style="color: #10b981;">{{ moveTargetNode.nodeName }}</strong>
-
-        <div style="margin-top: 12px;" v-if="!isBatchMove">
-          移动后设备名称:
-          <el-input v-model="moveNewName" size="small" style="margin-top: 6px;" />
-          <div style="margin-top: 4px; font-size: 11px; color: #64748b;">
-            提示：修改名称时点位名称与 N4 Topic 地址会自动同步。
-          </div>
-        </div>
-      </div>
-      <template #footer>
-        <el-button size="small" @click="moveDialogVisible = false">取消</el-button>
-        <el-button size="small" type="primary" :disabled="!moveTargetNode" @click="submitMove" :loading="moveSubmitting">确认移动</el-button>
-      </template>
-    </el-dialog>
-  </div>
+    </el-dialog>  </div>
 </template>
 
 <script setup lang="ts">
@@ -1145,56 +1102,6 @@ async function submitDeploy() {
   })
 }
 
-// =====================================================================
-//  移动设备弹窗
-// =====================================================================
-const moveDialogVisible = ref(false)
-const moveTargetNode = ref<NavTreeNode | null>(null)
-const moveNewName = ref('')
-const moveSubmitting = ref(false)
-const isBatchMove = ref(false)
-const moveDeviceName = ref('')
-
-function openMoveDialog(row: DeviceDeployment) {
-  isBatchMove.value = false
-  moveDeviceName.value = row.deviceDeployName
-  moveNewName.value = row.deviceDeployName
-  moveTargetNode.value = null
-  moveDialogVisible.value = true
-  // 记录当前操作的设备 ID 到 deviceForm 以便 submitMove 使用
-  deviceForm.value.deviceDeployId = row.deviceDeployId
-}
-
-function handleMoveTargetSelect(node: NavTreeNode) {
-  if (!node || !node.nodeId) return
-  const nav = findNodeById(treeData.value, node.nodeId)
-  if (!nav) return
-  moveTargetNode.value = nav
-}
-
-async function submitMove() {
-  if (!moveTargetNode.value) return
-  try {
-    moveSubmitting.value = true
-    if (isBatchMove.value) {
-      for (const d of selectedDevices.value) {
-        await deploymentApi.move(d.deviceDeployId!, moveTargetNode.value!.nodeId, d.deviceDeployName)
-      }
-      ElMessage.success(`批量移动 ${selectedDevices.value.length} 个设备成功`)
-    } else {
-      await deploymentApi.move(deviceForm.value.deviceDeployId, moveTargetNode.value.nodeId, moveNewName.value)
-      ElMessage.success('移动设备位置成功')
-    }
-    moveDialogVisible.value = false
-    selectedDevices.value = []
-    isBatchManaging.value = false
-    await refreshAfterChange()
-  } catch (err: any) {
-    ElMessage.error(err.message || '移动设备失败')
-  } finally {
-    moveSubmitting.value = false
-  }
-}
 
 // =====================================================================
 //  设备挂载/卸载
