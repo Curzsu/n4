@@ -355,6 +355,18 @@ public class AlarmProcessingJob {
                         ts, "NORULE", pointName, point.getValue(), pointName, type);
             }
 
+            // Unknown enum value: no configured rule matches this value. Skip
+            // alarm evaluation entirely - do not touch alarm:active and do not
+            // enter the lifecycle/pending state machine, otherwise an unknown
+            // value would be treated as normal and wrongly recover an ongoing
+            // alarm. Only refresh alarm:latest so the live display stays current.
+            if (triggered.skipped()) {
+                PointAlarmState latestState = buildState(point, null, null, null, null, null);
+                writeLatestState(jedis, latestState);
+                return String.format("[%s] [%8s] %-40s | value=%s | unknown enum value, skipped",
+                        ts, "SKIP", pointName, point.getValue());
+            }
+
             boolean isAlarm = triggered.isAlarm();
             String level = triggered.level;
             String severity = triggered.severity;
@@ -729,8 +741,12 @@ public class AlarmProcessingJob {
 
         // ── Rule evaluation (type-specific, reads from Redis) ──────────────────
 
-        /** Result of evaluating a rule against a point value. */
-        record EvalResult(boolean isAlarm, String level, String severity,
+        /** Result of evaluating a rule against a point value.
+         *  <p>{@code skipped} distinguishes an unknown enum value (no rule
+         *  matches) from a real normal value (a rule matched but its severity
+         *  is empty). A skipped result must not touch alarm:active, otherwise
+         *  it would wrongly recover an ongoing alarm. */
+        record EvalResult(boolean isAlarm, boolean skipped, String level, String severity,
                           String message, Integer timeDelay, String deadband) {}
 
         private EvalResult evaluateNumeric(Jedis jedis, String alarmName, String pointValue) {
@@ -744,7 +760,7 @@ public class AlarmProcessingJob {
                     numVal = Double.parseDouble(pointValue != null ? pointValue.trim() : "");
                 } catch (Exception ignored) {}
                 if (numVal == null) {
-                    return new EvalResult(false, null, null, null, null, null);
+                    return new EvalResult(false, false, null, null, null, null, null);
                 }
 
                 Integer timeDelay = rule.getTimeDelay();
@@ -755,7 +771,7 @@ public class AlarmProcessingJob {
                 if (rule.getHighHighValue() != null && !rule.getHighHighValue().isBlank()) {
                     try {
                         if (numVal >= Double.parseDouble(rule.getHighHighValue())) {
-                            return new EvalResult(true, "High-High", rule.getHighHighSeverity(),
+                            return new EvalResult(true, false, "High-High", rule.getHighHighSeverity(),
                                     rule.getHighHighMessage(), timeDelay, deadband);
                         }
                     } catch (NumberFormatException ignored) {}
@@ -764,7 +780,7 @@ public class AlarmProcessingJob {
                 if (rule.getHighValue() != null && !rule.getHighValue().isBlank()) {
                     try {
                         if (numVal >= Double.parseDouble(rule.getHighValue())) {
-                            return new EvalResult(true, "High", rule.getHighSeverity(),
+                            return new EvalResult(true, false, "High", rule.getHighSeverity(),
                                     rule.getHighMessage(), timeDelay, deadband);
                         }
                     } catch (NumberFormatException ignored) {}
@@ -773,7 +789,7 @@ public class AlarmProcessingJob {
                 if (rule.getLowLowValue() != null && !rule.getLowLowValue().isBlank()) {
                     try {
                         if (numVal <= Double.parseDouble(rule.getLowLowValue())) {
-                            return new EvalResult(true, "Low-Low", rule.getLowLowSeverity(),
+                            return new EvalResult(true, false, "Low-Low", rule.getLowLowSeverity(),
                                     rule.getLowLowMessage(), timeDelay, deadband);
                         }
                     } catch (NumberFormatException ignored) {}
@@ -782,7 +798,7 @@ public class AlarmProcessingJob {
                 if (rule.getLowValue() != null && !rule.getLowValue().isBlank()) {
                     try {
                         if (numVal <= Double.parseDouble(rule.getLowValue())) {
-                            return new EvalResult(true, "Low", rule.getLowSeverity(),
+                            return new EvalResult(true, false, "Low", rule.getLowSeverity(),
                                     rule.getLowMessage(), timeDelay, deadband);
                         }
                     } catch (NumberFormatException ignored) {}
@@ -792,7 +808,7 @@ public class AlarmProcessingJob {
                 // deadband so the hysteresis gate in processMessage can read them
                 // from the current state - without deadband here, recovery would
                 // always be instantaneous regardless of the configured deadband.
-                return new EvalResult(false, null, null, null, timeDelay, deadband);
+                return new EvalResult(false, false, null, null, null, timeDelay, deadband);
             } catch (Exception e) {
                 log.warn("Failed to deserialize numeric rule: {} - {}", alarmName, e.getMessage());
                 return null;
@@ -901,18 +917,27 @@ public class AlarmProcessingJob {
                 for (AlarmRuleEnumEntity rule : rules) {
                     if (rule.getEnumValue() != null && normalizedValue != null
                             && normalizedValue.equalsIgnoreCase(rule.getEnumValue())) {
-                        // Match found - alarm only if severity is non-empty
+                        // Matched the configured enum value
                         if (rule.getSeverity() != null && !rule.getSeverity().isBlank()) {
-                            return new EvalResult(true, "Enum", rule.getSeverity(),
+                            // level carries the enum value so the lifecycle state
+                            // machine can distinguish alarms on different enum
+                            // values (e.g. "Enum:0" vs "Enum:2"); otherwise every
+                            // enum alarm shares the same level and severity changes
+                            // are wrongly treated as "continue".
+                            String level = "Enum:" + rule.getEnumValue();
+                            return new EvalResult(true, false, level, rule.getSeverity(),
                                     rule.getMessage(), rule.getTimeDelay(), null);
                         } else {
-                            // Empty severity -> normal value, not an alarm
-                            return new EvalResult(false, null, null, null, rule.getTimeDelay(), null);
+                            // Matched but severity empty -> explicitly normal value
+                            return new EvalResult(false, false, null, null, null,
+                                    rule.getTimeDelay(), null);
                         }
                     }
                 }
-                // No matching enum value
-                return new EvalResult(false, null, null, null, null, null);
+                // No matching enum value: skip evaluation, do NOT treat as normal.
+                // Writing a normal state here would wrongly recover an active alarm,
+                // so only the latest real-time value should be refreshed by the caller.
+                return new EvalResult(false, true, null, null, null, null, null);
             } catch (Exception e) {
                 log.warn("Failed to deserialize enum rules: {} - {}", alarmName, e.getMessage());
                 return null;
