@@ -38,6 +38,52 @@ function formatTimeOnly(time: string): string {
   return spaceIdx >= 0 ? time.substring(spaceIdx + 1) : time
 }
 
+/**
+ * Alarm levels form two independent severity groups:
+ *   High group: High-High (severe) > High (minor)
+ *   Low  group: Low-Low    (severe) > Low  (minor)
+ *
+ * A de-escalation (no toast) is ONLY a same-group severe -> minor transition:
+ *   High-High -> High, Low-Low -> Low.
+ * Any cross-group transition (e.g. High-High -> Low, Low -> High-High) still
+ * pops a toast, because the two groups are not directly comparable.
+ */
+const LEVEL_GROUP: Record<string, { group: 'high' | 'low'; rank: number }> = {
+  'High-High': { group: 'high', rank: 0 },
+  'High':      { group: 'high', rank: 1 },
+  'Low-Low':   { group: 'low',  rank: 0 },
+  'Low':       { group: 'low',  rank: 1 },
+}
+
+/** Parse a stageMessage like "Start - High-High to High" into {from, to}.
+ *  The backend formats a level-transition start as "Start - {oldLevel} to {newLevel}",
+ *  so strip the "Start - " prefix first, then split on " to ". Levels may contain
+ *  hyphens (e.g. "High-High"). Returns null for non-transition messages. */
+function parseLevelTransition(stageMessage?: string): { from: string; to: string } | null {
+  if (!stageMessage) return null
+  const prefix = 'Start - '
+  const body = stageMessage.startsWith(prefix) ? stageMessage.slice(prefix.length) : stageMessage
+  // Split on the FIRST " to " only, in case a level name contained " to"
+  // (none do today, but this is safer than a greedy split).
+  const idx = body.indexOf(' to ')
+  if (idx < 0) return null
+  const from = body.slice(0, idx).trim()
+  const to = body.slice(idx + 4).trim()
+  if (!from || !to) return null
+  return { from, to }
+}
+
+/** A de-escalation is a same-group transition from a severe level to a minor
+ *  level (rank increases within the same group). Cross-group or unknown levels
+ *  are NOT de-escalations and still trigger a toast. */
+function isDeEscalation(fromLevel: string, toLevel: string): boolean {
+  const from = LEVEL_GROUP[fromLevel]
+  const to = LEVEL_GROUP[toLevel]
+  if (!from || !to) return false
+  if (from.group !== to.group) return false
+  return to.rank > from.rank
+}
+
 interface ToastItem extends AlarmRecord {
   toastId: string
 }
@@ -91,6 +137,17 @@ onUpdate((data: any) => {
   // Only toast the first occurrence of an alarm: stage=start + Unack.
   // Continue/end/ack/recovery updates do not pop a toast.
   if (record.stage !== 'start' || record.status !== 'Unack') return
+
+  // Level de-escalation (e.g. High-High -> High, Low-Low -> Low) is also a
+  // stage=start event, but it should NOT trigger a new toast popup: the alarm
+  // is ongoing, only its severity dropped. The stageMessage for an escalation
+  // or de-escalation carries "Start - {oldLevel} to {newLevel}"; parse it and
+  // compare severity weights. A de-escalation (new level is less severe) is
+  // suppressed. Pure escalations (more severe) still pop so operators notice.
+  const transition = parseLevelTransition(record.stageMessage)
+  if (transition && isDeEscalation(transition.from, transition.to)) {
+    return
+  }
 
   const toast: ToastItem = {
     ...record,

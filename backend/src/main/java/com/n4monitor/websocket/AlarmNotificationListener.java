@@ -41,11 +41,18 @@ public class AlarmNotificationListener implements MessageListener {
 
     @Override
     public void onMessage(Message message, byte[] pattern) {
-        log.debug("Received Redis pub/sub message on channel: {}", new String(pattern));
+        String channel = pattern != null ? new String(pattern) : "unknown";
+        log.info("Received Redis pub/sub message on channel: {}", channel);
         try {
             // The message body is the PointAlarmState JSON that triggered this notification
             String alarmJson = new String(message.getBody());
             log.debug("Alarm notification body: {}", alarmJson.substring(0, Math.min(100, alarmJson.length())));
+
+            // Parse the triggering alarm early so its identity can be logged at each step
+            var triggerNode = objectMapper.readTree(alarmJson);
+            String triggerPath = triggerNode.has("path") ? triggerNode.get("path").asText() : "?";
+            String triggerStage = triggerNode.has("stage") ? triggerNode.get("stage").asText() : "?";
+            log.info("Processing alarm notification: path={}, stage={}", triggerPath, triggerStage);
 
             // Build aggregated data
             ObjectNode root = objectMapper.createObjectNode();
@@ -55,10 +62,11 @@ public class AlarmNotificationListener implements MessageListener {
             // even when alarm:active is empty: a "cleared" signal (stage=end +
             // status=Ack) is published AFTER the record was removed from Redis,
             // so the active hash may be empty at this point.
-            root.set("alarm", objectMapper.readTree(alarmJson));
+            root.set("alarm", triggerNode);
 
             // Read all current alarm states from Redis (active alarm records)
             Map<Object, Object> allAlarms = redisTemplate.opsForHash().entries(activeRedisKey);
+            log.info("Active alarm records in Redis: {}", allAlarms == null ? 0 : allAlarms.size());
 
             ObjectNode summary = objectMapper.createObjectNode();
             ObjectNode severityData = objectMapper.createObjectNode();
@@ -74,7 +82,10 @@ public class AlarmNotificationListener implements MessageListener {
 
             // Broadcast to all WebSocket clients
             String json = objectMapper.writeValueAsString(root);
+            int clientCount = webSocketHandler.getConnectedCount();
             webSocketHandler.broadcast(json);
+            log.info("Alarm notification dispatched: path={}, stage={}, websocketClients={}",
+                    triggerPath, triggerStage, clientCount);
 
         } catch (Exception e) {
             log.error("Failed to process alarm notification", e);

@@ -1,9 +1,7 @@
 package com.n4monitor.alarm.service;
 
-import com.n4monitor.entity.AlarmRuleBooleanEntity;
 import com.n4monitor.entity.AlarmRuleEnumEntity;
 import com.n4monitor.entity.AlarmRuleNumericEntity;
-import com.n4monitor.mapper.AlarmRuleBooleanMapper;
 import com.n4monitor.mapper.AlarmRuleEnumMapper;
 import com.n4monitor.mapper.AlarmRuleNumericMapper;
 import lombok.RequiredArgsConstructor;
@@ -17,48 +15,20 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * CRUD service for alarm rules stored in MySQL, split across three type-specific tables:
- * alarm_rule_boolean, alarm_rule_numeric, alarm_rule_enum.
+ * CRUD service for alarm rules stored in MySQL, across two type-specific tables:
+ * alarm_rule_numeric, alarm_rule_enum.
+ * (Boolean type has been merged into Enum as string-based matching.)
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AlarmRuleCrudService {
 
-    private final AlarmRuleBooleanMapper booleanMapper;
     private final AlarmRuleNumericMapper numericMapper;
     private final AlarmRuleEnumMapper enumMapper;
     private final AlarmRuleSyncService alarmRuleSyncService;
 
     private static final Pattern SEQ_PATTERN = Pattern.compile("_(\\d+)$");
-
-    // ── Boolean ──────────────────────────────────────────────────────────────
-
-    public List<AlarmRuleBooleanEntity> getAllBooleanRules() {
-        return booleanMapper.findAll();
-    }
-
-    public AlarmRuleBooleanEntity createBooleanRule(AlarmRuleBooleanEntity entity) {
-        entity.setAlarmName(generateAlarmName(entity.getPointName()));
-        entity.setPointType("BOOL");
-        booleanMapper.insert(entity);
-        log.info("Created boolean alarm rule: id={}, alarmName={}", entity.getId(), entity.getAlarmName());
-        alarmRuleSyncService.syncBooleanRulesToRedis();
-        return entity;
-    }
-
-    public AlarmRuleBooleanEntity updateBooleanRule(AlarmRuleBooleanEntity entity) {
-        booleanMapper.update(entity);
-        log.info("Updated boolean alarm rule: id={}", entity.getId());
-        alarmRuleSyncService.syncBooleanRulesToRedis();
-        return entity;
-    }
-
-    public void deleteBooleanRule(Long id) {
-        booleanMapper.deleteById(id);
-        log.info("Deleted boolean alarm rule: id={}", id);
-        alarmRuleSyncService.syncBooleanRulesToRedis();
-    }
 
     // ── Numeric ──────────────────────────────────────────────────────────────
 
@@ -68,7 +38,7 @@ public class AlarmRuleCrudService {
 
     public AlarmRuleNumericEntity createNumericRule(AlarmRuleNumericEntity entity) {
         entity.setAlarmName(generateAlarmName(entity.getPointName()));
-        entity.setPointType("NUMERIC");
+        entity.setPointType("numeric");
         numericMapper.insert(entity);
         log.info("Created numeric alarm rule: id={}, alarmName={}", entity.getId(), entity.getAlarmName());
         alarmRuleSyncService.syncNumericRulesToRedis();
@@ -102,9 +72,12 @@ public class AlarmRuleCrudService {
         checkDuplicateEnumValues(entities);
         String pointName = entities.get(0).getPointName();
         String alarmName = generateAlarmName(pointName);
+        // time_delay is per-point; take from the first row and propagate to all rows
+        Integer timeDelay = entities.get(0).getTimeDelay();
         for (AlarmRuleEnumEntity e : entities) {
             e.setAlarmName(alarmName);
-            e.setPointType("ENUM");
+            e.setPointType("enum");
+            e.setTimeDelay(timeDelay);
             enumMapper.insert(e);
         }
         log.info("Created enum alarm rules: alarmName={}, count={}", alarmName, entities.size());
@@ -119,9 +92,12 @@ public class AlarmRuleCrudService {
         }
         checkDuplicateEnumValues(entities);
         enumMapper.deleteByAlarmName(alarmName);
+        // time_delay is per-point; take from the first row and propagate to all rows
+        Integer timeDelay = entities.get(0).getTimeDelay();
         for (AlarmRuleEnumEntity e : entities) {
             e.setAlarmName(alarmName);
-            e.setPointType("ENUM");
+            e.setPointType("enum");
+            e.setTimeDelay(timeDelay);
             enumMapper.insert(e);
         }
         log.info("Updated enum alarm rules: alarmName={}, count={}", alarmName, entities.size());
@@ -139,7 +115,7 @@ public class AlarmRuleCrudService {
 
     /**
      * Generate the next alarm_name for the given point name.
-     * Searches across ALL three tables to find used sequence numbers
+     * Searches across both tables to find used sequence numbers
      * (including logically deleted rows) and returns the lowest unused one.
      */
     private String generateAlarmName(String pointName) {
@@ -148,7 +124,6 @@ public class AlarmRuleCrudService {
         }
 
         Set<Integer> usedSeqs = new HashSet<>();
-        collectUsedSeqs(booleanMapper.findAlarmNamesByPointNamePrefix(pointName), usedSeqs);
         collectUsedSeqs(numericMapper.findAlarmNamesByPointNamePrefix(pointName), usedSeqs);
         collectUsedSeqs(enumMapper.findAlarmNamesByPointNamePrefix(pointName), usedSeqs);
 
@@ -177,10 +152,10 @@ public class AlarmRuleCrudService {
      * Throws before any insert so partial data is never written.
      */
     private void checkDuplicateEnumValues(List<AlarmRuleEnumEntity> entities) {
-        Set<Integer> seen = new HashSet<>();
+        Set<String> seen = new HashSet<>();
         for (AlarmRuleEnumEntity e : entities) {
-            if (e.getEnumValue() == null) {
-                throw new IllegalArgumentException("Enum value cannot be null");
+            if (e.getEnumValue() == null || e.getEnumValue().isBlank()) {
+                throw new IllegalArgumentException("Enum value cannot be null or empty");
             }
             if (!seen.add(e.getEnumValue())) {
                 throw new IllegalArgumentException(

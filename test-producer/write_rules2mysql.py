@@ -25,12 +25,12 @@ import pymysql
 # 配置
 # ═══════════════════════════════════════════════════════════════════════
 
-LOG_FILE = str(Path(__file__).parent.parent / "材料" / "points-2.log")
+LOG_FILE = str(Path(__file__).parent.parent / "backend" / "materials" / "points-2.log")
 
 MYSQL_HOST = "localhost"
 MYSQL_PORT = 3306
 MYSQL_USER = "root"
-MYSQL_PASSWORD = "1234"
+MYSQL_PASSWORD = "123456"
 MYSQL_DB = "n4_monitor"
 
 # 日志行正则
@@ -162,10 +162,25 @@ def get_numeric_thresholds(name: str, avg: float, mn: float, mx: float) -> tuple
 def generate_bool_rule(alarm_name: str, point_name: str) -> dict:
     return {
         "alarm_name": alarm_name,
-        "point_type": "BOOL",
-        "boolean_value": "false",
-        "boolean_severity": "Critical",
-        "boolean_message": f"{point_name} state changed to false",
+        "point_type": "ENUM",
+        "time_delay": 0,
+        "enum_value": "false",
+        "enum_meaning": f"{point_name} state changed to false",
+        "severity": "Critical",
+        "message": f"{point_name} state changed to false",
+    }
+
+
+def generate_bool_normal_rule(alarm_name: str, point_name: str) -> dict:
+    """Normal value (true) -> empty severity, no alarm."""
+    return {
+        "alarm_name": alarm_name,
+        "point_type": "ENUM",
+        "time_delay": 0,
+        "enum_value": "true",
+        "enum_meaning": f"{point_name} normal",
+        "severity": None,
+        "message": None,
     }
 
 
@@ -174,22 +189,20 @@ def generate_numeric_rule(alarm_name: str, point_name: str, stats: PointStats) -
     return {
         "alarm_name": alarm_name,
         "point_type": "NUMERIC",
+        "time_delay": 0,
+        "deadband": "0",
         "high_high_value": str(hh) if hh != float('inf') else "Infinity",
         "high_high_severity": "Critical",
         "high_high_message": f"{point_name} critically high: value >= {hh}" if hh != float('inf') else f"{point_name} critically high",
-        "high_high_hysteresis": "0.00",
         "high_value": str(h) if h != float('inf') else "Infinity",
         "high_severity": "Major",
         "high_message": f"{point_name} high: value >= {h}" if h != float('inf') else f"{point_name} high",
-        "high_hysteresis": "0.00",
         "low_value": str(l) if l != float('-inf') else "-Infinity",
         "low_severity": "Minor",
         "low_message": f"{point_name} low: value <= {l}" if l != float('-inf') else f"{point_name} low",
-        "low_hysteresis": "0.00",
         "low_low_value": str(ll) if ll != float('-inf') else "-Infinity",
         "low_low_severity": "Warning",
         "low_low_message": f"{point_name} critically low: value <= {ll}" if ll != float('-inf') else f"{point_name} critically low",
-        "low_low_hysteresis": "0.00",
     }
 
 
@@ -205,26 +218,34 @@ def write_to_mysql(bool_rules: list[dict], numeric_rules: list[dict]):
     try:
         with conn.cursor() as cur:
             for r in bool_rules:
+                # Alarm value row (severity set)
                 cur.execute("""
-                    INSERT INTO alarm_rule_boolean
-                    (alarm_name, point_type, boolean_value, boolean_severity, boolean_message)
-                    VALUES (%(alarm_name)s, %(point_type)s, %(boolean_value)s, %(boolean_severity)s, %(boolean_message)s)
+                    INSERT INTO alarm_rule_enum
+                    (alarm_name, point_type, time_delay, enum_value, enum_meaning, severity, message)
+                    VALUES (%(alarm_name)s, %(point_type)s, %(time_delay)s, %(enum_value)s, %(enum_meaning)s, %(severity)s, %(message)s)
                 """, r)
-            print(f"[INFO] 写入 {len(bool_rules)} 条 Boolean 规则")
+                # Normal value row (empty severity) for the complementary boolean value
+                normal_r = generate_bool_normal_rule(r["alarm_name"], r["enum_meaning"])
+                cur.execute("""
+                    INSERT INTO alarm_rule_enum
+                    (alarm_name, point_type, time_delay, enum_value, enum_meaning, severity, message)
+                    VALUES (%(alarm_name)s, %(point_type)s, %(time_delay)s, %(enum_value)s, %(enum_meaning)s, %(severity)s, %(message)s)
+                """, normal_r)
+            print(f"[INFO] 写入 {len(bool_rules)} 条 Enum 规则（含正常值行）")
 
             for r in numeric_rules:
                 cur.execute("""
                     INSERT INTO alarm_rule_numeric
-                    (alarm_name, point_type,
-                     high_high_value, high_high_severity, high_high_message, high_high_hysteresis,
-                     high_value, high_severity, high_message, high_hysteresis,
-                     low_value, low_severity, low_message, low_hysteresis,
-                     low_low_value, low_low_severity, low_low_message, low_low_hysteresis)
-                    VALUES (%(alarm_name)s, %(point_type)s,
-                            %(high_high_value)s, %(high_high_severity)s, %(high_high_message)s, %(high_high_hysteresis)s,
-                            %(high_value)s, %(high_severity)s, %(high_message)s, %(high_hysteresis)s,
-                            %(low_value)s, %(low_severity)s, %(low_message)s, %(low_hysteresis)s,
-                            %(low_low_value)s, %(low_low_severity)s, %(low_low_message)s, %(low_low_hysteresis)s)
+                    (alarm_name, point_type, time_delay, deadband,
+                     high_high_value, high_high_severity, high_high_message,
+                     high_value, high_severity, high_message,
+                     low_value, low_severity, low_message,
+                     low_low_value, low_low_severity, low_low_message)
+                    VALUES (%(alarm_name)s, %(point_type)s, %(time_delay)s, %(deadband)s,
+                            %(high_high_value)s, %(high_high_severity)s, %(high_high_message)s,
+                            %(high_value)s, %(high_severity)s, %(high_message)s,
+                            %(low_value)s, %(low_severity)s, %(low_message)s,
+                            %(low_low_value)s, %(low_low_severity)s, %(low_low_message)s)
                 """, r)
             print(f"[INFO] 写入 {len(numeric_rules)} 条 Numeric 规则")
 
@@ -271,8 +292,8 @@ def main():
             continue
 
         # Assign sequence number
-        seq = seq_counters[point_name]
-        seq_counters[point_name] += 1
+        seq = seq_counters[point_name.lower()]
+        seq_counters[point_name.lower()] += 1
         alarm_name = f"{point_name}_{seq:02d}"
 
         if ptype == "BOOL":

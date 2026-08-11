@@ -116,6 +116,12 @@ public class TdengineSyncService {
 
     /**
      * Create snapshot supertable if not exists.
+     * <p>
+     * Schema has been slimmed to match the new Kafka message format (only
+     * clientId/path/timestamp/value + resolved type). Removed columns:
+     * unit, max_val, min_val, ip_addr, port_num, other; removed tags: name,
+     * display_name (path is now the only tag and the unique point key).
+     * Added column: alarm_stage_message (alarm state transition label).
      */
     private void initSupertable() throws SQLException {
         String supertable = tdengineConfig.getSupertable();
@@ -124,29 +130,25 @@ public class TdengineSyncService {
                 + "data_timestamp TIMESTAMP, "
                 + "point_value NCHAR(64), "
                 + "point_type NCHAR(32), "
-                + "unit NCHAR(16), "
-                + "max_val NCHAR(64), "
-                + "min_val NCHAR(64), "
-                + "ip_addr NCHAR(64), "
-                + "port_num NCHAR(16), "
-                + "other NCHAR(256), "
                 + "alarm_level NCHAR(32), "
                 + "alarm_severity NCHAR(32), "
                 + "alarm_message NCHAR(256), "
+                + "time_delay NCHAR(32), "
+                + "deadband NCHAR(64), "
                 + "ack_by NCHAR(32), "
                 + "alarm_status NCHAR(32), "
                 + "alarm_source NCHAR(64), "
                 + "alarm_location NCHAR(128), "
                 + "alarm_stage NCHAR(16), "
-                + "alarm_duration NCHAR(32)"
+                + "alarm_stage_message NCHAR(64), "
+                + "alarm_duration NCHAR(32), "
+                + "alarm_start_time TIMESTAMP"
                 + ") TAGS ("
-                + "name NCHAR(128), "
-                + "display_name NCHAR(128), "
                 + "path NCHAR(256)"
                 + ")";
         try (Statement stmt = connection.createStatement()) {
             stmt.execute(sql);
-            log.info("Supertable '{}' created/verified", supertable);
+            log.info("Snapshot supertable '{}' created/verified", supertable);
         }
     }
 
@@ -160,25 +162,20 @@ public class TdengineSyncService {
                 + "data_timestamp TIMESTAMP, "
                 + "point_value NCHAR(64), "
                 + "point_type NCHAR(32), "
-                + "unit NCHAR(16), "
-                + "max_val NCHAR(64), "
-                + "min_val NCHAR(64), "
-                + "ip_addr NCHAR(64), "
-                + "port_num NCHAR(16), "
-                + "other NCHAR(256), "
                 + "alarm_level NCHAR(32), "
                 + "alarm_severity NCHAR(32), "
                 + "alarm_message NCHAR(256), "
-                + "hysteresis NCHAR(32), "
+                + "time_delay NCHAR(32), "
+                + "deadband NCHAR(64), "
                 + "ack_by NCHAR(32), "
                 + "alarm_status NCHAR(32), "
                 + "alarm_source NCHAR(64), "
                 + "alarm_location NCHAR(128), "
                 + "alarm_stage NCHAR(16), "
-                + "alarm_duration NCHAR(32)"
+                + "alarm_stage_message NCHAR(64), "
+                + "alarm_duration NCHAR(32), "
+                + "alarm_start_time TIMESTAMP"
                 + ") TAGS ("
-                + "name NCHAR(128), "
-                + "display_name NCHAR(128), "
                 + "path NCHAR(256)"
                 + ")";
         try (Statement stmt = connection.createStatement()) {
@@ -262,13 +259,16 @@ public class TdengineSyncService {
         asyncExecutor.submit(() -> {
             try {
                 if (!ensureConnected()) {
-                    log.warn("TDengine not available, dropping realtime alarm: {}", state.getPath());
+                    log.error("TDengine not available, dropping realtime alarm: path={}, stage={}",
+                            state.getPath(), state.getStage());
                     return;
                 }
                 writeToRealtimeSupertable(state);
-                log.debug("Wrote realtime alarm to TDengine: {}", state.getPath());
+                log.info("Wrote realtime alarm to TDengine: path={}, stage={}, level={}",
+                        state.getPath(), state.getStage(), state.getLevel());
             } catch (Exception e) {
-                log.error("Failed to write realtime alarm for path: {}", state.getPath(), e);
+                log.error("Failed to write realtime alarm for path: {}, stage: {}",
+                        state.getPath(), state.getStage(), e);
             }
         });
     }
@@ -281,34 +281,40 @@ public class TdengineSyncService {
         String path = state.getPath();
         String subtable = sanitizeTableName(path);
 
+        // TAGS(path) + 17 VALUES columns
         String sql = "INSERT INTO " + subtable + " USING " + supertable
-                + " TAGS (?, ?, ?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                + " TAGS (?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setString(1, state.getName());
-            pstmt.setString(2, state.getDisplayName());
-            pstmt.setString(3, path);
+            // TAG
+            pstmt.setString(1, path);
 
-            pstmt.setTimestamp(4, new Timestamp(System.currentTimeMillis()));
+            // VALUES
+            // Timestamps are bound as raw epoch-millis longs (setLong) instead of
+            // java.sql.Timestamp (setTimestamp). Under the REST driver (jdbc:TAOS-RS)
+            // setTimestamp serializes the value to a naive datetime string using the
+            // JVM local timezone, while the TDengine server parses it as UTC - an
+            // 8-hour mismatch when the two zones differ. Passing the millis directly
+            // lets TDengine interpret it as an absolute UTC instant, timezone-safe.
+            pstmt.setLong(2, System.currentTimeMillis());
             Long dataTimestamp = state.getTimestamp();
-            pstmt.setTimestamp(5, dataTimestamp != null ? new Timestamp(dataTimestamp) : new Timestamp(System.currentTimeMillis()));
-            pstmt.setString(6, state.getValue());
-            pstmt.setString(7, state.getType());
-            pstmt.setString(8, state.getUnit());
-            pstmt.setString(9, state.getMax());
-            pstmt.setString(10, state.getMin());
-            pstmt.setString(11, state.getIp());
-            pstmt.setString(12, state.getPort());
-            pstmt.setString(13, state.getOther());
-            pstmt.setString(14, state.getLevel());
-            pstmt.setString(15, state.getSeverity());
-            pstmt.setString(16, state.getMessage());
-            pstmt.setString(17, state.getAckBy());
-            pstmt.setString(18, state.getStatus());
-            pstmt.setString(19, state.getSource());
-            pstmt.setString(20, state.getLocation());
-            pstmt.setString(21, state.getStage());
-            pstmt.setString(22, state.getDuration());
+            pstmt.setLong(3, dataTimestamp != null ? dataTimestamp : System.currentTimeMillis());
+            pstmt.setString(4, state.getValue());
+            pstmt.setString(5, state.getType());
+            pstmt.setString(6, state.getLevel());
+            pstmt.setString(7, state.getSeverity());
+            pstmt.setString(8, state.getMessage());
+            pstmt.setString(9, state.getTimeDelay() != null ? String.valueOf(state.getTimeDelay()) : null);
+            pstmt.setString(10, state.getDeadband());
+            pstmt.setString(11, state.getAckBy());
+            pstmt.setString(12, state.getStatus());
+            pstmt.setString(13, state.getSource());
+            pstmt.setString(14, state.getLocation());
+            pstmt.setString(15, state.getStage());
+            pstmt.setString(16, state.getStageMessage());
+            pstmt.setString(17, state.getDuration());
+            Long alarmStart = state.getAlarmStartTime();
+            pstmt.setLong(18, alarmStart != null ? alarmStart : 0L);
 
             pstmt.executeUpdate();
         }
@@ -322,35 +328,37 @@ public class TdengineSyncService {
         String path = state.getPath();
         String subtable = sanitizeTableName(path) + "_rt";
 
+        // TAGS(path) + 17 VALUES columns
         String sql = "INSERT INTO " + subtable + " USING " + supertable
-                + " TAGS (?, ?, ?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                + " TAGS (?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setString(1, state.getName());
-            pstmt.setString(2, state.getDisplayName());
-            pstmt.setString(3, path);
+            // TAG
+            pstmt.setString(1, path);
 
-            pstmt.setTimestamp(4, new Timestamp(System.currentTimeMillis()));
+            // VALUES
+            // Raw epoch-millis (setLong) avoids the REST driver's local-zone
+            // string serialization that shifts timestamps by the JVM/server TZ
+            // offset. See writeToSnapshotSupertable for the full rationale.
+            pstmt.setLong(2, System.currentTimeMillis());
             Long dataTimestamp = state.getTimestamp();
-            pstmt.setTimestamp(5, dataTimestamp != null ? new Timestamp(dataTimestamp) : new Timestamp(System.currentTimeMillis()));
-            pstmt.setString(6, state.getValue());
-            pstmt.setString(7, state.getType());
-            pstmt.setString(8, state.getUnit());
-            pstmt.setString(9, state.getMax());
-            pstmt.setString(10, state.getMin());
-            pstmt.setString(11, state.getIp());
-            pstmt.setString(12, state.getPort());
-            pstmt.setString(13, state.getOther());
-            pstmt.setString(14, state.getLevel());
-            pstmt.setString(15, state.getSeverity());
-            pstmt.setString(16, state.getMessage());
-            pstmt.setString(17, state.getHysteresis());
-            pstmt.setString(18, state.getAckBy());
-            pstmt.setString(19, state.getStatus());
-            pstmt.setString(20, state.getSource());
-            pstmt.setString(21, state.getLocation());
-            pstmt.setString(22, state.getStage());
-            pstmt.setString(23, state.getDuration());
+            pstmt.setLong(3, dataTimestamp != null ? dataTimestamp : System.currentTimeMillis());
+            pstmt.setString(4, state.getValue());
+            pstmt.setString(5, state.getType());
+            pstmt.setString(6, state.getLevel());
+            pstmt.setString(7, state.getSeverity());
+            pstmt.setString(8, state.getMessage());
+            pstmt.setString(9, state.getTimeDelay() != null ? String.valueOf(state.getTimeDelay()) : null);
+            pstmt.setString(10, state.getDeadband());
+            pstmt.setString(11, state.getAckBy());
+            pstmt.setString(12, state.getStatus());
+            pstmt.setString(13, state.getSource());
+            pstmt.setString(14, state.getLocation());
+            pstmt.setString(15, state.getStage());
+            pstmt.setString(16, state.getStageMessage());
+            pstmt.setString(17, state.getDuration());
+            Long alarmStart = state.getAlarmStartTime();
+            pstmt.setLong(18, alarmStart != null ? alarmStart : 0L);
 
             pstmt.executeUpdate();
         }
@@ -364,21 +372,25 @@ public class TdengineSyncService {
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     /**
-     * Query cleared alarms (stage=end + status=Ack) from the alarm_realtime supertable.
-     * Returns the most recent 200 records, ordered by data_timestamp descending.
+     * Query all alarm records from the alarm_realtime supertable.
+     * Returns the most recent 200 records, ordered by data_timestamp descending
+     * (newest first), mirroring the Active Alarms default ordering.
      */
     public List<AlarmRecordDto> queryClearedAlarms() {
         List<AlarmRecordDto> result = new ArrayList<>();
         if (!ensureConnected()) {
-            log.warn("TDengine not available, cannot query cleared alarms");
+            log.warn("TDengine not available, cannot query alarm history");
             return result;
         }
 
         String sql = "SELECT data_timestamp, alarm_level, alarm_severity, alarm_source, " +
                 "alarm_message, alarm_location, alarm_status, ack_by, alarm_duration, " +
-                "alarm_stage, path FROM alarm_realtime " +
-                "WHERE alarm_stage = 'end' AND alarm_status = 'Ack' " +
-                "ORDER BY data_timestamp DESC LIMIT 200";
+                "alarm_stage, alarm_stage_message, alarm_start_time, path FROM alarm_realtime " +
+                // ts (write moment) is a stable tiebreaker: when two records share the same
+                // data_timestamp (e.g. an End + Start written in the same tick during a level
+                // escalation), ts breaks the tie by insertion order so the later-written
+                // Start always sorts above the earlier-written End.
+                "ORDER BY data_timestamp DESC, ts DESC LIMIT 200";
 
         try (Statement stmt = connection.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
@@ -401,15 +413,24 @@ public class TdengineSyncService {
                 dto.setAckBy(rs.getString("ack_by"));
                 dto.setDuration(rs.getString("alarm_duration"));
                 dto.setStage(rs.getString("alarm_stage"));
+                dto.setStageMessage(rs.getString("alarm_stage_message"));
+                Timestamp startTs = rs.getTimestamp("alarm_start_time");
+                if (startTs != null) {
+                    dto.setAlarmStartTime(LocalDateTime.ofInstant(
+                            Instant.ofEpochMilli(startTs.getTime()), ZoneId.systemDefault())
+                            .format(TD_TIME_FORMAT));
+                } else {
+                    dto.setAlarmStartTime("-");
+                }
                 dto.setPath(rs.getString("path"));
                 result.add(dto);
             }
         } catch (SQLException e) {
-            log.error("Failed to query cleared alarms from TDengine", e);
+            log.error("Failed to query alarm history from TDengine", e);
             closeConnection();
         }
 
-        log.info("Queried {} cleared alarms from TDengine", result.size());
+        log.info("Queried {} alarm history records from TDengine", result.size());
         return result;
     }
 

@@ -6,28 +6,18 @@
  *
  * 修改此处的颜色值即可全局生效，无需改动各组件。
  *
- * color   — 主色（用于弹窗边框、标签边框+文字）
- * bgColor — 标签正常状态下的背景色（effect=dark）
+ * color   — 主色（用于弹窗、标签背景色）
  */
 
-export interface SeverityColorConfig {
-  color: string
-  bgColor: string
-}
-
-export const severityColors: Record<string, SeverityColorConfig> = {
-  Critical: { color: '#ef4444', bgColor: 'rgba(239, 68, 68, 0.15)' },
-  Major:    { color: '#f97316', bgColor: 'rgba(249, 115, 22, 0.15)' },
-  Minor:    { color: '#eab308', bgColor: 'rgba(234, 179, 8, 0.15)' },
-  Warning:  { color: '#3b82f6', bgColor: 'rgba(59, 130, 246, 0.15)' },
+export const severityColors: Record<string, string> = {
+  Critical: '#FF0000',
+  Major: '#FFC000',
+  Minor: '#FFFF00',
+  Warning: '#3b82f6',
 }
 
 /** 获取某等级的主色，未知等级返回灰色 */
 export function getSeverityColor(severity: string): string {
-  return severityColors[severity]?.color ?? '#6b7280'
+  return severityColors[severity] ?? '#6b7280'
 }
 
-/** 获取某等级的背景色，未知等级返回灰色半透明 */
-export function getSeverityBgColor(severity: string): string {
-  return severityColors[severity]?.bgColor ?? 'rgba(107, 114, 128, 0.15)'
-}

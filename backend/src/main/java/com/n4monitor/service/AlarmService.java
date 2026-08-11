@@ -28,6 +28,9 @@ public class AlarmService {
     @Value("${alarm.redis.active-key}")
     private String activeRedisKey;
 
+    @Value("${alarm.redis.latest-key}")
+    private String latestRedisKey;
+
     @Value("${alarm.redis.notification-channel}")
     private String notificationChannel;
 
@@ -75,6 +78,7 @@ public class AlarmService {
                 dto.setAckBy(getTextField(node, "ackBy", "-"));
                 dto.setDuration(getTextField(node, "duration", ""));
                 dto.setStage(getTextField(node, "stage", ""));
+                dto.setStageMessage(getTextField(node, "stageMessage", ""));
 
                 alarms.add(dto);
             } catch (Exception e) {
@@ -116,8 +120,9 @@ public class AlarmService {
     }
 
     /**
-     * Get cleared alarms (stage=end + status=Ack) from TDengine.
-     * These are historical alarm records that have been acknowledged and recovered.
+     * Get all alarm history records from TDengine (newest first).
+     * Returns every record stored in alarm_realtime regardless of stage/status,
+     * mirroring the Active Alarms default time ordering.
      */
     public List<AlarmRecordDto> getClearedAlarms() {
         return tdengineSyncService.queryClearedAlarms();
@@ -125,6 +130,17 @@ public class AlarmService {
 
     /**
      * Acknowledge alarms by updating their status and ackBy in Redis.
+     * <p>
+     * Timestamp rules:
+     * <ul>
+     *   <li>alarm:active + notification broadcast: keep the alarm's historical start
+     *       timestamp (the record already stores alarmStartTime as its timestamp).</li>
+     *   <li>TDengine realtime: write with the ack moment (now) as the data timestamp.</li>
+     *   <li>alarm:latest: update only if the latest entry is still in an alarm state
+     *       (level non-empty). If the point has already recovered (level empty),
+     *       the ack targets the previous alarm record, so latest must NOT be touched.
+     *       When updated, latest uses the ack moment (now) as its timestamp.</li>
+     * </ul>
      *
      * @param paths point paths to acknowledge
      * @param ackBy user who acknowledges the alarms
@@ -143,6 +159,7 @@ public class AlarmService {
         Set<String> pathSet = new HashSet<>(paths);
         int updated = 0;
         List<String> ackedJsons = new ArrayList<>();
+        long ackTimestamp = System.currentTimeMillis();
 
         for (Map.Entry<Object, Object> entry : rawData.entrySet()) {
             String key = (String) entry.getKey();
@@ -158,34 +175,78 @@ public class AlarmService {
 
                 String stage = node.has("stage") ? node.get("stage").asText() : "";
 
-                String finalJson;
-                if ("end".equals(stage)) {
+                boolean recovered = "end".equals(stage);
+
+                // Duration handling differs by stage:
+                //  - stage=end (recovered): the alarm already ended; Flink froze the final
+                //    duration at recovery time. Keep that value as-is, do NOT recompute.
+                //  - stage=start/continue (still alarming): recompute the live duration as
+                //    (ackMoment - alarmStart) / 1000 so the displayed duration is current.
+                String ackDuration;
+                long ackDurationSeconds = 0L;
+                if (recovered) {
+                    // Preserve the frozen duration written at recovery time.
+                    ackDuration = node.has("duration") && !node.get("duration").isNull()
+                            ? node.get("duration").asText() : "0";
+                    try {
+                        ackDurationSeconds = Long.parseLong(ackDuration);
+                    } catch (NumberFormatException ignored) {
+                        ackDurationSeconds = 0L;
+                    }
+                } else {
+                    long alarmStartTs = 0L;
+                    if (node.has("alarmStartTime") && !node.get("alarmStartTime").isNull()) {
+                        alarmStartTs = node.get("alarmStartTime").asLong();
+                    } else if (node.has("timestamp") && !node.get("timestamp").isNull()) {
+                        alarmStartTs = node.get("timestamp").asLong();
+                    }
+                    ackDurationSeconds = alarmStartTs > 0
+                            ? Math.max(0, (ackTimestamp - alarmStartTs) / 1000)
+                            : 0L;
+                    ackDuration = String.valueOf(ackDurationSeconds);
+                }
+
+                // Update status/ackBy on the active record. For ongoing alarms the duration
+                // is refreshed; for recovered alarms it is left at the frozen value. The
+                // timestamp is left untouched so it keeps the alarm's historical start time.
+                // transition=Ack marks this record as a user-acknowledgement event.
+                ((com.fasterxml.jackson.databind.node.ObjectNode) node)
+                        .put("status", "Ack")
+                        .put("ackBy", ackBy)
+                        .put("stageMessage", "Ack");
+                if (!recovered) {
+                    ((com.fasterxml.jackson.databind.node.ObjectNode) node)
+                            .put("duration", ackDuration);
+                }
+                String activeJson = objectMapper.writeValueAsString(node);
+
+                if (recovered) {
                     // Already recovered (stage=end): mark as Ack and remove from Redis
                     // so a page refresh does not resurrect it. The cleared signal is
                     // still broadcast so the frontend removes the row immediately.
-                    ((com.fasterxml.jackson.databind.node.ObjectNode) node)
-                            .put("status", "Ack")
-                            .put("ackBy", ackBy);
-                    finalJson = objectMapper.writeValueAsString(node);
                     redisTemplate.opsForHash().delete(activeRedisKey, key);
                 } else {
                     // Still alarming (stage=start/continue): update status in place,
                     // the record stays in alarm:active for continued display.
-                    ((com.fasterxml.jackson.databind.node.ObjectNode) node)
-                            .put("status", "Ack")
-                            .put("ackBy", ackBy);
-                    finalJson = objectMapper.writeValueAsString(node);
-                    redisTemplate.opsForHash().put(activeRedisKey, key, finalJson);
+                    redisTemplate.opsForHash().put(activeRedisKey, key, activeJson);
                 }
-                ackedJsons.add(finalJson);
+                // notification broadcast uses the historical timestamp (activeJson keeps it)
+                ackedJsons.add(activeJson);
 
-                // Persist the acked record to TDengine alarm_realtime so the ack
-                // event (status=Ack, ackBy) is captured in the historical record.
+                // Persist the ack event to TDengine with the ack moment as the timestamp.
                 try {
-                    PointAlarmState ackedState = objectMapper.readValue(finalJson, PointAlarmState.class);
+                    PointAlarmState ackedState = objectMapper.readValue(activeJson, PointAlarmState.class);
+                    ackedState.setTimestamp(ackTimestamp);
                     tdengineSyncService.writeRealtimeAlarm(ackedState);
                 } catch (Exception te) {
                     log.warn("Failed to persist acked alarm to TDengine for key: {}", key, te);
+                }
+
+                // Update alarm:latest only for ongoing alarms (stage=start/continue).
+                // A recovered alarm (stage=end) has already ended; its latest entry reflects
+                // the recovered (normal) state, so the ack must NOT touch latest at all.
+                if (!recovered) {
+                    updateLatestOnAck(path, ackBy, ackTimestamp, ackDurationSeconds);
                 }
 
                 updated++;
@@ -201,6 +262,38 @@ public class AlarmService {
         }
 
         return updated;
+    }
+
+    /**
+     * Update alarm:latest for an acknowledged ongoing alarm (stage=start/continue).
+     * Only called when the alarm is still active. The latest record's status/ackBy are
+     * set to Ack/ackBy, its timestamp to the ack moment, and its duration to the
+     * recomputed value (ack moment - alarm start).
+     * <p>
+     * Recovered alarms (stage=end) never reach this method: their latest entry already
+     * reflects the normal state, so the ack must not modify it.
+     */
+    private void updateLatestOnAck(String path, String ackBy, long ackTimestamp, long ackDurationSeconds) {
+        try {
+            String latestJson = (String) redisTemplate.opsForHash().get(latestRedisKey, path);
+            if (latestJson == null || latestJson.isBlank()) {
+                return;
+            }
+            var latestNode = (com.fasterxml.jackson.databind.node.ObjectNode) objectMapper.readTree(latestJson);
+            String level = latestNode.has("level") ? latestNode.get("level").asText() : "";
+            // Only update when the point is still alarming. If it has recovered (level
+            // empty), this ack is for the previous alarm and latest must not change.
+            if (level == null || level.isEmpty()) {
+                return;
+            }
+            latestNode.put("status", "Ack");
+            latestNode.put("ackBy", ackBy);
+            latestNode.put("timestamp", ackTimestamp);
+            latestNode.put("duration", String.valueOf(ackDurationSeconds));
+            redisTemplate.opsForHash().put(latestRedisKey, path, objectMapper.writeValueAsString(latestNode));
+        } catch (Exception e) {
+            log.warn("Failed to update latest on ack for path: {}", path, e);
+        }
     }
 
     /**
@@ -381,11 +474,14 @@ public class AlarmService {
             for (Object value : rawData.values()) {
                 try {
                     var node = objectMapper.readTree((String) value);
-                    String name = node.has("name") ? node.get("name").asText() : "Unknown";
+                    // Use the path-derived `source` (not the removed `name` field) as the
+                    // bucket key so top-sources ranking stays meaningful without name.
+                    String src = node.has("source") && !node.get("source").isNull()
+                            ? node.get("source").asText() : "Unknown";
                     String severity = node.has("severity") ? node.get("severity").asText() : "Normal";
                     // Only count non-normal alarms
                     if (!"Normal".equals(severity)) {
-                        sourceCount.merge(name, 1, Integer::sum);
+                        sourceCount.merge(src, 1, Integer::sum);
                     }
                 } catch (Exception ignored) {
                 }

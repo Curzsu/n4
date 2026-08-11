@@ -19,6 +19,11 @@ const router = createRouter({
       component: () => import('@/views/AlarmConfigView.vue'),
     },
     {
+      path: '/alarm/history',
+      name: 'alarm-history',
+      component: () => import('@/views/AlarmHistoryView.vue'),
+    },
+    {
       path: '/device-template',
       name: 'device-template',
       component: () => import('@/views/device-deploy/ProductManagerView.vue'),
@@ -27,6 +32,16 @@ const router = createRouter({
       path: '/device-deployment',
       name: 'device-deployment',
       component: () => import('@/views/device-deploy/DeviceDeploymentView.vue'),
+    },
+    {
+      path: '/system-deployment',
+      name: 'system-deployment',
+      component: () => import('@/views/SystemDeploymentView.vue'),
+    },
+    {
+      path: '/dashboard-nav/device/:deviceDeployId',
+      name: 'dashboard-nav-device',
+      component: () => import('@/views/DeviceMonitorView.vue'),
     },
   ],
 })

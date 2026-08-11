@@ -16,16 +16,20 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Bell, TrendCharts, Document, Tools, Setting } from '@element-plus/icons-vue'
+import { Bell, TrendCharts, Document, Tools, Setting, Clock, Cpu, Connection, Operation } from '@element-plus/icons-vue'
 import { useDashboardStore } from '@/stores/dashboard'
 
 const store = useDashboardStore()
 const route = useRoute()
 const router = useRouter()
 
-const isAlarmRoute = computed(() => route.path.startsWith('/alarm'))
+// System second-level routes take precedence over the /alarm prefix check,
+// because /alarm/config now belongs to the System menu (not the Alarms menu).
+const systemPaths = ['/device-template', '/device-deployment', '/system-deployment', '/alarm/config']
+const isSystemRoute = computed(() => systemPaths.includes(route.path))
+const isAlarmRoute = computed(() => route.path.startsWith('/alarm') && !isSystemRoute.value)
 
-// Items shown on the alarm route: Active Alarm / Alarm Configuration
+// Items shown on the alarm route: Active Alarms / Alarm History
 const alarmItems = computed(() => [
   {
     label: 'Active Alarms',
@@ -35,12 +39,20 @@ const alarmItems = computed(() => [
     to: '/alarm',
   },
   {
-    label: 'Alarm Configuration',
-    icon: Setting,
+    label: 'Alarm History',
+    icon: Clock,
     badge: null,
-    active: route.path === '/alarm/config',
-    to: '/alarm/config',
+    active: route.path === '/alarm/history',
+    to: '/alarm/history',
   },
+])
+
+// System second-level menu (order as specified by the user).
+const systemItems = computed(() => [
+  { label: 'Device Template', icon: Cpu, badge: null, active: route.path === '/device-template', to: '/device-template' },
+  { label: 'Device Deployment', icon: Connection, badge: null, active: route.path === '/device-deployment', to: '/device-deployment' },
+  { label: 'System Deployment', icon: Operation, badge: null, active: route.path === '/system-deployment', to: '/system-deployment' },
+  { label: 'Alarm Configuration', icon: Setting, badge: null, active: route.path === '/alarm/config', to: '/alarm/config' },
 ])
 
 // Items shown on all other routes
@@ -52,9 +64,11 @@ const defaultItems = computed(() => [
   { label: 'System Settings', icon: Setting, badge: null, active: false, to: '' },
 ])
 
-const toolbarItems = computed(() =>
-  isAlarmRoute.value ? alarmItems.value : defaultItems.value
-)
+const toolbarItems = computed(() => {
+  if (isSystemRoute.value) return systemItems.value
+  if (isAlarmRoute.value) return alarmItems.value
+  return defaultItems.value
+})
 
 function onItemClick(item: typeof alarmItems.value[number]) {
   if (item.to) {

@@ -41,8 +41,8 @@ start "N4 Monitor Backend" cmd.exe /k "cd /d ""%BACKEND%"" && mvn.cmd spring-boo
 echo Starting N4 Monitor frontend on port 5173...
 start "N4 Monitor Frontend" cmd.exe /k "cd /d ""%FRONTEND%"" && npm.cmd run dev"
 
-echo Waiting for the frontend...
-timeout /t 6 /nobreak >nul
+echo Waiting for frontend and backend services to start...
+timeout /t 10 /nobreak >nul
 start "" "http://localhost:5173/"
 
 echo.

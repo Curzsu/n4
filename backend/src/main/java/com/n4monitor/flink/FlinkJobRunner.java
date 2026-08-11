@@ -34,11 +34,14 @@ public class FlinkJobRunner implements CommandLineRunner {
     @Value("${spring.data.redis.port:6379}")
     private int redisPort;
 
+    @Value("${spring.data.redis.password:}")
+    private String redisPassword;
+
     @Value("${alarm.flink.enabled}")
     private boolean enabled;
 
-    @Value("${alarm.redis.rules-boolean-key}")
-    private String rulesBooleanKey;
+    @Value("${alarm.flink.parallelism:4}")
+    private int parallelism;
 
     @Value("${alarm.redis.rules-numeric-key}")
     private String rulesNumericKey;
@@ -58,6 +61,9 @@ public class FlinkJobRunner implements CommandLineRunner {
     @Value("${alarm.redis.realtime-channel}")
     private String realtimeChannel;
 
+    @Value("${alarm.redis.point-rule-map-key:alarm:point:rule}")
+    private String pointRuleMapKey;
+
     @Override
     public void run(String... args) {
         if (!enabled) {
@@ -70,19 +76,21 @@ public class FlinkJobRunner implements CommandLineRunner {
                 log.info("Starting Flink alarm processing job...");
                 log.info("  Kafka: {} topic={}", kafkaBroker, kafkaTopic);
                 log.info("  Redis: {}:{}", redisHost, redisPort);
-                log.info("  Rules boolean key: {}", rulesBooleanKey);
                 log.info("  Rules numeric key: {}", rulesNumericKey);
                 log.info("  Rules enum key: {}", rulesEnumKey);
                 log.info("  Latest key: {}", latestRedisKey);
                 log.info("  Active key: {}", activeRedisKey);
                 log.info("  Notification channel: {}", notificationChannel);
                 log.info("  Realtime channel: {}", realtimeChannel);
+                log.info("  Point rule map key: {}", pointRuleMapKey);
+                log.info("  Parallelism: {}", parallelism);
 
                 AlarmProcessingJob.run(kafkaBroker, kafkaTopic, groupId,
-                        redisHost, redisPort,
-                        rulesBooleanKey, rulesNumericKey, rulesEnumKey,
+                        redisHost, redisPort, redisPassword,
+                        rulesNumericKey, rulesEnumKey,
                         latestRedisKey, activeRedisKey,
-                        notificationChannel, realtimeChannel);
+                        notificationChannel, realtimeChannel,
+                        pointRuleMapKey, parallelism);
             } catch (InterruptedException e) {
                 log.info("Flink job thread interrupted, stopping...");
                 Thread.currentThread().interrupt();

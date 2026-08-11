@@ -24,6 +24,7 @@ public class AlarmRuleInitializer implements ApplicationRunner {
         try {
             log.info("Syncing alarm rules from MySQL to Redis...");
             alarmRuleSyncService.syncAllRulesToRedis();
+            alarmRuleSyncService.syncPointRuleMapToRedis();
         } catch (Exception e) {
             log.warn("Auto sync of alarm rules failed (MySQL/Redis may not be ready): {}", e.getMessage());
         }

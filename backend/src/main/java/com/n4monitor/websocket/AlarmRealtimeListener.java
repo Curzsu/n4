@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 /**
  * Redis Pub/Sub listener for real-time alarm records.
  * <p>
- * When Flink confirms an alarm (after the hysteresis timeout), it publishes
+ * When Flink confirms an alarm (after the time_delay timeout), it publishes
  * the {@link PointAlarmState} to the {@code alarm:realtime} channel.
  * This listener receives the message and writes it to TDengine immediately.
  */
@@ -26,12 +26,14 @@ public class AlarmRealtimeListener implements MessageListener {
 
     @Override
     public void onMessage(Message message, byte[] pattern) {
+        String channel = pattern != null ? new String(pattern) : "unknown";
+        log.info("Received Redis pub/sub message on channel: {}", channel);
         try {
             String alarmJson = new String(message.getBody());
-            log.debug("Received realtime alarm from Redis: {}",
-                    alarmJson.substring(0, Math.min(100, alarmJson.length())));
 
             PointAlarmState state = objectMapper.readValue(alarmJson, PointAlarmState.class);
+            log.info("Persisting realtime alarm to TDengine: path={}, stage={}, level={}",
+                    state.getPath(), state.getStage(), state.getLevel());
             tdengineSyncService.writeRealtimeAlarm(state);
         } catch (Exception e) {
             log.error("Failed to process realtime alarm message", e);

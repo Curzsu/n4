@@ -6,7 +6,7 @@
         <div class="panel-header">
           <div class="header-title">
             <el-icon class="title-icon"><Plus /></el-icon>
-            <span>新增设备模板</span>
+            <span>新增设备模板 (Mock)</span>
           </div>
           <el-button size="small" @click="cancelCreate">返回列表</el-button>
         </div>
@@ -19,12 +19,12 @@
             label-position="right"
             class="custom-form"
           >
-            <el-form-item label="模板名称" prop="productName">
-              <el-input v-model="form.productName" placeholder="例如：大金列间空调" />
+            <el-form-item label="模板名称" prop="deviceTmplName">
+              <el-input v-model="form.deviceTmplName" placeholder="例如：大金列间空调" />
             </el-form-item>
             
-            <el-form-item label="模板类型" prop="productType">
-              <el-input v-model="form.productType" placeholder="例如：AC (空调), UPS, TRANSFORMER" />
+            <el-form-item label="模板类型" prop="deviceType">
+              <el-input v-model="form.deviceType" placeholder="例如：AC (空调), UPS, TRANSFORMER" />
             </el-form-item>
 
             <el-form-item label="型号规格" prop="model">
@@ -57,7 +57,7 @@
             <div class="points-header">
               <div class="section-title">
                 <el-icon class="section-icon"><List /></el-icon>
-                <span>配置初始点位表 (共 {{ tempPoints.length }} 个点位，创建模板时将同步保存)</span>
+                <span>配置初始点位表 (共 {{ tempPoints.length }} 个点位，创建模板时将同步保存，均为 Mock)</span>
               </div>
               <div class="points-actions">
                 <!-- 批量管理状态 -->
@@ -101,18 +101,27 @@
               @selection-change="handleSelectionChange"
             >
               <el-table-column type="selection" width="45" align="center" v-if="isPointBatchManaging" />
-              <el-table-column prop="registerId" label="寄存器地址" min-width="160" align="center" />
-              <el-table-column prop="pointName" label="点位名称" min-width="200" show-overflow-tooltip />
-              <el-table-column prop="pointType" label="点位类型" min-width="140">
+              <el-table-column prop="pointName" label="点位名称" min-width="220" show-overflow-tooltip />
+              <el-table-column prop="pointType" label="点位类型" width="110" align="center">
                 <template #default="{ row }">
                   <span :class="['type-badge', getPointTypeClass(row.pointType)]">
-                    {{ getPointTypeText(row.pointType) }}
+                    {{ row.pointType || '—' }}
                   </span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="dataType" label="数据类型" width="110" align="center">
+                <template #default="{ row }">
+                  <span :class="['type-badge', getDataTypeClass(row.dataType)]">{{ row.dataType }}</span>
                 </template>
               </el-table-column>
               <el-table-column prop="unit" label="单位" width="100" align="center" />
               <el-table-column prop="displayPrecision" label="精度" width="90" align="center" />
-              <el-table-column label="操作" width="160" fixed="right" align="center">
+              <el-table-column label="数据来源" width="100" align="center">
+                <template>
+                  <el-tag size="small" type="warning" effect="dark">Mock</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="140" fixed="right" align="center">
                 <template #default="{ row }">
                   <el-button size="small" type="primary" link :icon="Edit" @click="openEditPointDialog(row)">修改</el-button>
                   <el-button size="small" type="danger" link :icon="Delete" @click="deletePoint(row)">删除</el-button>
@@ -124,11 +133,14 @@
       </div>
 
       <!-- Case 2: Editing an existing template -->
-      <div v-else-if="selectedProduct" class="form-container-wrapper">
+      <div v-else-if="selectedTemplate" class="form-container-wrapper">
         <div class="panel-header">
           <div class="header-title">
             <el-icon class="title-icon"><Edit /></el-icon>
-            <span>设备模板 - {{ selectedProduct?.productName }}</span>
+            <span>设备模板 - {{ selectedTemplate.deviceTmplName }}</span>
+            <el-tag size="small" :type="selectedTemplate.isReal ? 'success' : 'warning'" effect="dark">
+              {{ selectedTemplate.isReal ? '真实数据' : 'Mock' }}
+            </el-tag>
           </div>
           <div class="action-buttons">
             <el-button type="primary" plain size="small" @click="goBackToList">返回列表</el-button>
@@ -139,7 +151,7 @@
               size="small" 
               :icon="Delete"
               plain
-              @click="confirmDelete(selectedProduct)"
+              @click="confirmDelete(selectedTemplate)"
             >
               删除模板
             </el-button>
@@ -158,13 +170,13 @@
           >
             <el-row :gutter="20">
               <el-col :span="8">
-                <el-form-item label="模板名称" prop="productName">
-                  <el-input v-model="form.productName" />
+                <el-form-item label="模板名称" prop="deviceTmplName">
+                  <el-input v-model="form.deviceTmplName" />
                 </el-form-item>
               </el-col>
               <el-col :span="8">
-                <el-form-item label="模板类型" prop="productType">
-                  <el-input v-model="form.productType" />
+                <el-form-item label="模板类型" prop="deviceType">
+                  <el-input v-model="form.deviceType" />
                 </el-form-item>
               </el-col>
               <el-col :span="8">
@@ -254,18 +266,30 @@
               @selection-change="handleSelectionChange"
             >
               <el-table-column type="selection" width="45" align="center" v-if="isPointBatchManaging" />
-              <el-table-column prop="deviceId" label="设备ID" min-width="180" show-overflow-tooltip />
-              <el-table-column prop="pointName" label="点位名称" min-width="200" show-overflow-tooltip />
-              <el-table-column prop="pointType" label="点位类型" min-width="140">
+              <el-table-column prop="pointTmplId" label="点位ID" width="90" align="center" />
+              <el-table-column prop="pointName" label="点位名称" min-width="220" show-overflow-tooltip />
+              <el-table-column prop="pointType" label="点位类型" width="110" align="center">
                 <template #default="{ row }">
                   <span :class="['type-badge', getPointTypeClass(row.pointType)]">
-                    {{ getPointTypeText(row.pointType) }}
+                    {{ row.pointType || '—' }}
                   </span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="dataType" label="数据类型" width="110" align="center">
+                <template #default="{ row }">
+                  <span :class="['type-badge', getDataTypeClass(row.dataType)]">{{ row.dataType }}</span>
                 </template>
               </el-table-column>
               <el-table-column prop="unit" label="单位" width="100" align="center" />
               <el-table-column prop="displayPrecision" label="精度" width="90" align="center" />
-              <el-table-column label="操作" width="220" fixed="right" align="center">
+              <el-table-column label="数据来源" width="110" align="center">
+                <template #default="{ row }">
+                  <el-tag size="small" :type="row.isReal ? 'success' : 'warning'" effect="dark">
+                    {{ row.isReal ? '真实数据' : 'Mock' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="210" fixed="right" align="center">
                 <template #default="{ row }">
                   <el-button size="small" type="primary" link :icon="Edit" @click="openEditPointDialog(row)">修改</el-button>
                   <el-button size="small" type="danger" link :icon="Delete" @click="deletePoint(row)">删除</el-button>
@@ -282,7 +306,7 @@
         <div class="panel-header">
           <div class="header-title">
             <el-icon class="title-icon"><List /></el-icon>
-            <span>全部设备模板列表</span>
+            <span>全部设备模板列表 (真实数据 {{ realTemplateCount }} 个 / Mock {{ mockTemplateCount }} 个)</span>
           </div>
           <div class="action-buttons">
             <!-- 批量管理状态 -->
@@ -341,7 +365,7 @@
           </div>
 
           <el-table 
-            :data="filteredTableProducts" 
+            :data="filteredTableTemplates" 
             style="width: 100%; flex: 1;" 
             border 
             size="small"
@@ -349,19 +373,27 @@
             @selection-change="handleTemplateSelectionChange"
           >
             <el-table-column v-if="isTemplateBatchManaging" type="selection" width="45" align="center" />
-            <el-table-column prop="productId" label="ID" width="70" align="center" />
-            <el-table-column prop="productName" label="模板名称" min-width="200" show-overflow-tooltip />
-            <el-table-column prop="productType" label="类型" min-width="160" align="center" show-overflow-tooltip />
-            <el-table-column prop="model" label="型号规格" min-width="150" show-overflow-tooltip />
-            <el-table-column prop="manufacturer" label="制造厂商" min-width="180" show-overflow-tooltip />
+            <el-table-column prop="deviceTmplId" label="ID" width="70" align="center" />
+            <el-table-column prop="deviceTmplName" label="模板名称" min-width="200" show-overflow-tooltip />
+            <el-table-column prop="deviceType" label="类型" min-width="120" align="center" show-overflow-tooltip />
+            <el-table-column prop="model" label="型号规格" min-width="120" show-overflow-tooltip />
+            <el-table-column prop="manufacturer" label="制造厂商" min-width="140" show-overflow-tooltip />
             <el-table-column prop="manuDate" label="出厂日期" width="110" align="center" />
+            <el-table-column prop="pointCount" label="点位数" width="90" align="center" />
+            <el-table-column label="数据来源" width="110" align="center">
+              <template #default="{ row }">
+                <el-tag size="small" :type="row.isReal ? 'success' : 'warning'" effect="dark">
+                  {{ row.isReal ? '真实数据' : 'Mock' }}
+                </el-tag>
+              </template>
+            </el-table-column>
             <el-table-column label="操作" width="130" align="center">
               <template #default="{ row }">
                 <el-button 
                   type="primary" 
                   link 
                   size="small" 
-                  @click="editProductFromTable(row)"
+                  @click="editTemplateFromTable(row)"
                 >
                   编辑
                 </el-button>
@@ -369,7 +401,7 @@
                   type="danger" 
                   link 
                   size="small" 
-                  @click="deleteProductFromTable(row)"
+                  @click="deleteTemplateFromTable(row)"
                 >
                   删除
                 </el-button>
@@ -389,19 +421,23 @@
       class="dark-dialog"
     >
       <el-form :model="pointForm" :rules="pointRules" ref="pointFormRef" label-width="100px">
-        <!-- 寄存器地址由系统自动生成，无需手动填写 -->
-        <!-- <el-form-item label="寄存器地址" prop="registerId">
-          <el-input v-model="pointForm.registerId" placeholder="例如: 1910002" />
-        </el-form-item> -->
         <el-form-item label="点位名称" prop="pointName">
           <el-input v-model="pointForm.pointName" placeholder="例如: 温度" />
         </el-form-item>
         <el-form-item label="点位类型" prop="pointType">
           <el-select v-model="pointForm.pointType" placeholder="选择类型" style="width: 100%">
-            <el-option :value="1" label="DI - 数字输入" />
-            <el-option :value="2" label="DO - 数字输出" />
-            <el-option :value="3" label="AI - 模拟输入" />
-            <el-option :value="4" label="AO - 模拟输出" />
+            <el-option value="DI" label="DI - 数字输入" />
+            <el-option value="DO" label="DO - 数字输出" />
+            <el-option value="AI" label="AI - 模拟输入" />
+            <el-option value="AO" label="AO - 模拟输出" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="数据类型" prop="dataType">
+          <el-select v-model="pointForm.dataType" placeholder="选择数据类型" style="width: 100%">
+            <el-option value="numeric" label="numeric - 数值" />
+            <el-option value="enum" label="enum - 枚举" />
+            <el-option value="boolean" label="boolean - 布尔" />
+            <el-option value="string" label="string - 字符串" />
           </el-select>
         </el-form-item>
         <el-form-item label="单位" prop="unit">
@@ -460,16 +496,10 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { Plus, Edit, Check, Delete, List, Odometer, Warning, Download, Upload, UploadFilled, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { productApi } from '@/api/product'
-import { deviceApi } from '@/api/device'
-import type { Product } from '@/api/types'
+import { templateApi } from '@/api/template'
+import type { DeviceTemplate, PointTemplateItem } from '@/api/types'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useDashboardStore } from '@/stores/dashboard'
-
-// Extend Product interface locally for hasDrawing support
-interface ExtendedProduct extends Product {
-  hasDrawing?: boolean
-}
 
 const store = useDashboardStore()
 const loading = ref(false)
@@ -513,37 +543,14 @@ const pointDialogVisible = ref(false)
 const isEditingPoint = ref(false)
 const pointSubmitting = ref(false)
 const pointFormRef = ref<FormInstance>()
-const pointForm = ref({
-  pointId: null as number | null,
-  registerId: '',
+const pointForm = ref<any>({
+  pointTmplId: null,
   pointName: '',
-  pointType: 3,
+  pointType: 'AI',
+  dataType: 'numeric',
   unit: '无',
   displayPrecision: 0
 })
-
-const validateRegisterIdUnique = (_rule: any, value: any, callback: any) => {
-  if (!value) {
-    callback(new Error('请输入寄存器地址'))
-    return
-  }
-  if (!/^(0x|0X)?[0-9a-fA-F]+$/.test(value)) {
-    callback(new Error('寄存器地址必须是十进制数字或十六进制数（如 40001 或 0x011A）'))
-    return
-  }
-  const list = isCreating.value ? tempPoints.value : templatePoints.value
-  const exists = list.some(p => {
-    if (isEditingPoint.value && p.pointId === pointForm.value.pointId) {
-      return false
-    }
-    return String(p.registerId) === String(value)
-  })
-  if (exists) {
-    callback(new Error('该寄存器地址已存在，不能重复配置'))
-    return
-  }
-  callback()
-}
 
 const validatePointNameUnique = (_rule: any, value: any, callback: any) => {
   if (!value) {
@@ -552,7 +559,7 @@ const validatePointNameUnique = (_rule: any, value: any, callback: any) => {
   }
   const list = isCreating.value ? tempPoints.value : templatePoints.value
   const exists = list.some(p => {
-    if (isEditingPoint.value && p.pointId === pointForm.value.pointId) {
+    if (isEditingPoint.value && p.pointTmplId === pointForm.value.pointTmplId) {
       return false
     }
     return p.pointName === value
@@ -565,94 +572,81 @@ const validatePointNameUnique = (_rule: any, value: any, callback: any) => {
 }
 
 const pointRules = ref<FormRules>({
-  registerId: [
-    { validator: validateRegisterIdUnique, trigger: 'blur' },
-    { max: 30, message: '寄存器地址不能超过 30 个字符', trigger: 'blur' }
-  ],
   pointName: [
     { validator: validatePointNameUnique, trigger: 'blur' },
-    { max: 100, message: '点位名称不能超过 100 个字符', trigger: 'blur' }
+    { max: 150, message: '点位名称不能超过 150 个字符', trigger: 'blur' }
   ],
   pointType: [
     { required: true, message: '请选择点位类型', trigger: 'change' }
   ],
+  dataType: [
+    { required: true, message: '请选择数据类型', trigger: 'change' }
+  ],
   unit: [
-    { max: 30, message: '单位名称不能超过 30 个字符', trigger: 'blur' }
+    { max: 50, message: '单位名称不能超过 50 个字符', trigger: 'blur' }
   ]
 })
 
 const formRef = ref<FormInstance>()
 
-const form = ref<ExtendedProduct>({
-  productName: '',
-  productType: '',
+const form = ref<DeviceTemplate>({
+  deviceTmplName: '',
+  deviceType: '',
   model: '',
   manufacturer: '',
-  manuDate: '',
-  hasDrawing: false
+  manuDate: ''
 })
 
 const rules = ref<FormRules>({
-  productName: [
+  deviceTmplName: [
     { required: true, message: '请输入模板名称', trigger: 'blur' },
     { min: 2, max: 100, message: '长度在 2 到 100 个字符', trigger: 'blur' }
   ],
-  productType: [
+  deviceType: [
     { required: true, message: '请输入模板类型', trigger: 'blur' }
   ]
 })
 
-// Access products list directly from store's allProducts
-const products = computed<ExtendedProduct[]>(() => {
-  return store.allProducts.map((prod: any, index: number) => {
-    return {
-      ...prod,
-      hasDrawing: index % 2 === 0
-    }
-  })
-})
+// Access templates list directly from store's allTemplates (device_template 表)
+const templates = computed<DeviceTemplate[]>(() => store.allTemplates)
 
-// Selected Product based on dashboard store selected node
-const selectedProduct = computed<ExtendedProduct | null>(() => {
-  if (!store.selectedNode || store.selectedNode.id === 'root') {
+const realTemplateCount = computed(() => templates.value.filter(t => t.isReal).length)
+const mockTemplateCount = computed(() => templates.value.filter(t => !t.isReal).length)
+
+// Selected Template based on dashboard store selected node
+const selectedTemplate = computed<DeviceTemplate | null>(() => {
+  if (!store.selectedNode || store.selectedNode.id === 'root' || store.selectedNode.id === 'root_tmpl') {
     return null
   }
-  const found = products.value.find(p => p.productId === store.selectedNode?.id)
+  const found = templates.value.find(t => t.deviceTmplId === store.selectedNode?.id)
   return found || null
 })
 
-const templatePoints = ref<any[]>([])
+const templatePoints = ref<PointTemplateItem[]>([])
 const loadingPoints = ref(false)
 
-const templateDeviceId = computed(() => {
-  if (templatePoints.value.length > 0) {
-    return templatePoints.value[0].deviceId
-  }
-  return null
-})
-
-function getPointTypeText(type: number): string {
-  switch (type) {
-    case 1: return 'DI - 数字输入'
-    case 2: return 'DO - 数字输出'
-    case 3: return 'AI - 模拟输入'
-    case 4: return 'AO - 模拟输出'
-    default: return '未知'
-  }
-}
-
-function getPointTypeClass(type: number): string {
-  switch (type) {
-    case 1: return 'type-di'
-    case 2: return 'type-do'
-    case 3: return 'type-ai'
-    case 4: return 'type-ao'
+function getPointTypeClass(type: string): string {
+  switch ((type || '').toUpperCase()) {
+    case 'DI': return 'type-di'
+    case 'DO': return 'type-do'
+    case 'AI': return 'type-ai'
+    case 'AO': return 'type-ao'
     default: return ''
   }
 }
 
-// Sync form values and load points when selected product changes
-watch(selectedProduct, async (newVal) => {
+function getDataTypeClass(type: string): string {
+  switch ((type || '').toLowerCase()) {
+    case 'numeric': return 'type-ai'
+    case 'enum': return 'type-di'
+    case 'boolean': return 'type-di'
+    case 'string': return 'type-ao'
+    default: return ''
+  }
+}
+
+// Sync form values and load points when selected template changes
+watch(selectedTemplate, async (newVal) => {
   isPointBatchManaging.value = false
   isTemplateBatchManaging.value = false
   selectedPoints.value = []
@@ -667,19 +661,19 @@ watch(selectedProduct, async (newVal) => {
   }
 }, { immediate: true })
 
-// Reactively filter table products based on table filter query
-const filteredTableProducts = computed(() => {
+// Reactively filter table templates based on table filter query
+const filteredTableTemplates = computed(() => {
   const query = tableSearchQuery.value.trim().toLowerCase()
-  if (!query) return products.value
-  return products.value.filter(p => p.productName.toLowerCase().includes(query))
+  if (!query) return templates.value
+  return templates.value.filter(t => t.deviceTmplName.toLowerCase().includes(query))
 })
 
 // Click edit action inside the table
-function editProductFromTable(row: ExtendedProduct) {
+function editTemplateFromTable(row: DeviceTemplate) {
   isCreating.value = false
   store.selectedNode = {
-    id: row.productId,
-    label: row.productName,
+    id: row.deviceTmplId,
+    label: row.deviceTmplName,
     type: 'product',
     status: 1,
     children: []
@@ -692,12 +686,11 @@ function startCreate() {
   tempPoints.value = [] // Reset temporary points array on creation
   store.selectedNode = store.deviceTree[0] || null // back to root node representation
   form.value = {
-    productName: '',
-    productType: '',
+    deviceTmplName: '',
+    deviceType: '',
     model: '',
     manufacturer: '',
-    manuDate: '',
-    hasDrawing: false
+    manuDate: ''
   }
 }
 
@@ -724,43 +717,33 @@ async function submitCreate() {
   await formRef.value.validate(async (valid) => {
     if (valid) {
       submitting.value = true
-      // Strip mock properties before sending to Java backend
-      const payload = { ...form.value }
-      delete payload.hasDrawing
-
       try {
-        const createdProduct = await productApi.createProduct(payload)
-        
-        // Find the template device ID for this newly created product
-        const allDevs = await deviceApi.getAllDevices()
-        const found = allDevs.find((d: any) => d.deviceCode === 'TEMPLATE_' + createdProduct.productId)
-        
-        if (found && tempPoints.value.length > 0) {
-          for (const ip of tempPoints.value) {
-            await deviceApi.addPoint(found.deviceId, {
-              registerId: ip.registerId,
-              pointName: ip.pointName,
-              pointType: ip.pointType,
-              unit: ip.unit,
-              displayPrecision: ip.displayPrecision
-            })
-          }
+        const createdTemplate = await templateApi.createTemplate(form.value)
+
+        for (const ip of tempPoints.value) {
+          await templateApi.addPoint(createdTemplate.deviceTmplId!, {
+            pointName: ip.pointName,
+            pointType: ip.pointType,
+            dataType: ip.dataType,
+            unit: ip.unit,
+            displayPrecision: ip.displayPrecision
+          })
         }
-        
+
         ElMessage.success('创建设备模板并同步配置点位成功')
         isCreating.value = false
-        // Refresh products and store state
+        // Refresh templates and store state
         await store.fetchAllDashboardData()
-        
+
         // Highlight the newly created template node
         store.selectedNode = {
-          id: createdProduct.productId,
-          label: createdProduct.productName,
+          id: createdTemplate.deviceTmplId,
+          label: createdTemplate.deviceTmplName,
           type: 'product',
           status: 1,
           children: []
         }
-        
+
         // Force enter edit mode to configure points
         await nextTick()
         isEditing.value = true
@@ -779,13 +762,9 @@ async function submitUpdate() {
   await formRef.value.validate(async (valid) => {
     if (valid) {
       submitting.value = true
-      // Strip mock properties before sending to Java backend
-      const payload = { ...form.value }
-      delete payload.hasDrawing
-
       try {
-        if (form.value.productId) {
-          await productApi.updateProduct(form.value.productId, payload)
+        if (form.value.deviceTmplId) {
+          await templateApi.updateTemplate(form.value.deviceTmplId, form.value)
           ElMessage.success('保存模板成功')
           isEditing.value = false
           await store.fetchAllDashboardData()
@@ -802,13 +781,13 @@ async function submitUpdate() {
 }
 
 // Common confirm deletion logic
-function confirmDelete(target?: ExtendedProduct | null) {
-  const productToDelete = target || selectedProduct.value
-  if (!productToDelete?.productId) return
-  const id = productToDelete.productId
-  
+function confirmDelete(target?: DeviceTemplate | null) {
+  const templateToDelete = target || selectedTemplate.value
+  if (!templateToDelete?.deviceTmplId) return
+  const id = templateToDelete.deviceTmplId
+
   ElMessageBox.confirm(
-    `确认删除设备模板 “${productToDelete.productName}” 吗？该操作不会物理删除已关联此模板的部署设备。`,
+    `确认删除设备模板 “${templateToDelete.deviceTmplName}” 吗？该操作不会物理删除已关联此模板的部署设备。`,
     '删除确认',
     {
       confirmButtonText: '确定删除',
@@ -820,7 +799,7 @@ function confirmDelete(target?: ExtendedProduct | null) {
   ).then(async () => {
     loading.value = true
     try {
-      await productApi.deleteProduct(id)
+      await templateApi.deleteTemplate(id)
       ElMessage.success('删除成功')
       await store.fetchAllDashboardData()
       store.selectedNode = store.deviceTree[0] || null
@@ -832,7 +811,7 @@ function confirmDelete(target?: ExtendedProduct | null) {
   }).catch(() => {})
 }
 
-function deleteProductFromTable(row: ExtendedProduct) {
+function deleteTemplateFromTable(row: DeviceTemplate) {
   confirmDelete(row)
 }
 
@@ -850,8 +829,8 @@ function batchDeleteTemplates() {
   ).then(async () => {
     loading.value = true
     try {
-      for (const p of selectedTemplates.value) {
-        await productApi.deleteProduct(p.productId)
+      for (const t of selectedTemplates.value) {
+        await templateApi.deleteTemplate(t.deviceTmplId)
       }
       ElMessage.success('批量删除模板成功')
     } catch (err: any) {
@@ -868,10 +847,10 @@ function batchDeleteTemplates() {
 
 // Point operations
 async function loadTemplatePoints() {
-  if (selectedProduct.value?.productId) {
+  if (selectedTemplate.value?.deviceTmplId) {
     loadingPoints.value = true
     try {
-      templatePoints.value = await productApi.getProductPoints(selectedProduct.value.productId)
+      templatePoints.value = await templateApi.getPoints(selectedTemplate.value.deviceTmplId)
     } catch (e: any) {
       console.error(e)
       ElMessage.error(e.message || '加载模板点位列表失败')
@@ -883,39 +862,11 @@ async function loadTemplatePoints() {
 
 function openAddPointDialog() {
   isEditingPoint.value = false
-  
-  // Auto-generate registerId
-  let nextId = 40001
-  const list = isCreating.value ? tempPoints.value : templatePoints.value
-  if (list.length > 0) {
-    const numericIds = list
-      .map(p => {
-        const valStr = String(p.registerId)
-        if (valStr.toLowerCase().startsWith('0x')) {
-          return parseInt(valStr, 16)
-        }
-        return parseInt(valStr, 10)
-      })
-      .filter(id => !isNaN(id))
-    if (numericIds.length > 0) {
-      nextId = Math.max(...numericIds) + 1
-    } else {
-      nextId = list.length + 1
-    }
-  }
-  
-  // Format as decimal or hex depending on existing prefix style
-  let nextIdStr = String(nextId)
-  const hasHex = list.some(p => String(p.registerId).toLowerCase().startsWith('0x'))
-  if (hasHex) {
-    nextIdStr = '0x' + nextId.toString(16).toUpperCase().padStart(4, '0')
-  }
-
   pointForm.value = {
-    pointId: null,
-    registerId: nextIdStr,
+    pointTmplId: null,
     pointName: '',
-    pointType: 3,
+    pointType: 'AI',
+    dataType: 'numeric',
     unit: '无',
     displayPrecision: 0
   }
@@ -930,12 +881,12 @@ function openAddPointDialog() {
 function openEditPointDialog(row: any) {
   isEditingPoint.value = true
   pointForm.value = {
-    pointId: row.pointId,
-    registerId: row.registerId,
+    pointTmplId: row.pointTmplId,
     pointName: row.pointName,
-    pointType: row.pointType,
-    unit: row.unit,
-    displayPrecision: row.displayPrecision
+    pointType: row.pointType || 'AI',
+    dataType: row.dataType || 'numeric',
+    unit: row.unit || '',
+    displayPrecision: row.displayPrecision ?? 0
   }
   pointDialogVisible.value = true
   nextTick(() => {
@@ -952,7 +903,7 @@ async function submitPointForm() {
       if (isCreating.value) {
         // Local temporary storage during creation mode
         if (isEditingPoint.value) {
-          const index = tempPoints.value.findIndex(p => p.pointId === pointForm.value.pointId)
+          const index = tempPoints.value.findIndex(p => p.pointTmplId === pointForm.value.pointTmplId)
           if (index !== -1) {
             tempPoints.value[index] = { ...pointForm.value }
           }
@@ -962,7 +913,7 @@ async function submitPointForm() {
           const tempId = Math.floor(Math.random() * -1000000)
           tempPoints.value.push({
             ...pointForm.value,
-            pointId: tempId
+            pointTmplId: tempId
           })
           ElMessage.success('新增点位成功(暂存)')
         }
@@ -972,36 +923,27 @@ async function submitPointForm() {
 
       pointSubmitting.value = true
       try {
-        let targetDeviceId = templateDeviceId.value
-        const prodId = selectedProduct.value?.productId
-        if (!targetDeviceId && prodId) {
-          const allDevs = await deviceApi.getAllDevices()
-          const found = allDevs.find((d: any) => d.deviceCode === 'TEMPLATE_' + prodId)
-          if (found) {
-            targetDeviceId = found.deviceId
-          }
+        const tmplId = selectedTemplate.value?.deviceTmplId
+        if (!tmplId) {
+          throw new Error('未找到当前模板，请刷新页面后重试')
         }
 
-        if (!targetDeviceId) {
-          throw new Error('未找到该模板对应的后台设备实例，请尝试重新加载模板页面')
-        }
-
-        if (isEditingPoint.value) {
-          if (pointForm.value.pointId) {
-            await deviceApi.updatePoint(pointForm.value.pointId, {
-              ...pointForm.value,
-              deviceId: targetDeviceId,
-              pointCode: targetDeviceId + "_" + pointForm.value.registerId,
-              pointStatus: 1,
-              pointValue: "0"
-            })
-            ElMessage.success('修改成功')
-          }
+        if (isEditingPoint.value && pointForm.value.pointTmplId) {
+          await templateApi.updatePoint(pointForm.value.pointTmplId, {
+            pointName: pointForm.value.pointName,
+            pointType: pointForm.value.pointType,
+            dataType: pointForm.value.dataType,
+            unit: pointForm.value.unit,
+            displayPrecision: pointForm.value.displayPrecision
+          })
+          ElMessage.success('修改成功')
         } else {
-          await deviceApi.addPoint(targetDeviceId, {
-            ...pointForm.value,
-            pointStatus: 1,
-            pointValue: "0"
+          await templateApi.addPoint(tmplId, {
+            pointName: pointForm.value.pointName,
+            pointType: pointForm.value.pointType,
+            dataType: pointForm.value.dataType,
+            unit: pointForm.value.unit,
+            displayPrecision: pointForm.value.displayPrecision
           })
           ElMessage.success('新增点位成功')
         }
@@ -1018,7 +960,7 @@ async function submitPointForm() {
 
 async function deletePoint(row: any) {
   if (isCreating.value) {
-    tempPoints.value = tempPoints.value.filter(p => p.pointId !== row.pointId)
+    tempPoints.value = tempPoints.value.filter(p => p.pointTmplId !== row.pointTmplId)
     ElMessage.success('删除成功')
     return
   }
@@ -1029,7 +971,7 @@ async function deletePoint(row: any) {
     type: 'warning'
   }).then(async () => {
     try {
-      await deviceApi.deletePoint(row.pointId)
+      await templateApi.deletePoint(row.pointTmplId)
       ElMessage.success('删除成功')
       await loadTemplatePoints()
     } catch (e) {
@@ -1054,7 +996,7 @@ async function batchDeletePoints() {
   }).then(async () => {
     try {
       for (const p of selectedPoints.value) {
-        await deviceApi.deletePoint(p.pointId)
+        await templateApi.deletePoint(p.pointTmplId)
       }
       ElMessage.success('批量删除成功')
     } catch (e) {
@@ -1084,45 +1026,49 @@ function openPointAlarmConfig(row: any) {
 }
 
 function handleExport() {
-  exportAllProductsAndPoints()
+  exportAllTemplatesAndPoints()
 }
 
-async function exportAllProductsAndPoints() {
+async function exportAllTemplatesAndPoints() {
   loading.value = true
   try {
-    const headers = ['设备模板名称', '设备类型', '型号规格', '制造厂商', '点位编码', '寄存器地址', '点位名称', '点位类型', '单位', '精度']
+    const headers = ['设备模板名称', '设备类型', '型号规格', '制造厂商', '点位名称', '点位类型', '数据类型', '单位', '精度', '数据来源']
     const rows: any[] = []
-    
-    // Fetch points for each product
-    for (const prod of store.allProducts) {
-      if (prod.productId === undefined) continue
+
+    // Fetch points for each template
+    for (const tpl of store.allTemplates) {
+      if (tpl.deviceTmplId === undefined) continue
       try {
-        const points = await productApi.getProductPoints(prod.productId)
+        const points = await templateApi.getPoints(tpl.deviceTmplId)
+        if (points.length === 0) {
+          rows.push([tpl.deviceTmplName || '', tpl.deviceType || '', tpl.model || '', tpl.manufacturer || '',
+            '', '', '', '', '', tpl.isReal ? '真实数据' : 'Mock'])
+        }
         for (const p of points) {
           rows.push([
-            prod.productName || '',
-            prod.productType || '',
-            prod.model || '',
-            prod.manufacturer || '',
-            p.pointCode || '',
-            p.registerId || '',
+            tpl.deviceTmplName || '',
+            tpl.deviceType || '',
+            tpl.model || '',
+            tpl.manufacturer || '',
             p.pointName || '',
-            getPointTypeText(p.pointType),
+            p.pointType || '',
+            p.dataType || '',
             p.unit || '',
-            p.displayPrecision ?? 0
+            p.displayPrecision ?? 0,
+            p.isReal ? '真实数据' : 'Mock'
           ])
         }
       } catch (e) {
-        console.error(`Failed to fetch points for product ${prod.productId}:`, e)
+        console.error(`Failed to fetch points for template ${tpl.deviceTmplId}:`, e)
       }
     }
-    
+
     let csvContent = "\uFEFF" // Chinese encoding BOM
     csvContent += [headers.join(','), ...rows.map(r => r.map((val: any) => {
       const escaped = String(val ?? '').replace(/"/g, '""')
       return `"${escaped}"`
     }).join(','))].join('\n')
-    
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement("a")
     const url = URL.createObjectURL(blob)
@@ -1147,22 +1093,22 @@ function handleImport() {
 function handleImportFileChange(uploadFile: any) {
   const rawFile = uploadFile.raw
   if (rawFile) {
-    importAllProductsAndPoints(rawFile)
+    importAllTemplatesAndPoints(rawFile)
     importDialogVisible.value = false
   }
 }
 
 function downloadImportTemplate() {
-  const headers = ['设备模板名称', '设备类型', '型号规格', '制造厂商', '点位编码', '寄存器地址', '点位名称', '点位类型', '单位', '精度']
+  const headers = ['设备模板名称', '设备类型', '型号规格', '制造厂商', '点位名称', '点位类型', '数据类型', '单位', '精度']
   const rows = [
-    ['样例电表模板', 'EM', 'DTSD-342', '某某仪表公司', 'TEMPLATE_POINT_001', '40001', 'A相电压', 'AI - 模拟输入', 'V', '1'],
-    ['样例电表模板', 'EM', 'DTSD-342', '某某仪表公司', 'TEMPLATE_POINT_002', '40002', 'B相电压', 'AI - 模拟输入', 'V', '1'],
-    ['样例电表模板', 'EM', 'DTSD-342', '某某仪表公司', 'TEMPLATE_POINT_003', '40003', '通讯状态', 'DI - 数字输入', '无', '0']
+    ['样例电表模板', 'EM', 'DTSD-342', '某某仪表公司', 'A相电压', 'AI', 'numeric', 'V', '1'],
+    ['样例电表模板', 'EM', 'DTSD-342', '某某仪表公司', 'B相电压', 'AI', 'numeric', 'V', '1'],
+    ['样例电表模板', 'EM', 'DTSD-342', '某某仪表公司', '通讯状态', 'DI', 'boolean', '无', '0']
   ]
-  
+
   let csvContent = "\uFEFF" // Chinese encoding BOM
   csvContent += [headers.join(','), ...rows.map(r => r.map(val => `"${val}"`).join(','))].join('\n')
-  
+
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement("a")
   const url = URL.createObjectURL(blob)
@@ -1175,8 +1121,8 @@ function downloadImportTemplate() {
   ElMessage.success('导入模板下载成功')
 }
 
-// Import all products and points from CSV
-function importAllProductsAndPoints(file: File) {
+// Import all templates and points from CSV
+function importAllTemplatesAndPoints(file: File) {
   const reader = new FileReader()
   reader.onload = async (e: any) => {
     loading.value = true
@@ -1186,149 +1132,128 @@ function importAllProductsAndPoints(file: File) {
       if (lines.length <= 1) {
         throw new Error('格式错误，请重新导入。（原因：文件为空或没有数据行）')
       }
-      
+
       // Detect delimiter
       let delimiter = ','
       if (lines[1] && lines[1].includes(';')) {
         delimiter = ';'
       }
-      
+
       // 1. Header validation
       const headerLine = lines[0].split(delimiter).map((s: any) => s.replace(/^"|"$/g, '').trim())
-      if (headerLine.length < 10) {
-        throw new Error('格式错误，请重新导入。（原因：表头列数不足，应为 10 列）')
+      if (headerLine.length < 9) {
+        throw new Error('格式错误，请重新导入。（原因：表头列数不足，应为 9 列）')
       }
-      const requiredHeaders = ['设备模板名称', '点位编码', '寄存器地址', '点位名称', '点位类型']
+      const requiredHeaders = ['设备模板名称', '点位名称', '点位类型']
       const missingHeaders = requiredHeaders.filter((h: any) => !headerLine.some((col: any) => col.includes(h)))
       if (missingHeaders.length > 0) {
         throw new Error(`格式错误，请重新导入。（原因：表头缺少必要列: ${missingHeaders.join(', ')}）`)
       }
 
-      // Map: productName -> { type, model, manufacturer, points: [] }
+      // Map: templateName -> { type, model, manufacturer, points: [] }
       const groups = new Map<string, { type: string, model: string, manufacturer: string, points: any[] }>()
-      
+
       for (let i = 1; i < lines.length; i++) {
         const parts = lines[i].split(delimiter).map((s: any) => s.replace(/^"|"$/g, '').trim())
-        
+
         // Skip blank lines
         if (parts.every((p: any) => p === '')) continue
 
-        if (parts.length < 10) {
-          throw new Error(`格式错误，请重新导入。（原因：第 ${i + 1} 行数据列数不足 10 列）`)
+        if (parts.length < 9) {
+          throw new Error(`格式错误，请重新导入。（原因：第 ${i + 1} 行数据列数不足 9 列）`)
         }
-        
-        const prodName = parts[0]
-        if (!prodName) {
+
+        const tplName = parts[0]
+        if (!tplName) {
           throw new Error(`格式错误，请重新导入。（原因：第 ${i + 1} 行的“设备模板名称”不能为空）`)
         }
-        
+
         const type = parts[1]
         const model = parts[2]
         const manufacturer = parts[3]
-        
-        const registerId = parts[5]
-        if (!registerId) {
-          throw new Error(`格式错误，请重新导入。（原因：第 ${i + 1} 行的“寄存器地址”不能为空）`)
-        }
-        if (!/^(0x|0X)?[0-9a-fA-F]+$/.test(registerId)) {
-          throw new Error(`格式错误，请重新导入。（原因：第 ${i + 1} 行的“寄存器地址”必须为十进制数字或十六进制数，如 40001 或 0x011A）`)
-        }
 
-        const pointName = parts[6]
+        const pointName = parts[4]
         if (!pointName) {
           throw new Error(`格式错误，请重新导入。（原因：第 ${i + 1} 行的“点位名称”不能为空）`)
         }
 
-        const typeStr = parts[7] || ''
-        if (!typeStr) {
-          throw new Error(`格式错误，请重新导入。（原因：第 ${i + 1} 行的“点位类型”不能为空）`)
-        }
-        
-        let pointType = 0
-        if (typeStr.toUpperCase().includes('DI')) pointType = 1
-        else if (typeStr.toUpperCase().includes('DO')) pointType = 2
-        else if (typeStr.toUpperCase().includes('AI')) pointType = 3
-        else if (typeStr.toUpperCase().includes('AO')) pointType = 4
-        
-        if (pointType === 0) {
+        const typeStr = parts[5] || ''
+        let pointType = ''
+        if (typeStr.toUpperCase().includes('DI')) pointType = 'DI'
+        else if (typeStr.toUpperCase().includes('DO')) pointType = 'DO'
+        else if (typeStr.toUpperCase().includes('AI')) pointType = 'AI'
+        else if (typeStr.toUpperCase().includes('AO')) pointType = 'AO'
+        if (!pointType) {
           throw new Error(`格式错误，请重新导入。（原因：第 ${i + 1} 行的“点位类型”必须包含 DI/DO/AI/AO）`)
         }
 
-        const unit = parts[8]
-        const precisionStr = parts[9]
+        let dataType = parts[6] || ''
+        if (!dataType) {
+          dataType = (pointType === 'DI' || pointType === 'DO') ? 'boolean' : 'numeric'
+        }
+
+        const unit = parts[7]
+        const precisionStr = parts[8]
         if (precisionStr && !/^\d+$/.test(precisionStr)) {
           throw new Error(`格式错误，请重新导入。（原因：第 ${i + 1} 行的“精度”必须为非负整数）`)
         }
         const displayPrecision = parseInt(precisionStr) || 0
-        
-        if (!groups.has(prodName)) {
-          groups.set(prodName, {
+
+        if (!groups.has(tplName)) {
+          groups.set(tplName, {
             type,
             model,
             manufacturer,
             points: []
           })
         }
-        
-        groups.get(prodName)!.points.push({
-          registerId,
+
+        groups.get(tplName)!.points.push({
           pointName,
           pointType,
-          dataType: displayPrecision > 0 ? 2 : 1,
+          dataType,
           unit,
           displayPrecision
         })
       }
-      
+
       if (groups.size === 0) {
         throw new Error('格式错误，请重新导入。（原因：未解析到任何有效数据行）')
       }
-      
-      // Fetch latest devices and products lists
+
       await store.fetchAllDashboardData()
-      const allDevs = await deviceApi.getAllDevices()
-      
+
       let createdCount = 0
       let updatedCount = 0
       let totalPointsCount = 0
       let addedPointsCount = 0
       let duplicatePointsCount = 0
-      
-      for (const [prodName, data] of groups.entries()) {
-        let product = store.allProducts.find((p: any) => p.productName === prodName)
-        let targetDeviceId: number | null = null
-        
-        if (!product) {
-          // Create product
-          product = await productApi.createProduct({
-            productName: prodName,
-            productType: data.type || 'EM',
+
+      for (const [tplName, data] of groups.entries()) {
+        let template = store.allTemplates.find((t: any) => t.deviceTmplName === tplName)
+        let targetTmplId: number | null = null
+
+        if (!template) {
+          // Create template
+          const created = await templateApi.createTemplate({
+            deviceTmplName: tplName,
+            deviceType: data.type || 'EM',
             model: data.model || 'N/A',
             manufacturer: data.manufacturer || 'N/A',
             manuDate: new Date().toISOString().split('T')[0]
           })
           createdCount++
-          
-          // Re-fetch all devices to find the newly created template device
-          const updatedDevs = await deviceApi.getAllDevices()
-          const found = updatedDevs.find((d: any) => d.deviceCode === 'TEMPLATE_' + product!.productId)
-          if (found) {
-            targetDeviceId = found.deviceId
-          }
+          targetTmplId = created.deviceTmplId!
         } else {
-          // Product exists, find its template device
-          const found = allDevs.find((d: any) => d.deviceCode === 'TEMPLATE_' + product!.productId)
-          if (found) {
-            targetDeviceId = found.deviceId
-          }
+          targetTmplId = template.deviceTmplId!
           updatedCount++
         }
-        
-        if (targetDeviceId) {
+
+        if (targetTmplId) {
           // Import points for this template
           for (const ip of data.points) {
-            const res = await deviceApi.addPoint(targetDeviceId, ip)
-            if (res === '更新点位成功') {
+            const res = await templateApi.addPoint(targetTmplId, ip)
+            if ((res as any) === '更新点位成功') {
               duplicatePointsCount++
             } else {
               addedPointsCount++
@@ -1337,7 +1262,7 @@ function importAllProductsAndPoints(file: File) {
           }
         }
       }
-      
+
       let successMsg = `导入成功: 新建 ${createdCount} 模板，更新 ${updatedCount} 模板。`
       if (duplicatePointsCount > 0) {
         successMsg += ` 覆盖了 ${duplicatePointsCount} 个重复点位。`
@@ -1350,7 +1275,7 @@ function importAllProductsAndPoints(file: File) {
         duration: 10000
       })
       await store.fetchAllDashboardData()
-      
+
     } catch (err: any) {
       console.error(err)
       ElMessage.error({
@@ -1515,6 +1440,11 @@ $bg-dark: #0b1119;
   
   :deep(.el-input__wrapper) {
     background-color: $bg-dark !important;
+    transition: all 0.2s ease;
+    
+    &:hover, &.is-focus {
+      box-shadow: 0 0 0 1px rgba($accent-green, 0.5) inset !important;
+    }
   }
 }
 
@@ -1545,60 +1475,6 @@ $bg-dark: #0b1119;
   }
 }
 
-.status-icon-wrapper {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  
-  &.has {
-    color: $accent-green;
-  }
-  &.none {
-    color: $text-muted;
-  }
-}
-
-.status-icon {
-  font-size: 15px;
-  
-  &.active-draw {
-    color: $accent-green;
-  }
-  &.gray-face {
-    color: $text-muted;
-  }
-}
-
-.status-text {
-  font-size: 11px;
-}
-
-.drawing-status-section {
-  display: flex;
-  align-items: center;
-}
-
-.drawing-status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 10px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  
-  &.has {
-    background-color: rgba($accent-green, 0.15);
-    color: $accent-green;
-  }
-  
-  &.none {
-    background-color: rgba($text-muted, 0.15);
-    color: $text-muted;
-  }
-}
-
 .point-table-section {
   margin-top: 16px;
   flex: 1;
@@ -1622,40 +1498,106 @@ $bg-dark: #0b1119;
 }
 
 .type-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 500;
-  
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 11px;
+  border-radius: 11px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.25;
+  letter-spacing: 0.1px;
+  border: none;
+  transition: all 0.2s ease-in-out;
+
   &.type-di {
-    background-color: rgba($accent-blue, 0.1);
-    border: 1px solid rgba($accent-blue, 0.2);
-    color: $accent-blue;
+    background-color: rgba($accent-blue, 0.14);
+    color: #7dd3fc;
   }
   &.type-do {
-    background-color: rgba(168, 85, 247, 0.1);
-    border: 1px solid rgba(168, 85, 247, 0.2);
-    color: #a855f7;
+    background-color: rgba(168, 85, 247, 0.14);
+    color: #c084fc;
   }
   &.type-ai {
-    background-color: rgba($accent-green, 0.1);
-    border: 1px solid rgba($accent-green, 0.2);
-    color: $accent-green;
+    background-color: rgba($accent-green, 0.14);
+    color: #4ade80;
   }
   &.type-ao {
-    background-color: rgba($accent-yellow, 0.1);
-    border: 1px solid rgba($accent-yellow, 0.2);
-    color: $accent-yellow;
+    background-color: rgba($accent-yellow, 0.14);
+    color: #facc15;
+  }
+
+  &:hover {
+    filter: brightness(1.1);
+    transform: translateY(-0.5px);
   }
 }
 
-.addr-code {
-  background-color: rgba($text-muted, 0.1);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: monospace;
-  color: $text-secondary;
-  font-size: 12px;
+:deep(.el-tag) {
+  border: none !important;
+  border-radius: 11px !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  padding: 3px 11px !important;
+  line-height: 1.25 !important;
+  height: auto !important;
+
+  &.el-tag--success {
+    background-color: rgba($accent-green, 0.14) !important;
+    color: #4ade80 !important;
+  }
+  &.el-tag--warning {
+    background-color: rgba($accent-yellow, 0.14) !important;
+    color: #facc15 !important;
+  }
+  &.el-tag--info {
+    background-color: rgba(100, 116, 139, 0.18) !important;
+    color: #cbd5e1 !important;
+  }
+}
+
+// ===== 按钮背景与文字优雅调优 =====
+// 1. 实心 Primary 按钮（深翠绿渐变背景 + 纯白高对比文字）
+:deep(.el-button--primary:not(.is-plain):not(.is-link)) {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+  border-color: #059669 !important;
+  color: #ffffff !important;
+  font-weight: 500 !important;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25) !important;
+
+  &:hover {
+    background: linear-gradient(135deg, #34d399 0%, #10b981 100%) !important;
+    border-color: #10b981 !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 10px rgba(16, 185, 129, 0.35) !important;
+  }
+}
+
+// 2. 浅亮色 Plain Primary 按钮（浅靓清新绿底 + 沉稳高对比度深绿字）
+:deep(.el-button--primary.is-plain) {
+  background-color: #ecfdf5 !important;
+  border-color: #a7f3d0 !important;
+  color: #047857 !important;
+  font-weight: 400 !important;
+
+  &:hover {
+    background-color: #d1fae5 !important;
+    border-color: #6ee7b7 !important;
+    color: #065f46 !important;
+  }
+}
+
+// 3. 浅亮色 Plain Danger 按钮（浅亮浅红底 + 沉稳高对比度深红字）
+:deep(.el-button--danger.is-plain) {
+  background-color: #fef2f2 !important;
+  border-color: #fca5a5 !important;
+  color: #b91c1c !important;
+  font-weight: 400 !important;
+
+  &:hover {
+    background-color: #fee2e2 !important;
+    border-color: #f87171 !important;
+    color: #991b1b !important;
+  }
 }
 </style>

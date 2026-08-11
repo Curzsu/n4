@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.n4monitor.mapper.DeviceDeploymentMapper">
+
+    <sql id="joinTemplateCols">
+        dd.device_deploy_id, dd.device_tmpl_id, dd.nav_node_id, dd.face_plate_id, dd.alarm_code,
+        dd.device_deploy_name, dd.device_alias, dd.n4_address, dd.ip_address, dd.mac_address,
+        dd.status, dd.install_date, dd.warranty_expire, dd.location, dd.department,
+        dd.responsible_person, dd.contact_phone, dd.extra_attrs, dd.is_deleted,
+        dd.create_time, dd.update_time,
+        dt.device_type, dt.manufacturer, dt.model,
+        (dd.device_deploy_name LIKE 'MOCK_%') AS is_mock
+    </sql>
+
+    <select id="findAll" resultType="com.n4monitor.entity.DeviceDeployment">
+        SELECT <include refid="joinTemplateCols"/>
+        FROM device_deployment dd
+        LEFT JOIN device_template dt ON dd.device_tmpl_id = dt.device_tmpl_id
+        WHERE dd.is_deleted = 0
+        ORDER BY dd.device_deploy_id
+    </select>
+
+    <select id="findByNavNodeId" resultType="com.n4monitor.entity.DeviceDeployment">
+        SELECT <include refid="joinTemplateCols"/>
+        FROM device_deployment dd
+        LEFT JOIN device_template dt ON dd.device_tmpl_id = dt.device_tmpl_id
+        WHERE dd.is_deleted = 0 AND dd.nav_node_id = #{navNodeId}
+        ORDER BY dd.device_deploy_id
+    </select>
+
+    <select id="findByDeviceDeployId" resultType="com.n4monitor.entity.DeviceDeployment">
+        SELECT <include refid="joinTemplateCols"/>
+        FROM device_deployment dd
+        LEFT JOIN device_template dt ON dd.device_tmpl_id = dt.device_tmpl_id
+        WHERE dd.device_deploy_id = #{deviceDeployId} AND dd.is_deleted = 0
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="deviceDeployId">
+        INSERT INTO device_deployment (
+            device_tmpl_id, nav_node_id, face_plate_id, alarm_code, device_deploy_name,
+            device_alias, n4_address, ip_address, mac_address, status, install_date,
+            warranty_expire, location, department, responsible_person, contact_phone, extra_attrs
+        ) VALUES (
+            #{deviceTmplId}, #{navNodeId}, #{facePlateId}, #{alarmCode}, #{deviceDeployName},
+            #{deviceAlias}, #{n4Address}, #{ipAddress}, #{macAddress}, #{status}, #{installDate},
+            #{warrantyExpire}, #{location}, #{department}, #{responsiblePerson}, #{contactPhone}, #{extraAttrs}
+        )
+    </insert>
+
+    <update id="update">
+        UPDATE device_deployment
+        SET device_tmpl_id = #{deviceTmplId},
+            nav_node_id = #{navNodeId},
+            face_plate_id = #{facePlateId},
+            alarm_code = #{alarmCode},
+            device_deploy_name = #{deviceDeployName},
+            device_alias = #{deviceAlias},
+            n4_address = #{n4Address},
+            ip_address = #{ipAddress},
+            mac_address = #{macAddress},
+            status = #{status},
+            install_date = #{installDate},
+            warranty_expire = #{warrantyExpire},
+            location = #{location},
+            department = #{department},
+            responsible_person = #{responsiblePerson},
+            contact_phone = #{contactPhone},
+            extra_attrs = #{extraAttrs},
+            update_time = NOW()
+        WHERE device_deploy_id = #{deviceDeployId}
+    </update>
+
+    <update id="updateNode">
+        UPDATE device_deployment
+        SET nav_node_id = #{navNodeId},
+            device_deploy_name = #{deviceDeployName},
+            device_alias = #{deviceAlias},
+            n4_address = #{n4Address},
+            update_time = NOW()
+        WHERE device_deploy_id = #{deviceDeployId}
+    </update>
+
+    <update id="logicalDelete">
+        UPDATE device_deployment
+        SET is_deleted = 1, update_time = NOW()
+        WHERE device_deploy_id = #{deviceDeployId}
+    </update>
+
+</mapper>

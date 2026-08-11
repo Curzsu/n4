@@ -25,8 +25,11 @@ public class PointAlarmState extends PointData implements Serializable {
     /** Alarm message */
     private String message;
 
-    /** Hysteresis (confirmation timeout in seconds) used for this alarm */
-    private String hysteresis;
+    /** Alarm trigger delay in seconds (per-point, from alarm rule) */
+    private Integer timeDelay;
+
+    /** Deadband value (per-point, from numeric alarm rule) */
+    private String deadband;
 
     /** Acknowledged by (default "-") */
     private String ackBy;
@@ -45,4 +48,28 @@ public class PointAlarmState extends PointData implements Serializable {
 
     /** Alarm phase: start / continue / end (empty for non-alarm) */
     private String stage;
+
+    /**
+     * Alarm state transition label, describing how this record relates to the
+     * alarm lifecycle. Values (English only):
+     * <ul>
+     *   <li>{@code Start} - fresh alarm begins</li>
+     *   <li>{@code Continue} - same level keeps alarming</li>
+     *   <li>{@code {oldLevel} to {newLevel}} - level escalation (e.g. {@code High to High-High})</li>
+     *   <li>{@code End} - alarm recovered</li>
+     *   <li>{@code Ack} - user acknowledged the alarm</li>
+     * </ul>
+     * Empty for normal (non-alarm) points.
+     */
+    private String stageMessage;
+
+    /**
+     * Epoch-millis timestamp when the current alarm first started.
+     * <p>
+     * Persisted in alarm:active so that continue/end events can keep using the
+     * alarm's start time (historical timestamp) for the active table and the
+     * notification channel, while latest/realtime still use the live data timestamp.
+     * Null for non-alarm (normal) states.
+     */
+    private Long alarmStartTime;
 }

@@ -113,7 +113,7 @@ async function loadDeviceBinding(device: DeviceTreeNode | null) {
     frameReadyTimer = null
   }
   try {
-    const binding = await deviceApi.getFuxaBinding(device.id)
+    const binding = await deviceApi.getFuxaBinding(Number(device.id))
     fuxaUrl.value = buildBindingFuxaUrl(binding)
   } catch (error) {
     // Node-RED may not have discovered this device yet; keep the template visible.
