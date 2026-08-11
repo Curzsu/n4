@@ -59,7 +59,7 @@ const LEVEL_GROUP: Record<string, { group: 'high' | 'low'; rank: number }> = {
  *  The backend formats a level-transition start as "Start - {oldLevel} to {newLevel}",
  *  so strip the "Start - " prefix first, then split on " to ". Levels may contain
  *  hyphens (e.g. "High-High"). Returns null for non-transition messages. */
-function parseLevelTransition(stageMessage?: string): { from: string; to: string } | null {
+function parseLevelTransition(stageMessage: string | undefined): { from: string; to: string } | null {
   if (!stageMessage) return null
   const prefix = 'Start - '
   const body = stageMessage.startsWith(prefix) ? stageMessage.slice(prefix.length) : stageMessage

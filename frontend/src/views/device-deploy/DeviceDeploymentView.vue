@@ -166,7 +166,7 @@
                 </el-table-column>
                 <el-table-column prop="dataType" label="数据类型" width="100" align="center" />
                 <el-table-column prop="unit" label="单位" width="80" align="center" />
-                <el-table-column label="数据来源" width="100" align="center">
+                <el-table-column label="数据来源" width="110" align="center">
                   <template #default="{ row }">
                     <el-tag size="small" :type="row.isReal ? 'success' : 'warning'" effect="dark">
                       {{ row.isReal ? '真实数据' : 'Mock' }}

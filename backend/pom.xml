@@ -104,16 +104,20 @@
             <artifactId>jedis</artifactId>
         </dependency>
 
-        <!-- Netty native epoll transport (Linux only). Enables fine-grained TCP keepalive
+        <!-- Netty native epoll transport (Linux). Enables fine-grained TCP keepalive
              options (idle/interval/count) on Lettuce Redis connections so that half-open
              subscription sockets (dropped by NAT/firewall after idle period) are detected
-             and Lettuce auto-reconnect resubscribes. Optional: absent on Windows, Lettuce
-             falls back to NIO with the plain SO_KEEPALIVE toggle. -->
+             and Lettuce auto-reconnect resubscribes.
+             NOTE: the API classes + Linux native binary must NOT be optional, otherwise
+             spring-boot-maven-plugin excludes them from the fat jar and the JVM fails to
+             load RedisLettuceCustomizer (which imports io.netty.channel.epoll.Epoll) at
+             runtime -> NoClassDefFoundError. kqueue classes are kept non-optional too so
+             local macOS dev still compiles; the macOS native binary below is optional
+             (Linux container never loads it). -->
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-transport-native-epoll</artifactId>
             <classifier>linux-x86_64</classifier>
-            <optional>true</optional>
         </dependency>
         <!-- Epoll/KQueue API classes (compile-time). The native binaries above/below
              provide the actual implementation; these classes expose isAvailable() so
@@ -121,14 +125,13 @@
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-transport-classes-epoll</artifactId>
-            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-transport-classes-kqueue</artifactId>
-            <optional>true</optional>
         </dependency>
-        <!-- macOS kqueue native binary (optional, macOS only). -->
+        <!-- macOS kqueue native binary (optional, macOS only). Not needed in the
+             Linux container; kept optional so it is excluded from the fat jar. -->
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-transport-native-kqueue</artifactId>

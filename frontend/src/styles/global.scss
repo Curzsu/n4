@@ -52,6 +52,12 @@ html, body, #app {
   border: 1px solid $border-color !important;
 }
 
+.el-input__count,
+.el-input__count-inner {
+  background-color: transparent !important;
+  color: #64748b !important;
+}
+
 // Element Plus table dark theme overrides
 .el-table {
   background-color: transparent !important;
@@ -198,6 +204,64 @@ html, body, #app {
   }
 }
 
+// Cascader dark theme styling
+.dark-cascader-dropdown,
+.el-cascader__dropdown,
+.el-cascader-panel {
+  background-color: #111b27 !important;
+  border: 1px solid #1e293b !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.6) !important;
+  color: #cbd5e1 !important;
+}
+
+.el-cascader-menu {
+  background-color: #111b27 !important;
+  border-right: 1px solid #1e293b !important;
+  color: #cbd5e1 !important;
+}
+
+.el-cascader-menu__list {
+  background-color: #111b27 !important;
+}
+
+.el-cascader-node {
+  color: #cbd5e1 !important;
+  background-color: transparent !important;
+
+  &:hover,
+  &:focus {
+    background-color: #1e293b !important;
+    color: #f8fafc !important;
+  }
+
+  &.is-active,
+  &.in-active-path {
+    color: #3b82f6 !important;
+    font-weight: 600 !important;
+    background-color: rgba(59, 130, 246, 0.15) !important;
+  }
+
+  &.is-disabled {
+    color: #475569 !important;
+    background-color: transparent !important;
+  }
+
+  .el-cascader-node__label {
+    color: inherit !important;
+  }
+
+  .el-cascader-node__postfix {
+    color: #64748b !important;
+  }
+}
+
+.el-cascader__dropdown {
+  .el-popper__arrow::before {
+    background: #111b27 !important;
+    border-color: #1e293b !important;
+  }
+}
+
 // Scrollbar styling
 ::-webkit-scrollbar {
   width: 6px;
@@ -216,3 +280,4 @@ html, body, #app {
 ::-webkit-scrollbar-thumb:hover {
   background: $text-muted;
 }
+

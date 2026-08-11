@@ -1,0 +1,45 @@
+# Version control
+.git/
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Build outputs (rebuilt inside Docker)
+backend/target/
+frontend/dist/
+frontend/.vite-cache/
+
+# Dependencies (installed inside Docker)
+frontend/node_modules/
+
+# Docs and materials not needed for the image
+*.md
+docs/
+deploy/
+材料/
+构建数据/
+nodered/
+tools/
+outputs/
+test-producer/
+
+# Local env / secrets
+*.env
+*.env.local
+
+# OS / temp
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+
+# SQL dump (loaded separately into MySQL)
+*.sql
+
+# Python caches (test producers)
+__pycache__/
+*.pyc
