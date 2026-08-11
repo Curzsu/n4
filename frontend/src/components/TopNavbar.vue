@@ -50,15 +50,16 @@ const { summaryData } = useAlarmWebSocket()
 
 // Live alarm counts from the WebSocket stream (same source as Active Alarms).
 // Fall back to the REST snapshot so the badges are non-zero before the first
-// WS frame arrives.
+// WS frame arrives. Use ?? (not ||) so a real 0 count is honored instead of
+// being masked by the fallback value.
 const alarmSummary = computed(() => {
   const live = summaryData.value
   const rest = store.alarmSummary
   return {
-    critical: live.critical || rest?.critical || 0,
-    major: live.major || rest?.major || 0,
-    minor: live.minor || rest?.minor || 0,
-    warning: live.warning || rest?.warning || 0,
+    critical: live.critical ?? rest?.critical ?? 0,
+    major: live.major ?? rest?.major ?? 0,
+    minor: live.minor ?? rest?.minor ?? 0,
+    warning: live.warning ?? rest?.warning ?? 0,
   }
 })
 

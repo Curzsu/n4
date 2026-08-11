@@ -15,13 +15,16 @@ public class DashboardService {
     private final DeviceMapper deviceMapper;
     private final MonitorPointMapper monitorPointMapper;
     private final ProductMapper productMapper;
+    private final AlarmService alarmService;
 
     public DashboardService(DeviceMapper deviceMapper,
                             MonitorPointMapper monitorPointMapper,
-                            ProductMapper productMapper) {
+                            ProductMapper productMapper,
+                            AlarmService alarmService) {
         this.deviceMapper = deviceMapper;
         this.monitorPointMapper = monitorPointMapper;
         this.productMapper = productMapper;
+        this.alarmService = alarmService;
     }
 
     public KpiMetricsDto getKpiMetrics() {
@@ -45,12 +48,10 @@ public class DashboardService {
     }
 
     public AlarmSummaryDto getAlarmSummary() {
-        AlarmSummaryDto dto = new AlarmSummaryDto();
-        dto.setCritical(3);
-        dto.setMajor(14);
-        dto.setMinor(27);
-        dto.setWarning(44);
-        return dto;
+        // Delegate to the real alarm summary (reads alarm:active from Redis
+        // and counts by severity). Replaces the previous hardcoded mock values
+        // (critical=3, major=14, ...) that masked real zero counts.
+        return alarmService.getAlarmSummary();
     }
 
     public List<AlarmItemDto> getAlarmTop5() {
