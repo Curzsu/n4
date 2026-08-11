@@ -31,12 +31,12 @@ const router = createRouter({
     {
       path: '/device-deployment',
       name: 'device-deployment',
-      component: () => import('@/views/device-deploy/DeviceDeploymentView.vue'),
+      component: () => import('@/views/SystemDeploymentView.vue'),
     },
     {
       path: '/system-deployment',
       name: 'system-deployment',
-      component: () => import('@/views/SystemDeploymentView.vue'),
+      redirect: '/device-deployment',
     },
     {
       path: '/dashboard-nav/device/:deviceDeployId',

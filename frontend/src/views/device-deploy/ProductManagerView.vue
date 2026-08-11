@@ -100,28 +100,28 @@
               class="custom-table"
               @selection-change="handleSelectionChange"
             >
-              <el-table-column type="selection" width="45" align="center" v-if="isPointBatchManaging" />
-              <el-table-column prop="pointName" label="点位名称" min-width="220" show-overflow-tooltip />
-              <el-table-column prop="pointType" label="点位类型" width="110" align="center">
+              <el-table-column type="selection" width="40" align="center" v-if="isPointBatchManaging" :resizable="false" />
+              <el-table-column prop="pointName" label="点位名称" min-width="180" show-overflow-tooltip :resizable="false" />
+              <el-table-column prop="pointType" label="点位类型" min-width="100" align="center" :resizable="false">
                 <template #default="{ row }">
                   <span :class="['type-badge', getPointTypeClass(row.pointType)]">
                     {{ row.pointType || '—' }}
                   </span>
                 </template>
               </el-table-column>
-              <el-table-column prop="dataType" label="数据类型" width="110" align="center">
+              <el-table-column prop="dataType" label="数据类型" min-width="100" align="center" :resizable="false">
                 <template #default="{ row }">
                   <span :class="['type-badge', getDataTypeClass(row.dataType)]">{{ row.dataType }}</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="unit" label="单位" width="100" align="center" />
-              <el-table-column prop="displayPrecision" label="精度" width="90" align="center" />
-              <el-table-column label="数据来源" width="100" align="center">
+              <el-table-column prop="unit" label="单位" width="85" align="center" :resizable="false" />
+              <el-table-column prop="displayPrecision" label="精度" width="75" align="center" :resizable="false" />
+              <el-table-column label="数据来源" width="110" align="center" :resizable="false">
                 <template>
                   <el-tag size="small" type="warning" effect="dark">Mock</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="140" fixed="right" align="center">
+              <el-table-column v-if="isPointBatchManaging" label="操作" width="110" fixed="right" align="center" :resizable="false">
                 <template #default="{ row }">
                   <el-button size="small" type="primary" link :icon="Edit" @click="openEditPointDialog(row)">修改</el-button>
                   <el-button size="small" type="danger" link :icon="Delete" @click="deletePoint(row)">删除</el-button>
@@ -265,31 +265,29 @@
               class="custom-table"
               @selection-change="handleSelectionChange"
             >
-              <el-table-column type="selection" width="45" align="center" v-if="isPointBatchManaging" />
-              <el-table-column prop="pointTmplId" label="点位ID" width="90" align="center" />
-              <el-table-column prop="pointName" label="点位名称" min-width="220" show-overflow-tooltip />
-              <el-table-column prop="pointType" label="点位类型" width="110" align="center">
+              <el-table-column type="selection" width="40" align="center" v-if="isPointBatchManaging" :resizable="false" />
+              <el-table-column prop="pointTmplId" label="点位ID" width="75" align="center" :resizable="false" />
+              <el-table-column prop="pointName" label="点位名称" min-width="180" show-overflow-tooltip :resizable="false" />
+              <el-table-column prop="pointType" label="点位类型" min-width="100" align="center" :resizable="false">
                 <template #default="{ row }">
                   <span :class="['type-badge', getPointTypeClass(row.pointType)]">
                     {{ row.pointType || '—' }}
                   </span>
                 </template>
               </el-table-column>
-              <el-table-column prop="dataType" label="数据类型" width="110" align="center">
+              <el-table-column prop="dataType" label="数据类型" min-width="100" align="center" :resizable="false">
                 <template #default="{ row }">
                   <span :class="['type-badge', getDataTypeClass(row.dataType)]">{{ row.dataType }}</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="unit" label="单位" width="100" align="center" />
-              <el-table-column prop="displayPrecision" label="精度" width="90" align="center" />
-              <el-table-column label="数据来源" width="110" align="center">
+              <el-table-column prop="unit" label="单位" width="85" align="center" :resizable="false" />
+              <el-table-column prop="displayPrecision" label="精度" width="75" align="center" :resizable="false" />
+              <el-table-column label="数据来源" width="110" align="center" :resizable="false">
                 <template #default="{ row }">
-                  <el-tag size="small" :type="row.isReal ? 'success' : 'warning'" effect="dark">
-                    {{ row.isReal ? '真实数据' : 'Mock' }}
-                  </el-tag>
+                  <el-tag size="small" :type="row.isReal ? 'success' : 'warning'" effect="dark">{{ row.isReal ? '真实数据' : 'Mock' }}</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="210" fixed="right" align="center">
+              <el-table-column v-if="isPointBatchManaging" label="操作" width="180" fixed="right" align="center" :resizable="false">
                 <template #default="{ row }">
                   <el-button size="small" type="primary" link :icon="Edit" @click="openEditPointDialog(row)">修改</el-button>
                   <el-button size="small" type="danger" link :icon="Delete" @click="deletePoint(row)">删除</el-button>
@@ -372,22 +370,32 @@
             class="custom-table"
             @selection-change="handleTemplateSelectionChange"
           >
-            <el-table-column v-if="isTemplateBatchManaging" type="selection" width="45" align="center" />
-            <el-table-column prop="deviceTmplId" label="ID" width="70" align="center" />
-            <el-table-column prop="deviceTmplName" label="模板名称" min-width="200" show-overflow-tooltip />
-            <el-table-column prop="deviceType" label="类型" min-width="120" align="center" show-overflow-tooltip />
-            <el-table-column prop="model" label="型号规格" min-width="120" show-overflow-tooltip />
-            <el-table-column prop="manufacturer" label="制造厂商" min-width="140" show-overflow-tooltip />
-            <el-table-column prop="manuDate" label="出厂日期" width="110" align="center" />
-            <el-table-column prop="pointCount" label="点位数" width="90" align="center" />
-            <el-table-column label="数据来源" width="110" align="center">
+            <el-table-column v-if="isTemplateBatchManaging" type="selection" width="40" align="center" :resizable="false" />
+            <el-table-column prop="deviceTmplId" label="ID" width="60" align="center" :resizable="false" />
+            <el-table-column prop="deviceTmplName" label="模板名称" min-width="160" show-overflow-tooltip :resizable="false" />
+            <el-table-column prop="deviceType" label="类型" min-width="110" align="center" show-overflow-tooltip :resizable="false" />
+            <el-table-column label="型号规格" min-width="110" align="center" show-overflow-tooltip :resizable="false">
               <template #default="{ row }">
-                <el-tag size="small" :type="row.isReal ? 'success' : 'warning'" effect="dark">
-                  {{ row.isReal ? '真实数据' : 'Mock' }}
-                </el-tag>
+                <span>{{ row.model || '—' }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="130" align="center">
+            <el-table-column label="制造厂商" min-width="120" align="center" show-overflow-tooltip :resizable="false">
+              <template #default="{ row }">
+                <span>{{ row.manufacturer || '—' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="出厂日期" width="100" align="center" :resizable="false">
+              <template #default="{ row }">
+                <span>{{ row.manuDate || '—' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="pointCount" label="点位数" width="75" align="center" :resizable="false" />
+            <el-table-column label="数据来源" width="110" align="center" :resizable="false">
+              <template #default="{ row }">
+                <el-tag size="small" :type="Boolean(row.isReal) ? 'success' : 'warning'" effect="dark">{{ Boolean(row.isReal) ? '真实数据' : 'Mock' }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column v-if="isTemplateBatchManaging" label="操作" width="100" align="center" :resizable="false">
               <template #default="{ row }">
                 <el-button 
                   type="primary" 

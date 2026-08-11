@@ -16,7 +16,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Bell, TrendCharts, Document, Tools, Setting, Clock, Cpu, Connection, Operation } from '@element-plus/icons-vue'
+import { Bell, TrendCharts, Document, Tools, Setting, Clock, Cpu, Operation } from '@element-plus/icons-vue'
 import { useDashboardStore } from '@/stores/dashboard'
 
 const store = useDashboardStore()
@@ -50,8 +50,7 @@ const alarmItems = computed(() => [
 // System second-level menu (order as specified by the user).
 const systemItems = computed(() => [
   { label: 'Device Template', icon: Cpu, badge: null, active: route.path === '/device-template', to: '/device-template' },
-  { label: 'Device Deployment', icon: Connection, badge: null, active: route.path === '/device-deployment', to: '/device-deployment' },
-  { label: 'System Deployment', icon: Operation, badge: null, active: route.path === '/system-deployment', to: '/system-deployment' },
+  { label: 'Device Deployment', icon: Operation, badge: null, active: route.path === '/device-deployment' || route.path === '/system-deployment', to: '/device-deployment' },
   { label: 'Alarm Configuration', icon: Setting, badge: null, active: route.path === '/alarm/config', to: '/alarm/config' },
 ])
 

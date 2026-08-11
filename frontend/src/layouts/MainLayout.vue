@@ -67,7 +67,7 @@ const isAlarmRoute = computed(() => route.path.startsWith('/alarm') && !isSystem
 const isNavRoute = computed(() => route.path === '/')
 // System Deployment provides its own nav panel, so hide the global left sidebar.
 const isSystemDeploymentRoute = computed(() =>
-  route.path === '/system-deployment')
+  route.path === '/system-deployment' || route.path === '/device-deployment')
 
 const isRightCollapsed = computed({
   get: () => store.isRightCollapsed,
