@@ -21,10 +21,22 @@ Thumbs.db
 *.tmp
 *.swp
 
+# Logback file logs (local dev)
+backend/logs/
+
 材料/
 .superpowers/
+.zcode/
 #test-producer/
 docs/
+.firecrawl/
 __pycache__/
 
 *.docx
+
+构建数据/最新测试/
+构建数据/test-v1/
+构建数据/test-v2/
+构建数据/KVTP-A0806/
+构建数据/KVTP-A0807/
+构建数据/KVTP-A单画面规划.xlsx

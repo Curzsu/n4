@@ -6,19 +6,19 @@ spring:
     name: n4-monitor
 
   datasource:
-    url: jdbc:mysql://47.121.30.136:3306/n4_monitor?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
-    username: root
-    password: Password@mysql
+    url: ${MYSQL_URL:jdbc:mysql://47.121.30.136:3306/n4_monitor?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:Password@mysql}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   kafka:
-    bootstrap-servers: 47.121.30.136:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:47.121.30.136:9092}
 
   data:
     redis:
-      host: 47.121.30.136
-      port: 6379
-      password: Password@redis
+      host: ${REDIS_HOST:47.121.30.136}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:Password@redis}
 
 mybatis:
   mapper-locations: classpath:mapper/*.xml
@@ -28,9 +28,9 @@ mybatis:
 
 # TDengine configuration (REST mode, port 6041)
 tdengine:
-  url: jdbc:TAOS-RS://47.121.30.136:6041/n4
-  username: root
-  password: taosdata
+  url: ${TDENGINE_URL:jdbc:TAOS-RS://47.121.30.136:6041/n4}
+  username: ${TDENGINE_USERNAME:root}
+  password: ${TDENGINE_PASSWORD:taosdata}
   database: n4
   supertable: alarm
   realtime-supertable: alarm_realtime
@@ -66,8 +66,4 @@ fuxa:
   adapter-id: ${FUXA_ADAPTER_ID:d_n4_spm32_adapter}
   adapter-name: ${FUXA_ADAPTER_NAME:N4 SPM32 Adapter}
 
-logging:
-  level:
-    org.apache.flink: WARN
-    org.apache.kafka: WARN
-    org.apache.pekko: WARN
+# Logging is configured in logback-spring.xml (console + rolling file output).
