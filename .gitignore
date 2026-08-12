@@ -23,7 +23,7 @@ Thumbs.db
 *.swp
 
 # Logback file logs (local dev)
-backend/logs/
+logs/
 
 材料/
 .superpowers/
