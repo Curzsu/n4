@@ -1,5 +1,19 @@
 import request from './request'
-import type { DeviceTreeNode, FuxaBinding, MonitorPoint } from './types'
+import type { ApiResponse, DeviceTreeNode, FuxaBinding, FuxaCabinSession, MonitorPoint } from './types'
+
+async function requestCabinSession(url: string, method: 'POST' | 'DELETE'): Promise<FuxaCabinSession> {
+  const response = await fetch(url, {
+    method,
+    headers: method === 'POST' ? { 'Content-Type': 'application/json' } : undefined,
+    body: method === 'POST' ? '{}' : undefined,
+    credentials: 'same-origin',
+  })
+  const payload = await response.json() as ApiResponse<FuxaCabinSession>
+  if (!response.ok || payload.code !== 200) {
+    throw new Error(payload.message || `FUXA cabin request failed (${response.status})`)
+  }
+  return payload.data
+}
 
 export const deviceApi = {
   getDeviceTree(): Promise<DeviceTreeNode[]> {
@@ -10,6 +24,21 @@ export const deviceApi = {
   },
   getFuxaBinding(deviceId: number): Promise<FuxaBinding> {
     return request.get(`/api/fuxa/devices/${deviceId}`)
+  },
+  getConfiguredFuxaCabins(): Promise<string[]> {
+    return request.get('/api/fuxa/cabins')
+  },
+  openFuxaCabinSession(cabinName: string, sessionId: string): Promise<FuxaCabinSession> {
+    return requestCabinSession(
+      `/api/fuxa/cabins/${encodeURIComponent(cabinName)}/sessions/${encodeURIComponent(sessionId)}`,
+      'POST',
+    )
+  },
+  releaseFuxaCabinSession(cabinName: string, sessionId: string): Promise<FuxaCabinSession> {
+    return requestCabinSession(
+      `/api/fuxa/cabins/${encodeURIComponent(cabinName)}/sessions/${encodeURIComponent(sessionId)}`,
+      'DELETE',
+    )
   },
   getAllDevices(): Promise<any[]> {
     return request.get('/api/devices')

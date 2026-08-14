@@ -1,8 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { dashboardApi } from '@/api/dashboard'
-import { deviceApi } from '@/api/device'
-import { productApi } from '@/api/product'
 import { dashboardNavApi } from '@/api/dashboardNav'
 import { templateApi } from '@/api/template'
 import type { KpiMetrics, AlarmSummary, AlarmItem, SystemStatusItem, TrendData, DeviceTreeNode, Product, NavTreeNode, DeviceDeployItem, DeviceTemplate } from '@/api/types'
@@ -69,7 +67,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
   async function fetchAllDashboardData() {
     loading.value = true
     try {
-      const [kpi, alarm, top5, status, power, energy, pue, temp, productsList, devicesTreeFromBackend] = await Promise.all([
+      const [kpi, alarm, top5, status, power, energy, pue, temp] = await Promise.all([
         dashboardApi.getKpi(),
         dashboardApi.getAlarmSummary(),
         dashboardApi.getAlarmTop5(),
@@ -78,8 +76,6 @@ export const useDashboardStore = defineStore('dashboard', () => {
         dashboardApi.getEnergyTrend(),
         dashboardApi.getPueTrend(),
         dashboardApi.getTemperatureTrend(),
-        productApi.getAllProducts(),
-        deviceApi.getDeviceTree(),
       ])
       kpiMetrics.value = kpi
       alarmSummary.value = alarm
@@ -89,9 +85,6 @@ export const useDashboardStore = defineStore('dashboard', () => {
       energyTrend.value = energy
       pueTrend.value = pue
       temperatureTrend.value = temp
-      allProducts.value = productsList
-
-      deviceTree.value = devicesTreeFromBackend
       await loadTemplates()
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
