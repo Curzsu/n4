@@ -115,7 +115,7 @@ public class AlarmProcessingJob {
         // future per-key timing/deadband state) is serial per key and safe under
         // parallel execution. This is the prerequisite for both parallelism and
         // the upcoming delay-alarm / deadband features.
-        KeyedStream<PointData, String> keyedStream = parsedStream.keyBy(PointData::getPath);
+        KeyedStream<PointData, String> keyedStream = parsedStream.keyBy(PointData::getMqttPath);
 
         // Stage 3: rule lookup + alarm lifecycle evaluation. Runs at full
         // parallelism; keyBy guarantees one path -> one task. Uses a
@@ -157,7 +157,7 @@ public class AlarmProcessingJob {
             if (message == null || message.isBlank()) return;
             try {
                 PointData point = objectMapper.readValue(message, PointData.class);
-                if (point.getPath() == null || point.getPath().isBlank()) return;
+                if (point.getMqttPath() == null || point.getMqttPath().isBlank()) return;
                 out.collect(point);
             } catch (Exception e) {
                 log.warn("JSON parse failed, skipping: {} - {}", e.getClass().getSimpleName(), e.getMessage());
@@ -276,7 +276,7 @@ public class AlarmProcessingJob {
         }
 
         private String processMessage(PointData point, Context ctx, Collector<String> out) throws Exception {
-            String path = point.getPath();
+            String path = point.getMqttPath();
             if (path == null) return "[SKIP] path is null";
 
             // Borrow a healthy connection from the pool for this message and return
@@ -693,7 +693,7 @@ public class AlarmProcessingJob {
             pendingState.clear();
 
             String ts = formatTimestamp(confirmProcTime);
-            String pointName = extractPointName(state.getPath());
+            String pointName = extractPointName(state.getMqttPath());
             String color = switch (state.getSeverity() != null ? state.getSeverity() : "") {
                 case "Critical" -> "\033[91m";
                 case "Major"    -> "\033[93m";
@@ -950,6 +950,7 @@ public class AlarmProcessingJob {
                                            String message, Integer timeDelay, String deadband) {
             PointAlarmState state = new PointAlarmState();
             state.setClientId(point.getClientId());
+            state.setMqttPath(point.getMqttPath());
             state.setPath(point.getPath());
             state.setValue(point.getValue());
             state.setType(point.getType());
@@ -967,8 +968,8 @@ public class AlarmProcessingJob {
             state.setTimeDelay(timeDelay);
             state.setDeadband(deadband);
 
-            state.setSource(extractSource(point.getPath()));
-            state.setLocation(extractLocation(point.getPath()));
+            state.setSource(extractSource(point.getMqttPath()));
+            state.setLocation(extractLocation(point.getMqttPath()));
             state.setDuration("0");
             state.setStage("");
             state.setStageMessage("");
@@ -1004,10 +1005,10 @@ public class AlarmProcessingJob {
     private void writeLatestState(Jedis jedis, PointAlarmState state) {
             try {
                 String json = objectMapper.writeValueAsString(state);
-                jedis.hset(latestRedisKey, state.getPath(), json);
-                log.debug("LATEST {} value={}", state.getPath(), state.getValue());
+                jedis.hset(latestRedisKey, state.getMqttPath(), json);
+                log.debug("LATEST {} value={}", state.getMqttPath(), state.getValue());
             } catch (Exception e) {
-                log.warn("Failed to write latest state for {}: {}", state.getPath(), e.getMessage());
+                log.warn("Failed to write latest state for {}: {}", state.getMqttPath(), e.getMessage());
             }
         }
 
@@ -1017,7 +1018,7 @@ public class AlarmProcessingJob {
                 jedis.publish(notificationChannel, json);
                 jedis.publish(realtimeChannel, json);
             } catch (Exception e) {
-                log.warn("Failed to publish alarm for {}: {}", state.getPath(), e.getMessage());
+                log.warn("Failed to publish alarm for {}: {}", state.getMqttPath(), e.getMessage());
             }
         }
 
@@ -1030,9 +1031,9 @@ public class AlarmProcessingJob {
             try {
                 String json = serializeWithTimestamp(state, state.getAlarmStartTime());
                 jedis.publish(notificationChannel, json);
-                log.debug("PUB-NOTIFY {} stage={} -> {}", state.getPath(), state.getStage(), notificationChannel);
+                log.debug("PUB-NOTIFY {} stage={} -> {}", state.getMqttPath(), state.getStage(), notificationChannel);
             } catch (Exception e) {
-                log.warn("Failed to publish notification for {}: {}", state.getPath(), e.getMessage());
+                log.warn("Failed to publish notification for {}: {}", state.getMqttPath(), e.getMessage());
             }
         }
 
@@ -1049,9 +1050,9 @@ public class AlarmProcessingJob {
             try {
                 String json = serializeWithTimestamp(state, dataTimestamp);
                 jedis.publish(realtimeChannel, json);
-                log.debug("PUB-REALTIME {} stage={} -> {}", state.getPath(), state.getStage(), realtimeChannel);
+                log.debug("PUB-REALTIME {} stage={} -> {}", state.getMqttPath(), state.getStage(), realtimeChannel);
             } catch (Exception e) {
-                log.warn("Failed to publish realtime for {}: {}", state.getPath(), e.getMessage());
+                log.warn("Failed to publish realtime for {}: {}", state.getMqttPath(), e.getMessage());
             }
         }
 
@@ -1062,10 +1063,10 @@ public class AlarmProcessingJob {
     private void writeActiveState(Jedis jedis, PointAlarmState state) {
             try {
                 String json = serializeWithTimestamp(state, state.getAlarmStartTime());
-                jedis.hset(activeRedisKey, state.getPath(), json);
-                log.debug("ACTIVE {} stage={} level={}", state.getPath(), state.getStage(), state.getLevel());
+                jedis.hset(activeRedisKey, state.getMqttPath(), json);
+                log.debug("ACTIVE {} stage={} level={}", state.getMqttPath(), state.getStage(), state.getLevel());
             } catch (Exception e) {
-                log.warn("Failed to write active state for {}: {}", state.getPath(), e.getMessage());
+                log.warn("Failed to write active state for {}: {}", state.getMqttPath(), e.getMessage());
             }
         }
 

@@ -50,7 +50,7 @@ public class AlarmNotificationListener implements MessageListener {
 
             // Parse the triggering alarm early so its identity can be logged at each step
             var triggerNode = objectMapper.readTree(alarmJson);
-            String triggerPath = triggerNode.has("path") ? triggerNode.get("path").asText() : "?";
+            String triggerPath = triggerNode.has("mqttPath") ? triggerNode.get("mqttPath").asText() : "?";
             String triggerStage = triggerNode.has("stage") ? triggerNode.get("stage").asText() : "?";
             log.info("Processing alarm notification: path={}, stage={}", triggerPath, triggerStage);
 
