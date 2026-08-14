@@ -73,7 +73,7 @@ public class AlarmService {
                 dto.setSource(getTextField(node, "source", ""));
                 dto.setMessage(getTextField(node, "message", ""));
                 dto.setLocation(getTextField(node, "location", ""));
-                dto.setPath(getTextField(node, "path", ""));
+                dto.setPath(getTextField(node, "mqttPath", ""));
                 dto.setStatus(getTextField(node, "status", "Unack"));
                 dto.setAckBy(getTextField(node, "ackBy", "-"));
                 dto.setDuration(getTextField(node, "duration", ""));
@@ -166,8 +166,8 @@ public class AlarmService {
             String json = (String) entry.getValue();
             try {
                 var node = objectMapper.readTree(json);
-                String path = node.has("path") && !node.get("path").isNull()
-                        ? node.get("path").asText()
+                String path = node.has("mqttPath") && !node.get("mqttPath").isNull()
+                        ? node.get("mqttPath").asText()
                         : key;
                 if (!pathSet.contains(path)) {
                     continue;

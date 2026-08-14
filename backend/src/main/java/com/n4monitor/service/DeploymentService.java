@@ -10,6 +10,7 @@ import com.n4monitor.mapper.DeviceTemplateMapper;
 import com.n4monitor.mapper.NavNodeMapper;
 import com.n4monitor.mapper.PointDeploymentMapper;
 import com.n4monitor.mapper.PointTemplateMapper;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class DeploymentService {
 
     private static final String DEVICE_ALARM_CODE = "Communication_status_00";
@@ -26,18 +28,6 @@ public class DeploymentService {
     private final DeviceTemplateMapper deviceTemplateMapper;
     private final PointTemplateMapper pointTemplateMapper;
     private final NavNodeMapper navNodeMapper;
-
-    public DeploymentService(DeviceDeploymentMapper deviceDeploymentMapper,
-                             PointDeploymentMapper pointDeploymentMapper,
-                             DeviceTemplateMapper deviceTemplateMapper,
-                             PointTemplateMapper pointTemplateMapper,
-                             NavNodeMapper navNodeMapper) {
-        this.deviceDeploymentMapper = deviceDeploymentMapper;
-        this.pointDeploymentMapper = pointDeploymentMapper;
-        this.deviceTemplateMapper = deviceTemplateMapper;
-        this.pointTemplateMapper = pointTemplateMapper;
-        this.navNodeMapper = navNodeMapper;
-    }
 
     /** 全部设备部署列表 */
     public List<DeviceDeployment> listAll() {

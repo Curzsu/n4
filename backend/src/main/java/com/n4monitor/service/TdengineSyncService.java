@@ -260,15 +260,15 @@ public class TdengineSyncService {
             try {
                 if (!ensureConnected()) {
                     log.error("TDengine not available, dropping realtime alarm: path={}, stage={}",
-                            state.getPath(), state.getStage());
+                            state.getMqttPath(), state.getStage());
                     return;
                 }
                 writeToRealtimeSupertable(state);
                 log.info("Wrote realtime alarm to TDengine: path={}, stage={}, level={}",
-                        state.getPath(), state.getStage(), state.getLevel());
+                        state.getMqttPath(), state.getStage(), state.getLevel());
             } catch (Exception e) {
                 log.error("Failed to write realtime alarm for path: {}, stage: {}",
-                        state.getPath(), state.getStage(), e);
+                        state.getMqttPath(), state.getStage(), e);
             }
         });
     }
@@ -278,7 +278,7 @@ public class TdengineSyncService {
      */
     private void writeToSnapshotSupertable(PointAlarmState state) throws SQLException {
         String supertable = tdengineConfig.getSupertable();
-        String path = state.getPath();
+        String path = state.getMqttPath();
         String subtable = sanitizeTableName(path);
 
         // TAGS(path) + 17 VALUES columns
@@ -333,7 +333,7 @@ public class TdengineSyncService {
      */
     private void writeToRealtimeSupertable(PointAlarmState state) throws SQLException {
         String supertable = tdengineConfig.getRealtimeSupertable();
-        String path = state.getPath();
+        String path = state.getMqttPath();
         String subtable = sanitizeTableName(path) + "_rt";
 
         // TAGS(path) + 17 VALUES columns

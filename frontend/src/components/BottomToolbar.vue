@@ -17,9 +17,11 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Bell, TrendCharts, Document, Tools, Setting, Clock, Cpu, Operation } from '@element-plus/icons-vue'
-import { useDashboardStore } from '@/stores/dashboard'
+import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
 
-const store = useDashboardStore()
+// Real-time active alarm count (sum of all severities) shared across the app
+// via the WebSocket singleton. Mirrors the Active Alarms table row count.
+const { activeAlarmCount } = useAlarmWebSocket()
 const route = useRoute()
 const router = useRouter()
 
@@ -34,7 +36,7 @@ const alarmItems = computed(() => [
   {
     label: 'Active Alarms',
     icon: Bell,
-    badge: store.alarmSummary?.critical || 0,
+    badge: activeAlarmCount.value,
     active: route.path === '/alarm',
     to: '/alarm',
   },
@@ -56,7 +58,7 @@ const systemItems = computed(() => [
 
 // Items shown on all other routes
 const defaultItems = computed(() => [
-  { label: 'Alarm Center', icon: Bell, badge: store.alarmSummary?.critical || 0, active: false, to: '/alarm' },
+  { label: 'Alarm Center', icon: Bell, badge: activeAlarmCount.value, active: false, to: '/alarm' },
   { label: 'Trend Viewer', icon: TrendCharts, badge: null, active: false, to: '' },
   { label: 'Report Center', icon: Document, badge: null, active: false, to: '' },
   { label: 'Work Order', icon: Tools, badge: null, active: false, to: '' },

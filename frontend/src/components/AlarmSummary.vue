@@ -6,19 +6,19 @@
     </div>
     <div class="alarm-counts">
       <div class="alarm-count-item critical">
-        <span class="count-value">{{ alarmSummary?.critical || 0 }}</span>
+        <span class="count-value">{{ alarmSummary?.critical ?? 0 }}</span>
         <span class="count-label">Critical</span>
       </div>
       <div class="alarm-count-item major">
-        <span class="count-value">{{ alarmSummary?.major || 0 }}</span>
+        <span class="count-value">{{ alarmSummary?.major ?? 0 }}</span>
         <span class="count-label">Major</span>
       </div>
       <div class="alarm-count-item minor">
-        <span class="count-value">{{ alarmSummary?.minor || 0 }}</span>
+        <span class="count-value">{{ alarmSummary?.minor ?? 0 }}</span>
         <span class="count-label">Minor</span>
       </div>
       <div class="alarm-count-item warning">
-        <span class="count-value">{{ alarmSummary?.warning || 0 }}</span>
+        <span class="count-value">{{ alarmSummary?.warning ?? 0 }}</span>
         <span class="count-label">Warning</span>
       </div>
     </div>
