@@ -167,14 +167,18 @@ public class FuxaCabinClientService {
         boolean sessionActive,
         int activeSessionCount
     ) {
-        String viewName = cabin.getViewName();
-        String iframeUrl = hasText(viewName)
+        String hostViewName = cabin.getViewName();
+        String templateViewName = hasText(cabin.getTemplateViewName())
+            ? cabin.getTemplateViewName().trim()
+            : hostViewName;
+        String iframeUrl = hasText(hostViewName)
             ? UriComponentsBuilder.fromUriString(properties.getBaseUrl())
                 // FUXA's dedicated view route renders the HMI only, without
                 // the Home page navigation and editor-facing chrome.
                 .path("/home")
-                .queryParam("viewName", viewName)
+                .queryParam("viewName", hostViewName)
                 .queryParam("mqttDeviceName", cabin.getDeviceName())
+                .queryParam("cabinViewName", templateViewName)
                 .build()
                 .encode()
                 .toUriString()
@@ -184,8 +188,10 @@ public class FuxaCabinClientService {
             .sessionId(sessionId)
             .fuxaDeviceId(cabin.getDeviceId())
             .fuxaDeviceName(cabin.getDeviceName())
-            .viewName(viewName)
+            .viewName(templateViewName)
             .iframeUrl(iframeUrl)
+            .viewWidth(cabin.getViewWidth())
+            .viewHeight(cabin.getViewHeight())
             .enabled(enabledCabins.contains(normalize(cabinName)))
             .sessionActive(sessionActive)
             .activeSessionCount(activeSessionCount)

@@ -57,7 +57,7 @@ alarm:
 
 # Dynamic FUXA template binding. Secrets remain in FUXA's MQTT device configuration.
 fuxa:
-  base-url: ${FUXA_BASE_URL:http://127.0.0.1:1881}
+  base-url: ${FUXA_BASE_URL:http://47.121.30.136:1881}
   enabled: ${FUXA_PROVISIONING_ENABLED:true}
   template-device-id: ${FUXA_TEMPLATE_DEVICE_ID:d_f1431d5e-58774643}
   template-topic-device-id: ${FUXA_TEMPLATE_TOPIC_DEVICE_ID:EMSB_03_EM32}
@@ -72,8 +72,17 @@ fuxa:
   #     device-name: CABIN_A1_MVP_A1
   #     view-name: A1_MVP_A1_CABIN_OVERVIEW
   cabin-clients:
+    A1_MVP_A1:                       # 当前 N4 导航树中的方舱节点名称
+      device-name: A1_MVP_A1
+      view-name: N4_CABIN_RUNTIME_HOST
+      template-view-name: A1_MVP_A1_CABIN_OVERVIEW
+      view-width: 1780
+      view-height: 980
     J1_LVP_A1:                       # N4 前端树里的方舱名称
-      device-name: LVP_A1   # FUXA 设备页中 MQTT Client 的名称
-      view-name: A1_MVP_A1_CABIN_OVERVIEW  # FUXA 方舱视图名称
+      device-name: A1_MVP_A1
+      view-name: N4_CABIN_RUNTIME_HOST
+      template-view-name: A1_MVP_A1_CABIN_OVERVIEW
+      view-width: 1780
+      view-height: 980
 
 # Logging is configured in logback-spring.xml (console + rolling file output).

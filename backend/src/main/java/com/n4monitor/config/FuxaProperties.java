@@ -33,5 +33,10 @@ public class FuxaProperties {
         private String deviceName;
         /** FUXA view rendered for this cabin. */
         private String viewName;
+        /** Reusable cabin template selected after the runtime host maps tags. */
+        private String templateViewName;
+        /** Native FUXA view dimensions used for responsive iframe scaling. */
+        private int viewWidth = 1780;
+        private int viewHeight = 980;
     }
 }

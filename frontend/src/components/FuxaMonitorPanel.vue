@@ -23,7 +23,7 @@
       :style="{ height: `${displayHeight}px` }"
       v-loading="loading"
     >
-      <div class="frame-stage" :style="stageStyle">
+      <div v-if="fuxaUrl" class="frame-stage" :style="stageStyle">
         <iframe
           :key="fuxaUrl"
           :src="fuxaUrl"
@@ -33,6 +33,9 @@
           @load="handleFrameLoad"
         />
       </div>
+      <p v-else class="binding-empty">
+        No FUXA binding is configured for this device.
+      </p>
     </div>
   </section>
 </template>
@@ -71,18 +74,7 @@ const stageStyle = computed(() => ({
   transform: `scale(${frameScale.value})`,
 }))
 
-function buildDefaultFuxaUrl() {
-  const configured = import.meta.env.VITE_FUXA_URL
-    || 'http://127.0.0.1:1881/home?viewName=H1_EMSB_A4_03_EM'
-  const url = new URL(configured, window.location.origin)
-  if (!url.searchParams.has('sourceDeviceId')) {
-    url.searchParams.set('sourceDeviceId', 'd_f1431d5e-58774643')
-  }
-  return url.toString()
-}
-
-const defaultFuxaUrl = buildDefaultFuxaUrl()
-const fuxaUrl = ref(defaultFuxaUrl)
+const fuxaUrl = ref<string | null>(null)
 
 function buildBindingFuxaUrl(binding: FuxaBinding) {
   const url = new URL(binding.iframeUrl, window.location.origin)
@@ -102,7 +94,8 @@ function handleFrameLoad() {
 
 async function loadDeviceBinding(device: DeviceTreeNode | null) {
   if (!device || device.type !== 'device') {
-    fuxaUrl.value = defaultFuxaUrl
+    fuxaUrl.value = null
+    loading.value = false
     return
   }
 
@@ -116,14 +109,9 @@ async function loadDeviceBinding(device: DeviceTreeNode | null) {
     const binding = await deviceApi.getFuxaBinding(Number(device.id))
     fuxaUrl.value = buildBindingFuxaUrl(binding)
   } catch (error) {
-    // Node-RED may not have discovered this device yet; keep the template visible.
     console.warn(`FUXA binding is not ready for device ${device.id}`, error)
-    const willReloadFrame = fuxaUrl.value !== defaultFuxaUrl
-    fuxaUrl.value = defaultFuxaUrl
-    if (!willReloadFrame) {
-      frameReady.value = true
-      loading.value = false
-    }
+    fuxaUrl.value = null
+    loading.value = false
   }
 }
 
@@ -236,6 +224,15 @@ onBeforeUnmount(() => {
 
 .frame-shell :deep(.el-loading-spinner .path) {
   stroke: $accent-green;
+}
+
+.binding-empty {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  margin: 0;
+  color: $text-secondary;
+  font-size: 13px;
 }
 
 .frame-stage {

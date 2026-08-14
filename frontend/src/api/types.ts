@@ -81,6 +81,8 @@ export interface FuxaCabinSession {
   fuxaDeviceName: string
   viewName: string
   iframeUrl: string
+  viewWidth?: number
+  viewHeight?: number
   enabled: boolean
   sessionActive: boolean
   activeSessionCount: number

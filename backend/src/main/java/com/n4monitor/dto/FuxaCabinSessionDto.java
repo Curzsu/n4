@@ -12,6 +12,8 @@ public class FuxaCabinSessionDto {
     private String fuxaDeviceName;
     private String viewName;
     private String iframeUrl;
+    private int viewWidth;
+    private int viewHeight;
     private boolean enabled;
     private boolean sessionActive;
     private int activeSessionCount;

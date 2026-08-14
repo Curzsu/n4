@@ -22,7 +22,12 @@
       </el-tooltip>
     </header>
 
-    <div class="frame-shell" v-loading="loading">
+    <div
+      ref="frameShell"
+      class="frame-shell"
+      :style="{ height: `${frameHeight}px` }"
+      v-loading="loading"
+    >
       <div v-if="errorMessage" class="monitor-error">
         {{ errorMessage }}
       </div>
@@ -30,6 +35,7 @@
         v-else-if="monitoring && session?.iframeUrl"
         :key="session.iframeUrl"
         :src="session.iframeUrl"
+        :style="frameStyle"
         title="FUXA cabin graphical monitor"
         @load="frameLoaded = true"
       />
@@ -39,7 +45,7 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Monitor, RefreshRight, SwitchButton } from '@element-plus/icons-vue'
 import { deviceApi } from '@/api/device'
 import type { FuxaCabinSession } from '@/api/types'
@@ -54,10 +60,33 @@ const frameLoaded = ref(false)
 const session = ref<FuxaCabinSession | null>(null)
 const errorMessage = ref('')
 const monitoring = ref(false)
+const frameShell = ref<HTMLElement | null>(null)
+const frameScale = ref(1)
+const frameOffsetX = ref(0)
 const sessionId = typeof crypto !== 'undefined' && crypto.randomUUID
   ? crypto.randomUUID()
   : `cabin-${Date.now()}-${Math.random().toString(36).slice(2)}`
 let releaseRequested = false
+let resizeObserver: ResizeObserver | null = null
+
+const viewWidth = computed(() => Math.max(1, session.value?.viewWidth || 1780))
+const viewHeight = computed(() => Math.max(1, session.value?.viewHeight || 980))
+const frameHeight = computed(() => monitoring.value && session.value?.iframeUrl
+  ? Math.ceil(viewHeight.value * frameScale.value)
+  : 320)
+const frameStyle = computed(() => ({
+  width: `${viewWidth.value}px`,
+  height: `${viewHeight.value}px`,
+  left: `${frameOffsetX.value}px`,
+  transform: `scale(${frameScale.value})`,
+}))
+
+function updateFrameScale() {
+  const availableWidth = frameShell.value?.clientWidth || viewWidth.value
+  const scale = Math.min(1, availableWidth / viewWidth.value)
+  frameScale.value = Math.max(0.1, scale)
+  frameOffsetX.value = Math.max(0, (availableWidth - viewWidth.value * frameScale.value) / 2)
+}
 
 async function openCabin() {
   loading.value = true
@@ -67,6 +96,8 @@ async function openCabin() {
     session.value = await deviceApi.openFuxaCabinSession(props.cabinName, sessionId)
     monitoring.value = true
     releaseRequested = false
+    await nextTick()
+    updateFrameScale()
   } catch (error) {
     console.error(`Failed to open FUXA cabin ${props.cabinName}`, error)
     errorMessage.value = error instanceof Error
@@ -86,6 +117,8 @@ async function toggleCabin() {
       session.value = await deviceApi.openFuxaCabinSession(props.cabinName, sessionId)
       monitoring.value = true
       releaseRequested = false
+      await nextTick()
+      updateFrameScale()
     }
   } catch (error) {
     console.error(`Failed to toggle FUXA cabin ${props.cabinName}`, error)
@@ -120,11 +153,15 @@ function releaseOnPageExit() {
 
 onMounted(() => {
   window.addEventListener('pagehide', releaseOnPageExit)
+  resizeObserver = new ResizeObserver(updateFrameScale)
+  if (frameShell.value) resizeObserver.observe(frameShell.value)
+  updateFrameScale()
   void openCabin()
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('pagehide', releaseOnPageExit)
+  resizeObserver?.disconnect()
   releaseOnPageExit()
 })
 </script>
@@ -132,7 +169,6 @@ onBeforeUnmount(() => {
 <style scoped lang="scss">
 .cabin-monitor-card {
   flex: 0 0 auto;
-  min-height: 660px;
   overflow: hidden;
   background: $bg-card;
   border: 1px solid $border-card;
@@ -184,21 +220,21 @@ onBeforeUnmount(() => {
 
 .frame-shell {
   position: relative;
-  min-height: 610px;
-  height: 610px;
   overflow: hidden;
   background: #050505;
+  transition: height 160ms ease;
 }
 
 .frame-shell :deep(.el-loading-mask) { background: #050505; }
 .frame-shell :deep(.el-loading-spinner .path) { stroke: $accent-green; }
 
 iframe {
+  position: absolute;
+  top: 0;
   display: block;
-  width: 100%;
-  height: 100%;
   border: 0;
   background: #050505;
+  transform-origin: top left;
 }
 
 .monitor-error {
