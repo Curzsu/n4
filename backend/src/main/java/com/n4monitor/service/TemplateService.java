@@ -8,17 +8,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Set;
 
 @Service
 public class TemplateService {
 
-    /** 远程库 device_template 中真实存在的 14 个模板名（用于标记真实数据 vs Mock 占位） */
-    public static final Set<String> REAL_TEMPLATE_NAMES = Set.of(
-            "Collector_Honeywell", "DHG_Honeywell", "ZB_Honeywell", "EM_Honeywell",
-            "IRC_Honeywell", "DEHU_Honeywell", "DCP_Honeywell", "LD_Honeywell",
-            "TH_Honeywell", "GAS_Honeywell", "Battery_Honeywell", "TR_Honeywell",
-            "APF_Honeywell", "UPS_Honeywell");
+    /**
+     * Data-driven check for real (non-mock) templates: any template whose name
+     * does not carry the MOCK_ prefix is real data imported from the remote DB.
+     * Kept in sync with the isReal/is_mock expressions in the mapper XMLs.
+     */
+    public static boolean isRealTemplate(String deviceTmplName) {
+        return deviceTmplName != null && !deviceTmplName.toUpperCase().startsWith("MOCK_");
+    }
 
     private final DeviceTemplateMapper deviceTemplateMapper;
     private final PointTemplateMapper pointTemplateMapper;
@@ -28,31 +29,20 @@ public class TemplateService {
         this.pointTemplateMapper = pointTemplateMapper;
     }
 
-    /** 模板列表：标记真实/Mock，附带点位数量 */
+    /** 模板列表：真实/Mock 标记由 mapper SQL 计算（isReal），附带点位数量 */
     public List<DeviceTemplate> listTemplates() {
-        List<DeviceTemplate> templates = deviceTemplateMapper.findAllWithPointCount();
-        for (DeviceTemplate t : templates) {
-            t.setIsReal(REAL_TEMPLATE_NAMES.contains(t.getDeviceTmplName()));
-        }
-        return templates;
+        return deviceTemplateMapper.findAllWithPointCount();
     }
 
-    /** 模板点位列表：真实模板的点位标记为真实，Mock 模板的点位标记为 Mock */
+    /** 模板点位列表：真实/Mock 标记由 mapper SQL 计算（跟随所属模板） */
     public List<PointTemplate> listPoints(Long deviceTmplId) {
-        DeviceTemplate template = requireTemplate(deviceTmplId);
-        boolean real = REAL_TEMPLATE_NAMES.contains(template.getDeviceTmplName());
-        List<PointTemplate> points = pointTemplateMapper.findByDeviceTmplId(deviceTmplId);
-        for (PointTemplate p : points) {
-            p.setIsReal(real);
-        }
-        return points;
+        requireTemplate(deviceTmplId);
+        return pointTemplateMapper.findByDeviceTmplId(deviceTmplId);
     }
 
-    /** 单个模板详情（供编辑回显） */
+    /** 单个模板详情（供编辑回显；isReal 由 mapper SQL 计算） */
     public DeviceTemplate getTemplate(Long deviceTmplId) {
-        DeviceTemplate template = requireTemplate(deviceTmplId);
-        template.setIsReal(REAL_TEMPLATE_NAMES.contains(template.getDeviceTmplName()));
-        return template;
+        return requireTemplate(deviceTmplId);
     }
 
     @Transactional

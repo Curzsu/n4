@@ -208,6 +208,7 @@ export interface DeviceTemplate {
   manufacturer?: string
   manuDate?: string
   functionalArea?: string
+  facePlateId?: string
   /** 该模板下的点位数量 */
   pointCount?: number
   /** 是否真实数据（与远程库模板一致） */

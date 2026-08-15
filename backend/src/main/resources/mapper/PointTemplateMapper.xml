@@ -4,11 +4,20 @@
 <mapper namespace="com.n4monitor.mapper.PointTemplateMapper">
 
     <select id="findByDeviceTmplId" resultType="com.n4monitor.entity.PointTemplate">
-        SELECT * FROM point_template WHERE device_tmpl_id = #{deviceTmplId} AND is_deleted = 0 ORDER BY point_tmpl_id
+        SELECT pt.*,
+               (dt.device_tmpl_name NOT LIKE 'MOCK\_%') AS isReal
+        FROM point_template pt
+        LEFT JOIN device_template dt ON pt.device_tmpl_id = dt.device_tmpl_id
+        WHERE pt.device_tmpl_id = #{deviceTmplId} AND pt.is_deleted = 0
+        ORDER BY pt.point_tmpl_id
     </select>
 
     <select id="findByPointTmplId" resultType="com.n4monitor.entity.PointTemplate">
-        SELECT * FROM point_template WHERE point_tmpl_id = #{pointTmplId} AND is_deleted = 0
+        SELECT pt.*,
+               (dt.device_tmpl_name NOT LIKE 'MOCK\_%') AS isReal
+        FROM point_template pt
+        LEFT JOIN device_template dt ON pt.device_tmpl_id = dt.device_tmpl_id
+        WHERE pt.point_tmpl_id = #{pointTmplId} AND pt.is_deleted = 0
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="pointTmplId">
