@@ -5,6 +5,7 @@
 
     <select id="findAllWithPointCount" resultType="com.n4monitor.entity.DeviceTemplate">
         SELECT t.*,
+               (t.device_tmpl_name NOT LIKE 'MOCK\_%') AS isReal,
                (SELECT COUNT(*) FROM point_template p
                  WHERE p.device_tmpl_id = t.device_tmpl_id AND p.is_deleted = 0) AS pointCount
         FROM device_template t
@@ -13,7 +14,10 @@
     </select>
 
     <select id="findByDeviceTmplId" resultType="com.n4monitor.entity.DeviceTemplate">
-        SELECT * FROM device_template WHERE device_tmpl_id = #{deviceTmplId} AND is_deleted = 0
+        SELECT t.*,
+               (t.device_tmpl_name NOT LIKE 'MOCK\_%') AS isReal
+        FROM device_template t
+        WHERE t.device_tmpl_id = #{deviceTmplId} AND t.is_deleted = 0
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="deviceTmplId">

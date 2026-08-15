@@ -50,7 +50,7 @@ public class DeploymentService {
         DeviceDeployment deployment = requireDevice(deviceDeployId);
         DeviceTemplate template = deviceTemplateMapper.findByDeviceTmplId(deployment.getDeviceTmplId());
         boolean real = template != null
-                && TemplateService.REAL_TEMPLATE_NAMES.contains(template.getDeviceTmplName());
+                && TemplateService.isRealTemplate(template.getDeviceTmplName());
         List<PointDeployment> points = pointDeploymentMapper.findByDeviceDeployId(deviceDeployId);
         for (PointDeployment p : points) {
             p.setIsReal(real);
