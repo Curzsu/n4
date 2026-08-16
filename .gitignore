@@ -4,7 +4,9 @@
 .vscode/
 
 # Build
-backend/target/
+monitor-backend/target/
+monitor-common/target/
+monitor-flink-job/target/
 node_modules/
 frontend/dist/
 

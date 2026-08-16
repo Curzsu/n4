@@ -9,30 +9,62 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>com.n4monitor</groupId>
-    <artifactId>n4-monitor</artifactId>
+    <artifactId>monitor-backend</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>n4-monitor</name>
-    <description>n4-monitor</description>
-    <url/>
-    <licenses>
-        <license/>
-    </licenses>
-    <developers>
-        <developer/>
-    </developers>
-    <scm>
-        <connection/>
-        <developerConnection/>
-        <tag/>
-        <url/>
-    </scm>
+    <name>monitor-backend</name>
+    <description>N4 Monitor Spring Boot backend (web API, rule sync, WebSocket, embedded Flink launcher)</description>
+
     <properties>
         <java.version>21</java.version>
         <flink.version>1.20.0</flink.version>
+        <flink-connector-kafka.version>3.3.0-1.20</flink-connector-kafka.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     </properties>
     <dependencies>
+        <!-- In-repo modules: shared models + the Flink alarm job (embedded execution). -->
+        <dependency>
+            <groupId>com.n4monitor</groupId>
+            <artifactId>monitor-common</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.n4monitor</groupId>
+            <artifactId>monitor-flink-job</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Flink runtime for EMBEDDED execution inside the Spring Boot process
+             (started by FlinkJobRunner). monitor-flink-job marks these as provided
+             (not transitive), so this module must declare them itself. When the job
+             is moved to a dedicated Flink cluster, delete this block and
+             FlinkJobRunner to make this module Flink-free. -->
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-streaming-java</artifactId>
+            <version>${flink.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-runtime</artifactId>
+            <version>${flink.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-clients</artifactId>
+            <version>${flink.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-connector-base</artifactId>
+            <version>${flink.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-connector-kafka</artifactId>
+            <version>${flink-connector-kafka.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>org.mybatis.spring.boot</groupId>
             <artifactId>mybatis-spring-boot-starter</artifactId>
@@ -66,36 +98,6 @@
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
             <version>5.2.5</version>
-        </dependency>
-
-        <!-- Flink -->
-        <dependency>
-            <groupId>org.apache.flink</groupId>
-            <artifactId>flink-streaming-java</artifactId>
-            <version>${flink.version}</version>
-            <scope>compile</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.flink</groupId>
-            <artifactId>flink-runtime</artifactId>
-            <version>${flink.version}</version>
-            <scope>compile</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.flink</groupId>
-            <artifactId>flink-clients</artifactId>
-            <version>${flink.version}</version>
-            <scope>compile</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.flink</groupId>
-            <artifactId>flink-connector-base</artifactId>
-            <version>${flink.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.flink</groupId>
-            <artifactId>flink-connector-kafka</artifactId>
-            <version>3.3.0-1.20</version>
         </dependency>
 
         <!-- Jedis for Redis access in Flink (Spring RedisTemplate not available in Flink runtime) -->
@@ -167,14 +169,10 @@
             <version>4.0.1</version>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>org.apache.poi</groupId>
-            <artifactId>poi-ooxml</artifactId>
-            <version>5.2.5</version>
-        </dependency>
     </dependencies>
 
     <build>
+        <finalName>monitor-backend</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

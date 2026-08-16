@@ -10,7 +10,11 @@
 
 services:
   n4-monitor-backend:
-    build: ./backend
+    # Build context is the repo root: the Maven reactor needs all three modules
+    # (monitor-common, monitor-flink-job, monitor-backend) to build the fat jar.
+    build:
+      context: .
+      dockerfile: monitor-backend/Dockerfile
     image: n4-monitor-backend:latest
     container_name: n4-monitor-backend
     restart: unless-stopped

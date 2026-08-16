@@ -1,16 +1,24 @@
 # syntax=docker/dockerfile:1
 
-# ---- Stage 1: build the fat jar with Maven ----
+# ---- Stage 1: build the fat jar with Maven (multi-module reactor) ----
+# Build context is the REPOSITORY ROOT (see docker-compose.yml) so that all
+# three Maven modules (monitor-common, monitor-flink-job, monitor-backend)
+# are available to the reactor build.
 FROM maven:3.9-eclipse-temurin-21 AS builder
 
 WORKDIR /build
 
-# Copy only the POM first to cache dependencies across source changes
+# Copy only the POMs first to cache dependencies across source changes
 COPY pom.xml .
+COPY monitor-common/pom.xml monitor-common/
+COPY monitor-flink-job/pom.xml monitor-flink-job/
+COPY monitor-backend/pom.xml monitor-backend/
 RUN mvn -B dependency:go-offline
 
-# Copy the source tree and build (skip tests; the CI/runtime env has no MySQL/Kafka)
-COPY src ./src
+# Copy the source trees and build (skip tests; the CI/runtime env has no MySQL/Kafka)
+COPY monitor-common/src monitor-common/src
+COPY monitor-flink-job/src monitor-flink-job/src
+COPY monitor-backend/src monitor-backend/src
 RUN mvn -B clean package -DskipTests
 
 # Extract the fat jar into a directory layout here (the JDK 'jar' tool is available
@@ -21,7 +29,7 @@ RUN mvn -B clean package -DskipTests
 # Flink's InstantiationUtil when running via java -jar.
 RUN mkdir -p /app-extracted \
     && cd /app-extracted \
-    && jar xf /build/target/n4-monitor-0.0.1-SNAPSHOT.jar
+    && jar xf /build/monitor-backend/target/monitor-backend.jar
 
 # ---- Stage 2: runtime JRE ----
 FROM eclipse-temurin:21-jre
