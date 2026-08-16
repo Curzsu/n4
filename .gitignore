@@ -11,10 +11,13 @@ node_modules/
 frontend/dist/
 
 # Environment
+# .env is intentionally tracked (self-hosted private Gitea) so deploy hosts can
+# pull connection settings with the repo. To stop tracking it again: remove the
+# "!.env" line below, run "git rm --cached .env", and rotate all credentials.
 *.env
-*.env.local
-.env
+!.env
 !.env.example
+*.env.local
 application-local.yaml
 
 # OS

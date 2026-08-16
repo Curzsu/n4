@@ -86,7 +86,7 @@ cp .env.example .env
 vi .env   # 填入真实的中间件地址与口令
 ```
 
-`docker compose` 与后端 `application.yaml` 均从根目录 `.env` 读取（`.env` 已被 .gitignore 排除，不会入库）：
+`docker compose` 与后端 `application.yaml` 均从根目录 `.env` 读取（当前 `.env` 随仓库入库，部署机拉取代码即得；若仓库转为公开或扩大共享范围，请先移除 `.env` 并轮换口令）：
 
 | 环境变量 | 说明 |
 |---------|------|
