@@ -2,9 +2,8 @@ package com.n4monitor.tdengine;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.n4monitor.alarm.model.PointAlarmState;
-import com.n4monitor.tdengine.TdengineConfig;
 import com.n4monitor.alarm.dto.AlarmRecordDto;
+import com.n4monitor.alarm.model.PointAlarmState;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,8 +20,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * TDengine data synchronization service.
@@ -37,6 +38,10 @@ import java.util.concurrent.Executors;
  * <p>
  * Uses REST mode (jdbc:TAOS-RS) so no native TDengine client is required.
  * Connection is established lazily on the first access.
+ * <p>
+ * Concurrency model: JDBC connections are not thread-safe, so the long-lived
+ * write connection is owned exclusively by the single writer thread below;
+ * read queries open short-lived connections of their own and never touch it.
  * <p>
  * Subtable naming: each point has its own subtable named by the sanitized path field.
  */
@@ -55,11 +60,20 @@ public class TdengineSyncService {
     private volatile Connection connection;
     private volatile boolean initialized = false;
 
-    private final ExecutorService asyncExecutor = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "tdengine-async-writer");
-        t.setDaemon(true);
-        return t;
-    });
+    /** Bounded so a slow or unreachable TDengine cannot grow the queue without limit. */
+    private static final int WRITE_QUEUE_CAPACITY = 1000;
+
+    private final ExecutorService asyncExecutor = new ThreadPoolExecutor(
+            1, 1, 0L, TimeUnit.MILLISECONDS,
+            new ArrayBlockingQueue<>(WRITE_QUEUE_CAPACITY),
+            r -> {
+                Thread t = new Thread(r, "tdengine-async-writer");
+                t.setDaemon(true);
+                return t;
+            },
+            (r, executor) -> log.error(
+                    "TDengine write queue is full (capacity {}), dropping a write task; "
+                            + "TDengine is falling behind or unreachable", WRITE_QUEUE_CAPACITY));
 
     /**
      * Ensure connection is alive; reconnect if needed.
@@ -93,7 +107,7 @@ public class TdengineSyncService {
             }
             return true;
         } catch (Exception e) {
-            log.error("Failed to connect to TDengine: {}", e.getMessage());
+            log.error("Failed to connect to TDengine", e);
             connection = null;
             return false;
         }
@@ -390,10 +404,6 @@ public class TdengineSyncService {
      */
     public List<AlarmRecordDto> queryClearedAlarms() {
         List<AlarmRecordDto> result = new ArrayList<>();
-        if (!ensureConnected()) {
-            log.warn("TDengine not available, cannot query alarm history");
-            return result;
-        }
 
         String sql = "SELECT data_timestamp, alarm_level, alarm_severity, alarm_source, " +
                 "alarm_message, alarm_location, alarm_status, ack_by, alarm_duration, " +
@@ -404,7 +414,8 @@ public class TdengineSyncService {
                 // Start always sorts above the earlier-written End.
                 "ORDER BY data_timestamp DESC, ts DESC LIMIT 200";
 
-        try (Statement stmt = connection.createStatement();
+        try (Connection readConn = openReadConnection();
+             Statement stmt = readConn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
                 AlarmRecordDto dto = new AlarmRecordDto();
@@ -444,6 +455,16 @@ public class TdengineSyncService {
 
         log.info("Queried {} alarm history records from TDengine", result.size());
         return result;
+    }
+
+    /**
+     * Open a short-lived connection for read-only queries. Reads never share
+     * the writer's long-lived connection: JDBC connections are not thread-safe
+     * and the writer thread owns its connection exclusively.
+     */
+    private Connection openReadConnection() throws SQLException {
+        return DriverManager.getConnection(
+                tdengineConfig.getUrl(), tdengineConfig.getUsername(), tdengineConfig.getPassword());
     }
 
     /**
