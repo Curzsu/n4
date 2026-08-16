@@ -36,11 +36,11 @@ docker compose version
 # 3. 端口 80、8089 未被占用
 ss -tlnp | grep -E ':80|:8089'
 
-# 4. 外部组件连通性自检
+# 4. 外部组件连通性自检（口令见 .env，勿写入文档或命令历史）
 mysql -h 47.121.30.136 -P 3306 -uroot -p -e "SELECT 1"          # MySQL
-redis-cli -h 47.121.30.136 -p 6379 -a 'Password@redis' ping     # Redis 应返回 PONG
+redis-cli -h 47.121.30.136 -p 6379 -a "$REDIS_PASSWORD" ping    # Redis 应返回 PONG
 curl http://47.121.30.136:1881                                   # FUXA
-curl http://47.121.30.136:6041/rest/login/root/taosdata         # TDengine REST
+curl http://47.121.30.136:6041/rest/login/root/$TDENGINE_PASSWORD  # TDengine REST
 # Kafka 可用 kafkacat: kcat -b 47.121.30.136:9092 -L
 ```
 
@@ -77,26 +77,36 @@ mkdir -p /opt/N4-monitor && cd /opt/N4-monitor
 tar -xzf /opt/n4-monitor.tar.gz
 ```
 
-## 四、配置调整（可选）
+## 四、配置调整（必做）
 
-默认配置已指向 `47.121.30.136`。如果中间件地址有变，编辑 `docker-compose.yml` 中 `n4-monitor-backend.environment` 段，修改对应的环境变量：
+中间件地址与口令不再写死在仓库里。部署机上执行：
 
-| 环境变量 | 说明 | 默认值 |
-|---------|------|--------|
-| `MYSQL_URL` | MySQL JDBC 连接串 | `jdbc:mysql://47.121.30.136:3306/n4_monitor?...` |
-| `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker 地址 | `47.121.30.136:9092` |
-| `REDIS_HOST` / `REDIS_PORT` | Redis 地址 / 端口 | `47.121.30.136` / `6379` |
-| `TDENGINE_URL` | TDengine REST JDBC 连接串 | `jdbc:TAOS-RS://47.121.30.136:6041/n4` |
-| `FUXA_BASE_URL` | FUXA 服务地址（后端调模板 provisioning） | `http://47.121.30.136:1881` |
-| `JAVA_OPTS` | JVM 参数 | `-Xms512m -Xmx1024m -Dfile.encoding=UTF-8` |
-| `ALARM_FLINK_ENABLED` | 是否启动内嵌 Flink 告警作业 | `true` |
+```bash
+cp .env.example .env
+vi .env   # 填入真实的中间件地址与口令
+```
 
-前端 FUXA iframe 地址在 `n4-monitor-frontend.build.args.VITE_FUXA_URL` 中配置（构建时注入）。
+`docker compose` 与后端 `application.yaml` 均从根目录 `.env` 读取（`.env` 已被 .gitignore 排除，不会入库）：
+
+| 环境变量 | 说明 |
+|---------|------|
+| `MYSQL_URL` / `MYSQL_USERNAME` / `MYSQL_PASSWORD` | MySQL JDBC 连接串与账号 |
+| `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker 地址 |
+| `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` | Redis 地址与口令 |
+| `TDENGINE_URL` / `TDENGINE_USERNAME` / `TDENGINE_PASSWORD` | TDengine REST 连接与口令 |
+| `FUXA_BASE_URL` | FUXA 服务地址（后端调模板 provisioning） |
+| `JAVA_OPTS` | JVM 参数（在 docker-compose.yml 中调整） |
+| `ALARM_FLINK_ENABLED` | 是否启动内嵌 Flink 告警作业（docker-compose.yml 中调整） |
+
+前端 FUXA iframe 构建地址取自同一 `FUXA_BASE_URL`（`n4-monitor-frontend.build.args.VITE_FUXA_URL` 引用）。
 
 ## 五、构建并启动
 
 ```bash
 cd /opt/N4-monitor
+
+# 准备环境变量文件（中间件地址与口令，见"四、配置调整"）
+cp .env.example .env && vi .env
 
 # 构建镜像（首次较慢，后端会下载 Maven 依赖，前端会 npm ci）
 docker compose build

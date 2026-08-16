@@ -4,21 +4,29 @@ server:
 spring:
   application:
     name: n4-monitor
+  # Optional per-environment overrides from a local .env file (KEY=VALUE,
+  # properties syntax). .env values win over the defaults below; OS environment
+  # variables still win over both. Copy .env.example to .env and fill in real
+  # endpoints/credentials - never commit the real .env.
+  config:
+    import:
+      - optional:file:.env[.properties]
+      - optional:file:../.env[.properties]
 
   datasource:
-    url: ${MYSQL_URL:jdbc:mysql://47.121.30.136:3306/n4_monitor?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/n4_monitor?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
     username: ${MYSQL_USERNAME:root}
-    password: ${MYSQL_PASSWORD:Password@mysql}
+    password: ${MYSQL_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:47.121.30.136:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
   data:
     redis:
-      host: ${REDIS_HOST:47.121.30.136}
+      host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:Password@redis}
+      password: ${REDIS_PASSWORD:}
 
 mybatis:
   mapper-locations: classpath:mapper/*.xml
@@ -28,9 +36,9 @@ mybatis:
 
 # TDengine configuration (REST mode, port 6041)
 tdengine:
-  url: ${TDENGINE_URL:jdbc:TAOS-RS://47.121.30.136:6041/n4}
+  url: ${TDENGINE_URL:jdbc:TAOS-RS://localhost:6041/n4}
   username: ${TDENGINE_USERNAME:root}
-  password: ${TDENGINE_PASSWORD:taosdata}
+  password: ${TDENGINE_PASSWORD:}
   database: n4
   supertable: alarm
   realtime-supertable: alarm_realtime
@@ -57,7 +65,7 @@ alarm:
 
 # Dynamic FUXA template binding. Secrets remain in FUXA's MQTT device configuration.
 fuxa:
-  base-url: ${FUXA_BASE_URL:http://47.121.30.136:1881}
+  base-url: ${FUXA_BASE_URL:http://localhost:1881}
   enabled: ${FUXA_PROVISIONING_ENABLED:true}
   template-device-id: ${FUXA_TEMPLATE_DEVICE_ID:d_f1431d5e-58774643}
   template-topic-device-id: ${FUXA_TEMPLATE_TOPIC_DEVICE_ID:EMSB_03_EM32}

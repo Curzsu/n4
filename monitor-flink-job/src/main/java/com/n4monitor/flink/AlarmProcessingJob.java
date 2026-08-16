@@ -44,7 +44,7 @@ public class AlarmProcessingJob {
     private static final Logger log = LoggerFactory.getLogger(AlarmProcessingJob.class);
 
     // Dev defaults (also the fallback when a standalone submission omits an argument).
-    private static final String DEFAULT_KAFKA_BROKER = "47.121.30.136:9092";
+    private static final String DEFAULT_KAFKA_BROKER = "localhost:9092";
     private static final String DEFAULT_KAFKA_TOPIC = "obix-mqtt-points";
     private static final String DEFAULT_GROUP_ID = "n4-flink-alarm-processor";
     private static final String DEFAULT_REDIS_HOST = "localhost";

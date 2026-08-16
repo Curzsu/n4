@@ -1,9 +1,11 @@
 # N4 Monitor - Docker Compose deployment
 # Deploys the backend (Spring Boot + embedded Flink) and frontend (Nginx) containers.
 # External middleware (MySQL/Redis/Kafka/TDengine) and FUXA are assumed to already
-# be running on the host; connection addresses are injected via environment below.
+# be running on the host; connection addresses are interpolated from the .env file
+# next to this compose file (template: .env.example).
 #
 # Usage:
+#   cp .env.example .env    # then fill in real endpoints/credentials
 #   docker compose build
 #   docker compose up -d
 #   docker compose logs -f
@@ -24,20 +26,21 @@ services:
       TZ: Asia/Shanghai
       # JVM options (heap, encoding). Adjust -Xmx to fit the host memory.
       JAVA_OPTS: "-Xms512m -Xmx1024m -Dfile.encoding=UTF-8"
-      # ---- External middleware connection (override defaults in application.yaml) ----
-      # All default to 47.121.30.136. Change the host/port here if middleware moves.
-      MYSQL_URL: jdbc:mysql://47.121.30.136:3306/n4_monitor?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
-      MYSQL_USERNAME: root
-      MYSQL_PASSWORD: Password@mysql
-      KAFKA_BOOTSTRAP_SERVERS: 47.121.30.136:9092
-      REDIS_HOST: 47.121.30.136
-      REDIS_PORT: "6379"
-      REDIS_PASSWORD: Password@redis
-      TDENGINE_URL: jdbc:TAOS-RS://47.121.30.136:6041/n4
-      TDENGINE_USERNAME: root
-      TDENGINE_PASSWORD: taosdata
+      # ---- External middleware connection ----
+      # Interpolated from the .env file (see .env.example). application.yaml
+      # defaults are localhost-only, so a missing .env fails fast at startup.
+      MYSQL_URL: ${MYSQL_URL}
+      MYSQL_USERNAME: ${MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      TDENGINE_URL: ${TDENGINE_URL}
+      TDENGINE_USERNAME: ${TDENGINE_USERNAME}
+      TDENGINE_PASSWORD: ${TDENGINE_PASSWORD}
       # FUXA is already running on the host; backend calls it for template provisioning
-      FUXA_BASE_URL: http://47.121.30.136:1881
+      FUXA_BASE_URL: ${FUXA_BASE_URL}
       # Alarm Flink job toggle (set false to disable embedded Flink processing)
       ALARM_FLINK_ENABLED: "true"
     # Flink embedded execution benefits from ample file descriptors
@@ -61,7 +64,7 @@ services:
       args:
         # Build-time FUXA URL baked into the SPA bundle (iframe src).
         # Browser loads it directly, so it must be reachable from the client.
-        VITE_FUXA_URL: http://47.121.30.136:1881/home?viewName=H1_EMSB_A4_03_EM
+        VITE_FUXA_URL: ${FUXA_BASE_URL}/home?viewName=H1_EMSB_A4_03_EM
     image: n4-monitor-frontend:latest
     container_name: n4-monitor-frontend
     restart: unless-stopped
@@ -97,12 +100,12 @@ services:
     command: >
       standalone-job
       --job-classname com.n4monitor.flink.AlarmProcessingJob
-      --kafka-broker 47.121.30.136:9092
+      --kafka-broker ${KAFKA_BOOTSTRAP_SERVERS}
       --kafka-topic obix-mqtt-points
       --group-id n4-flink-alarm-processor-prod
-      --redis-host 47.121.30.136
-      --redis-port 6379
-      --redis-password Password@redis
+      --redis-host ${REDIS_HOST}
+      --redis-port ${REDIS_PORT}
+      --redis-password ${REDIS_PASSWORD}
       --parallelism 4
     environment:
       TZ: Asia/Shanghai
