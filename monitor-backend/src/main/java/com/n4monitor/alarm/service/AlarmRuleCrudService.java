@@ -2,8 +2,8 @@ package com.n4monitor.alarm.service;
 
 import com.n4monitor.entity.AlarmRuleEnumEntity;
 import com.n4monitor.entity.AlarmRuleNumericEntity;
-import com.n4monitor.mapper.AlarmRuleEnumMapper;
-import com.n4monitor.mapper.AlarmRuleNumericMapper;
+import com.n4monitor.alarm.mapper.AlarmRuleEnumMapper;
+import com.n4monitor.alarm.mapper.AlarmRuleNumericMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

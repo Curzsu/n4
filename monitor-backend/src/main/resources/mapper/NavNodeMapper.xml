@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.n4monitor.mapper.NavNodeMapper">
+<mapper namespace="com.n4monitor.dashboard.mapper.NavNodeMapper">
 
-    <select id="findAll" resultType="com.n4monitor.entity.NavNode">
+    <select id="findAll" resultType="com.n4monitor.dashboard.entity.NavNode">
         SELECT node_id, parent_id, node_name, node_level, node_type, max_level, icon, sort_order,
                is_deleted, create_time, update_time
         FROM nav_node
@@ -53,14 +53,14 @@
 
     <!-- ===== System Deployment 页写操作 ===== -->
 
-    <select id="findByNodeId" resultType="com.n4monitor.entity.NavNode">
+    <select id="findByNodeId" resultType="com.n4monitor.dashboard.entity.NavNode">
         SELECT node_id, parent_id, node_name, node_level, node_type, max_level, icon, sort_order,
                is_deleted, create_time, update_time
         FROM nav_node
         WHERE node_id = #{nodeId}
     </select>
 
-    <select id="findChildren" resultType="com.n4monitor.entity.NavNode">
+    <select id="findChildren" resultType="com.n4monitor.dashboard.entity.NavNode">
         SELECT node_id, parent_id, node_name, node_level, node_type, max_level, icon, sort_order,
                is_deleted, create_time, update_time
         FROM nav_node

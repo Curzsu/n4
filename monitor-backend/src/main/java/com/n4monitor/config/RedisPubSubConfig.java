@@ -1,7 +1,7 @@
 package com.n4monitor.config;
 
-import com.n4monitor.websocket.AlarmNotificationListener;
-import com.n4monitor.websocket.AlarmRealtimeListener;
+import com.n4monitor.alarm.listener.AlarmNotificationListener;
+import com.n4monitor.alarm.listener.AlarmRealtimeListener;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 import io.lettuce.core.cluster.api.async.RedisClusterAsyncCommands;

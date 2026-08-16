@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.n4monitor.mapper.AlarmRuleEnumMapper">
+<mapper namespace="com.n4monitor.alarm.mapper.AlarmRuleEnumMapper">
 
     <select id="findAll" resultType="com.n4monitor.entity.AlarmRuleEnumEntity">
         SELECT * FROM alarm_rule_enum WHERE is_deleted = 0 ORDER BY alarm_name, enum_value

@@ -1,6 +1,6 @@
 package com.n4monitor.config;
 
-import com.n4monitor.dto.ApiResponse;
+import com.n4monitor.common.ApiResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.converter.HttpMessageNotReadableException;

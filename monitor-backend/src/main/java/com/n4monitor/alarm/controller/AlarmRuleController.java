@@ -2,7 +2,7 @@ package com.n4monitor.alarm.controller;
 
 import com.n4monitor.alarm.service.AlarmRuleCrudService;
 import com.n4monitor.alarm.service.AlarmRuleSyncService;
-import com.n4monitor.dto.ApiResponse;
+import com.n4monitor.common.ApiResponse;
 import com.n4monitor.entity.AlarmRuleEnumEntity;
 import com.n4monitor.entity.AlarmRuleNumericEntity;
 import lombok.RequiredArgsConstructor;

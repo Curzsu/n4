@@ -22,7 +22,7 @@ spring:
 
 mybatis:
   mapper-locations: classpath:mapper/*.xml
-  type-aliases-package: com.n4monitor.entity
+  type-aliases-package: com.n4monitor.entity,com.n4monitor.device.entity,com.n4monitor.product.entity,com.n4monitor.template.entity,com.n4monitor.deployment.entity,com.n4monitor.dashboard.entity,com.n4monitor.fuxa.entity
   configuration:
     map-underscore-to-camel-case: true
 

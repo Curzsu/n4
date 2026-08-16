@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.n4monitor.mapper.PointTemplateMapper">
+<mapper namespace="com.n4monitor.template.mapper.PointTemplateMapper">
 
-    <select id="findByDeviceTmplId" resultType="com.n4monitor.entity.PointTemplate">
+    <select id="findByDeviceTmplId" resultType="com.n4monitor.template.entity.PointTemplate">
         SELECT pt.*,
                (dt.device_tmpl_name NOT LIKE 'MOCK\_%') AS isReal
         FROM point_template pt
@@ -12,7 +12,7 @@
         ORDER BY pt.point_tmpl_id
     </select>
 
-    <select id="findByPointTmplId" resultType="com.n4monitor.entity.PointTemplate">
+    <select id="findByPointTmplId" resultType="com.n4monitor.template.entity.PointTemplate">
         SELECT pt.*,
                (dt.device_tmpl_name NOT LIKE 'MOCK\_%') AS isReal
         FROM point_template pt

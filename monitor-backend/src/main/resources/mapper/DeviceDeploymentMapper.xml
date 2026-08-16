@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.n4monitor.mapper.DeviceDeploymentMapper">
+<mapper namespace="com.n4monitor.deployment.mapper.DeviceDeploymentMapper">
 
     <sql id="joinTemplateCols">
         dd.device_deploy_id, dd.device_tmpl_id, dd.nav_node_id, dd.face_plate_id, dd.alarm_code,
@@ -13,7 +13,7 @@
         (dd.device_deploy_name LIKE 'MOCK_%') AS is_mock
     </sql>
 
-    <select id="findAll" resultType="com.n4monitor.entity.DeviceDeployment">
+    <select id="findAll" resultType="com.n4monitor.deployment.entity.DeviceDeployment">
         SELECT <include refid="joinTemplateCols"/>
         FROM device_deployment dd
         LEFT JOIN device_template dt ON dd.device_tmpl_id = dt.device_tmpl_id
@@ -21,7 +21,7 @@
         ORDER BY dd.device_deploy_id
     </select>
 
-    <select id="findByNavNodeId" resultType="com.n4monitor.entity.DeviceDeployment">
+    <select id="findByNavNodeId" resultType="com.n4monitor.deployment.entity.DeviceDeployment">
         SELECT <include refid="joinTemplateCols"/>
         FROM device_deployment dd
         LEFT JOIN device_template dt ON dd.device_tmpl_id = dt.device_tmpl_id
@@ -29,7 +29,7 @@
         ORDER BY dd.device_deploy_id
     </select>
 
-    <select id="findByDeviceDeployId" resultType="com.n4monitor.entity.DeviceDeployment">
+    <select id="findByDeviceDeployId" resultType="com.n4monitor.deployment.entity.DeviceDeployment">
         SELECT <include refid="joinTemplateCols"/>
         FROM device_deployment dd
         LEFT JOIN device_template dt ON dd.device_tmpl_id = dt.device_tmpl_id

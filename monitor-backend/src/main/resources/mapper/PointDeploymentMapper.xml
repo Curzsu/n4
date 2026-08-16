@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.n4monitor.mapper.PointDeploymentMapper">
+<mapper namespace="com.n4monitor.deployment.mapper.PointDeploymentMapper">
 
-    <select id="findAllForRuleMap" resultType="com.n4monitor.entity.PointDeploymentEntity">
+    <select id="findAllForRuleMap" resultType="com.n4monitor.deployment.entity.PointDeploymentEntity">
         SELECT point_deploy_id, n4_address, alarm_code, type
         FROM point_deployment
         WHERE is_deleted = 0
     </select>
 
-    <select id="findByDeviceDeployId" resultType="com.n4monitor.entity.PointDeployment">
+    <select id="findByDeviceDeployId" resultType="com.n4monitor.deployment.entity.PointDeployment">
         SELECT point_deploy_id, point_tmpl_id, device_deploy_id, alarm_code, point_name,
                n4_address, point_code, register, point_type, data_type, unit, display_precision,
                is_deleted, create_time, update_time
@@ -18,7 +18,7 @@
         ORDER BY point_deploy_id
     </select>
 
-    <select id="findByPointDeployId" resultType="com.n4monitor.entity.PointDeployment">
+    <select id="findByPointDeployId" resultType="com.n4monitor.deployment.entity.PointDeployment">
         SELECT point_deploy_id, point_tmpl_id, device_deploy_id, alarm_code, point_name,
                n4_address, point_code, register, point_type, data_type, unit, display_precision,
                is_deleted, create_time, update_time
