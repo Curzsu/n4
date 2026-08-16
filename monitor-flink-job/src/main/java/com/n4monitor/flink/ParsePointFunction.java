@@ -2,8 +2,8 @@ package com.n4monitor.flink;
 
 import com.n4monitor.alarm.model.PointData;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.util.Collector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,7 +22,7 @@ public class ParsePointFunction extends RichFlatMapFunction<String, PointData> {
     private transient ObjectMapper objectMapper;
 
     @Override
-    public void open(Configuration parameters) {
+    public void open(OpenContext openContext) {
         objectMapper = new ObjectMapper().findAndRegisterModules();
         log.info("Point parser started");
     }

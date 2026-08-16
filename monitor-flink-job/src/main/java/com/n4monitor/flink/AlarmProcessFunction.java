@@ -6,9 +6,9 @@ import com.n4monitor.entity.AlarmRuleEnumEntity;
 import com.n4monitor.entity.AlarmRuleNumericEntity;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 import org.slf4j.Logger;
@@ -85,7 +85,7 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
     }
 
     @Override
-    public void open(Configuration parameters) {
+    public void open(OpenContext openContext) {
         // Use a pool instead of a bare Jedis: the bare connection has a 2s default
         // timeout (too tight for remote Redis) and a single broken connection is
         // reused after a SocketTimeoutException, causing cascading failures. The
