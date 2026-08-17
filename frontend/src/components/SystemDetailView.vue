@@ -229,7 +229,7 @@ const filteredDevices = computed(() => {
 // Calculate statistics
 const deviceStats = computed(() => {
   const list = devicesList.value
-  let total = list.length
+  const total = list.length
   let online = 0
   let offline = 0
   let fault = 0 // Including maintenance(3) and fault(4)

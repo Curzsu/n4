@@ -595,7 +595,7 @@ async function submitUpdate() {
   if (!detailFormRef.value) return
   try {
     await detailFormRef.value.validate()
-  } catch (err) {
+  } catch {
     return
   }
   try {

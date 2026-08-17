@@ -1076,7 +1076,7 @@ async function deletePoint(row: any) {
       await templateApi.deletePoint(row.pointTmplId)
       ElMessage.success('删除成功')
       await loadTemplatePoints()
-    } catch (e) {
+    } catch {
       ElMessage.error('删除点位失败')
     }
   }).catch(() => {})
@@ -1101,7 +1101,7 @@ async function batchDeletePoints() {
         await templateApi.deletePoint(p.pointTmplId)
       }
       ElMessage.success('批量删除成功')
-    } catch (e) {
+    } catch {
       ElMessage.error('删除部分点位失败')
     } finally {
       selectedPoints.value = []
@@ -1409,11 +1409,10 @@ function importAllTemplatesAndPoints(file: File) {
       let createdCount = 0
       let updatedCount = 0
       let totalPointsCount = 0
-      let addedPointsCount = 0
       let duplicatePointsCount = 0
 
       for (const [tplName, data] of groups.entries()) {
-        let template = store.allTemplates.find((t: any) => t.deviceTmplName === tplName)
+        const template = store.allTemplates.find((t: any) => t.deviceTmplName === tplName)
         let targetTmplId: number | null = null
 
         if (!template) {
@@ -1438,8 +1437,6 @@ function importAllTemplatesAndPoints(file: File) {
             const res = await templateApi.addPoint(targetTmplId, ip)
             if ((res as any) === '更新点位成功') {
               duplicatePointsCount++
-            } else {
-              addedPointsCount++
             }
             totalPointsCount++
           }
