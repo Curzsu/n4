@@ -1,4 +1,5 @@
 import { ref, computed, onMounted } from 'vue'
+import { alarmApi } from '@/api/alarm'
 import type { AlarmRecord, AlarmSummary, AlarmSeverityData, AlarmHourData } from '@/api/types'
 
 /**
@@ -52,6 +53,11 @@ function connect() {
     console.log('[WebSocket] Connected to alarm stream')
     isConnected.value = true
     reconnectAttempts = 0
+    // Seed the shared summary once per connection so badges/panels show real
+    // counts immediately instead of zeros until the first alarm push.
+    alarmApi.getAlarmSummary()
+      .then(data => { summaryData.value = data })
+      .catch(() => { /* keep zeros; next alarm push refreshes */ })
   }
 
   ws.onmessage = (event) => {

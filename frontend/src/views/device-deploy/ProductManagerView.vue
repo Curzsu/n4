@@ -835,7 +835,7 @@ async function submitCreate() {
         ElMessage.success('创建设备模板并同步配置点位成功')
         isCreating.value = false
         // Refresh templates and store state
-        await store.fetchAllDashboardData()
+        await store.refreshAfterMutation()
 
         // Highlight the newly created template node
         store.selectedNode = {
@@ -869,7 +869,7 @@ async function submitUpdate() {
           await templateApi.updateTemplate(form.value.deviceTmplId, form.value)
           ElMessage.success('保存模板成功')
           isEditing.value = false
-          await store.fetchAllDashboardData()
+          await store.refreshAfterMutation()
         } else {
           ElMessage.error('无法保存: 缺少模板ID')
         }
@@ -903,7 +903,7 @@ function confirmDelete(target?: DeviceTemplate | null) {
     try {
       await templateApi.deleteTemplate(id)
       ElMessage.success('删除成功')
-      await store.fetchAllDashboardData()
+      await store.refreshAfterMutation()
       store.selectedNode = store.deviceTree[0] || null
     } catch (err: any) {
       ElMessage.error(err.message || '删除模板失败')
@@ -940,7 +940,7 @@ function batchDeleteTemplates() {
     } finally {
       selectedTemplates.value = []
       isTemplateBatchManaging.value = false
-      await store.fetchAllDashboardData()
+      await store.refreshAfterMutation()
       store.selectedNode = store.deviceTree[0] || null
       loading.value = false
     }
@@ -1404,7 +1404,7 @@ function importAllTemplatesAndPoints(file: File) {
         throw new Error('格式错误，请重新导入。（原因：未解析到任何有效数据行）')
       }
 
-      await store.fetchAllDashboardData()
+      await store.refreshAfterMutation()
 
       let createdCount = 0
       let updatedCount = 0
@@ -1457,7 +1457,7 @@ function importAllTemplatesAndPoints(file: File) {
         showClose: true,
         duration: 10000
       })
-      await store.fetchAllDashboardData()
+      await store.refreshAfterMutation()
 
     } catch (err: any) {
       console.error(err)

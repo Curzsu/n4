@@ -7,6 +7,20 @@ const request = axios.create({
   timeout: 10000,
 })
 
+// Identical error messages within this window collapse into one toast, so a
+// Promise.all burst of failures (e.g. dashboard parallel loads) does not spam.
+const TOAST_DEDUPE_MS = 1500
+let lastErrorToast = { msg: '', at: 0 }
+
+function showErrorToast(msg: string) {
+  const now = Date.now()
+  if (msg === lastErrorToast.msg && now - lastErrorToast.at < TOAST_DEDUPE_MS) {
+    return
+  }
+  lastErrorToast = { msg, at: now }
+  ElMessage.error(msg)
+}
+
 request.interceptors.response.use(
   (response) => {
     const data = response.data
@@ -17,7 +31,7 @@ request.interceptors.response.use(
         return apiResponse.data
       }
       const errMsg = apiResponse.message || `业务逻辑错误(代码: ${apiResponse.code})`
-      ElMessage.error(errMsg)
+      showErrorToast(errMsg)
       return Promise.reject(new Error(errMsg))
     }
     
@@ -42,7 +56,7 @@ request.interceptors.response.use(
       msg = error.message
     }
     
-    ElMessage.error(msg)
+    showErrorToast(msg)
     return Promise.reject(new Error(msg))
   }
 )

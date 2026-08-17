@@ -942,7 +942,7 @@ async function submitUpdate() {
       status: deviceForm.value.status
     }
     await deploymentApi.update(deviceForm.value.deviceDeployId, payload)
-    await store.fetchAllDashboardData()
+    await store.refreshAfterMutation()
     ElMessage.success('更新设备属性成功')
     isEditing.value = false
     await viewDeviceDetail(deviceForm.value)
@@ -1023,7 +1023,7 @@ function batchDeleteDevices() {
 
 async function refreshAfterChange() {
   await loadTree()
-  await store.fetchAllDashboardData()
+  await store.refreshAfterMutation()
   if (selectedNode.value && isLeafNode(selectedNode.value)) {
     await loadNodeDevices(selectedNode.value.nodeId)
   }

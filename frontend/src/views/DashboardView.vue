@@ -69,7 +69,10 @@ function goMonitor(device: DeviceDeployItem) {
   router.push(`/dashboard-nav/device/${device.deviceDeployId}`)
 }
 
-onMounted(loadConfiguredCabins)
+onMounted(() => {
+  store.fetchAllDashboardData()
+  loadConfiguredCabins()
+})
 </script>
 
 <style lang="scss" scoped>

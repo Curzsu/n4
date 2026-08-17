@@ -176,8 +176,8 @@ function toTreeNode(n: NavTreeNode): any {
   }
 }
 
-function refreshTreeData() {
-  store.fetchAllDashboardData()
+async function refreshTreeData() {
+  await store.loadNavTree()
   ElMessage.success('已从本地数据库刷新最新设备数据树')
 }
 

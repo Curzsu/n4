@@ -93,6 +93,15 @@ export const useDashboardStore = defineStore('dashboard', () => {
     }
   }
 
+  /**
+   * Narrow refresh after deploy-view mutations (create/update/delete of
+   * products, templates, devices): only template list and nav tree change,
+   * so skip the 8 dashboard KPI/trend calls the old full refresh made.
+   */
+  async function refreshAfterMutation() {
+    await Promise.all([loadTemplates(), loadNavTree()])
+  }
+
   /** 加载设备模板列表（device_template 表，含真实/Mock 标识） */
   async function loadTemplates() {
     try {
@@ -118,6 +127,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     loading,
     isRightCollapsed,
     fetchAllDashboardData,
+    refreshAfterMutation,
     loadTemplates,
     navTree,
     navLoading,

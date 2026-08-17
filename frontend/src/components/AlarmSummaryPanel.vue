@@ -27,8 +27,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
-import { alarmApi } from '@/api/alarm'
+import { computed } from 'vue'
 import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
 
 const { summaryData } = useAlarmWebSocket()
@@ -47,15 +46,8 @@ const currentDate = computed(() => {
   return `${fmt(start)} — ${fmt(end)}`
 })
 
-// Initial fetch
-onMounted(async () => {
-  try {
-    const data = await alarmApi.getAlarmSummary()
-    summaryData.value = data
-  } catch (e) {
-    console.error('Failed to fetch alarm summary:', e)
-  }
-})
+// Initial data comes from the WebSocket composable's connect-time seed;
+// live updates arrive via the alarm:notifications pushes.
 </script>
 
 <style scoped lang="scss">
