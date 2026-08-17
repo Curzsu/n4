@@ -219,6 +219,7 @@ import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
 import { normalizeRecord } from '@/utils/alarm'
 import { getSeverityColor } from '@/config/severityColors'
 import { Filter, CaretTop, CaretBottom } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import ElapsedDuration from '@/components/ElapsedDuration.vue'
 import type { AlarmRecord } from '@/api/types'
 
@@ -627,7 +628,14 @@ async function ackSelected() {
   if (paths.length === 0) return
 
   try {
-    await alarmApi.ackAlarms(paths, 'admin')
+    const updated = await alarmApi.ackAlarms(paths, 'admin')
+    // Partial match: some selected alarms no longer exist in alarm:active (e.g.
+    // recovered between fetch and click). Skip the optimistic update so the UI
+    // stays consistent with the backend; the user can refresh and retry.
+    if (updated < paths.length) {
+      ElMessage.warning(`仅确认 ${updated}/${paths.length} 条告警，部分告警可能已恢复，请刷新后重试`)
+      return
+    }
     selectedRows.forEach(row => {
       row.status = 'Ack'
       row.ackBy = 'admin'
@@ -638,6 +646,7 @@ async function ackSelected() {
     // would re-select acked (disabled) rows and re-enable the Ack button.
     nextTick(updateVisibleRows)
   } catch (e) {
+    // The response interceptor already toasted the backend error message.
     console.error('Failed to acknowledge alarms:', e)
   }
 }

@@ -66,6 +66,9 @@ public class AlarmController {
     @PostMapping("/ack")
     public ApiResponse<Integer> ackAlarms(@RequestBody AlarmAckRequestDto request) {
         int updated = alarmService.acknowledgeAlarms(request.getPaths(), request.getAckBy());
+        if (updated == 0 && request.getPaths() != null && !request.getPaths().isEmpty()) {
+            return ApiResponse.error(400, "No active alarm matched the given paths");
+        }
         return ApiResponse.success(updated);
     }
 }
