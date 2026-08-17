@@ -111,7 +111,7 @@
               type="primary" 
               size="small" 
               plain
-              @click="viewMonitorPoints(row)"
+              @click="viewMonitorPoints(row as DeviceTreeNode)"
               class="action-btn"
             >
               View Points

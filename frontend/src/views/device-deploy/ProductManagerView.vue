@@ -402,7 +402,7 @@
                   link 
                   size="small" 
                   :icon="Picture" 
-                  @click="openConfigPanelWithTarget(row)"
+                  @click="openConfigPanelWithTarget(row as DeviceTemplate)"
                 >
                   组态图
                 </el-button>
@@ -410,7 +410,7 @@
                   type="primary" 
                   link 
                   size="small" 
-                  @click="editTemplateFromTable(row)"
+                  @click="editTemplateFromTable(row as DeviceTemplate)"
                 >
                   编辑
                 </el-button>
@@ -419,7 +419,7 @@
                   type="danger" 
                   link 
                   size="small" 
-                  @click="deleteTemplateFromTable(row)"
+                  @click="deleteTemplateFromTable(row as DeviceTemplate)"
                 >
                   删除
                 </el-button>

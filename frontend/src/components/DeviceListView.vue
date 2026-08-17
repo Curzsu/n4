@@ -23,7 +23,7 @@
       </el-table-column>
       <el-table-column label="操作" width="120" fixed="right">
         <template #default="{ row }">
-          <el-button type="primary" size="small" link @click="$emit('view-monitor', row)">
+          <el-button type="primary" size="small" link @click="$emit('view-monitor', row as DeviceDeployItem)">
             查看监控
           </el-button>
         </template>

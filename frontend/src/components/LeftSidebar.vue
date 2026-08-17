@@ -91,6 +91,7 @@ import {
   DataLine,
   DataAnalysis
 } from '@element-plus/icons-vue'
+import type { TreeNodeData } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { useDashboardStore } from '@/stores/dashboard'
 import type { DeviceTreeNode, NavTreeNode } from '@/api/types'
@@ -222,11 +223,12 @@ function getStatusClass(status: number): string {
   }
 }
 
-function filterNode(value: string, data: DeviceTreeNode): boolean {
+function filterNode(value: string, data: TreeNodeData): boolean {
   if (!value) return true
   const query = value.toLowerCase()
-  const labelMatch = data.label ? data.label.toLowerCase().includes(query) : false
-  const codeMatch = data.deviceCode ? data.deviceCode.toLowerCase().includes(query) : false
+  const node = data as DeviceTreeNode
+  const labelMatch = node.label ? node.label.toLowerCase().includes(query) : false
+  const codeMatch = node.deviceCode ? node.deviceCode.toLowerCase().includes(query) : false
   return labelMatch || codeMatch
 }
 

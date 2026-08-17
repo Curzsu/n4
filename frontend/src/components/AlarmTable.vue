@@ -47,7 +47,7 @@
           <el-checkbox
             :model-value="selectedIds.has(row.id)"
             :disabled="row.status === 'Ack'"
-            @change="(val: boolean) => toggleSelection(row.id, val)"
+            @change="(val: string | number | boolean) => toggleSelection(row.id, Boolean(val))"
           />
         </template>
       </el-table-column>
@@ -57,7 +57,7 @@
       <el-table-column prop="time" label="Time" width="105" show-overflow-tooltip>
         <template #header>
           <div class="header-cell">
-            <el-popover v-model:visible="filterPopover.time" trigger="manual"  placement="bottom" :width="320" popper-class="alarm-filter-popper" @show="syncTimeDraft">
+            <el-popover v-model:visible="filterPopover.time" :trigger="'manual' as never"  placement="bottom" :width="320" popper-class="alarm-filter-popper" @show="syncTimeDraft">
               <template #reference>
                 <span class="header-label" :class="{ 'filter-active': hasFilter('time') }" @click.stop="filterPopover.time = !filterPopover.time">Time
                   <el-icon v-if="hasFilter('time')" class="filter-icon active"><Filter /></el-icon>
@@ -92,7 +92,7 @@
       <el-table-column prop="severity" label="Severity" width="65">
         <template #header>
           <div class="header-cell">
-            <el-popover v-model:visible="filterPopover.severity" trigger="manual"  placement="bottom" :width="140" popper-class="alarm-filter-popper" @show="syncDraft('severity')">
+            <el-popover v-model:visible="filterPopover.severity" :trigger="'manual' as never"  placement="bottom" :width="140" popper-class="alarm-filter-popper" @show="syncDraft('severity')">
               <template #reference>
                 <span class="header-label" :class="{ 'filter-active': hasFilter('severity') }" @click.stop="filterPopover.severity = !filterPopover.severity">Severity
                   <el-icon v-if="hasFilter('severity')" class="filter-icon active"><Filter /></el-icon>
@@ -118,7 +118,7 @@
         <template #default="{ row }">
           <span
             class="severity-tag"
-            :style="severityStyle(row)"
+            :style="severityStyle(row as AlarmRecord)"
           >
             {{ row.severity }}
           </span>
@@ -126,7 +126,7 @@
       </el-table-column>
       <el-table-column prop="source" label="Source" min-width="200" show-overflow-tooltip>
         <template #header>
-          <el-popover v-model:visible="filterPopover.source" trigger="manual"  placement="bottom" :width="180" popper-class="alarm-filter-popper" @show="syncDraft('source')">
+          <el-popover v-model:visible="filterPopover.source" :trigger="'manual' as never"  placement="bottom" :width="180" popper-class="alarm-filter-popper" @show="syncDraft('source')">
             <template #reference>
               <span class="header-label" :class="{ 'filter-active': hasFilter('source') }" @click.stop="filterPopover.source = !filterPopover.source">Source
                 <el-icon v-if="hasFilter('source')" class="filter-icon active"><Filter /></el-icon>
@@ -146,7 +146,7 @@
       <el-table-column prop="message" label="Message" min-width="200" show-overflow-tooltip />
       <el-table-column prop="location" label="Location" width="150" show-overflow-tooltip>
         <template #header>
-          <el-popover v-model:visible="filterPopover.location" trigger="manual"  placement="bottom" :width="180" popper-class="alarm-filter-popper" @show="syncDraft('location')">
+          <el-popover v-model:visible="filterPopover.location" :trigger="'manual' as never"  placement="bottom" :width="180" popper-class="alarm-filter-popper" @show="syncDraft('location')">
             <template #reference>
               <span class="header-label" :class="{ 'filter-active': hasFilter('location') }" @click.stop="filterPopover.location = !filterPopover.location">Location
                 <el-icon v-if="hasFilter('location')" class="filter-icon active"><Filter /></el-icon>
@@ -166,7 +166,7 @@
       <el-table-column prop="status" label="Status" width="110">
         <template #header>
           <div class="header-cell">
-            <el-popover v-model:visible="filterPopover.status" trigger="manual"  placement="bottom" :width="140" popper-class="alarm-filter-popper" @show="syncDraft('status')">
+            <el-popover v-model:visible="filterPopover.status" :trigger="'manual' as never"  placement="bottom" :width="140" popper-class="alarm-filter-popper" @show="syncDraft('status')">
               <template #reference>
                 <span class="header-label" :class="{ 'filter-active': hasFilter('status') }" @click.stop="filterPopover.status = !filterPopover.status">Status
                   <el-icon v-if="hasFilter('status')" class="filter-icon active"><Filter /></el-icon>
