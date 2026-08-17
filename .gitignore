@@ -36,7 +36,6 @@ logs/
 .superpowers/
 .zcode/
 #test-producer/
-docs/
 .firecrawl/
 __pycache__/
 

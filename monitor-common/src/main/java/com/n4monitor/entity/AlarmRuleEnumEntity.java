@@ -31,7 +31,8 @@ public class AlarmRuleEnumEntity {
     /** Meaning of the enum value (e.g. shutdown, running, fault) */
     private String enumMeaning;
 
-    /** Alarm severity: Critical/Major/Minor/Warning/Normal (Normal does not trigger an alarm) */
+    /** Alarm severity: Critical/Major/Minor/Warning. Blank means this enum
+     *  value is an explicitly normal state and never triggers an alarm. */
     private String severity;
 
     /** Alarm prompt message */
