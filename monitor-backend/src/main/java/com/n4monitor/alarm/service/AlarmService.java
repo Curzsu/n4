@@ -1,5 +1,7 @@
 package com.n4monitor.alarm.service;
 
+import com.n4monitor.alarm.model.AlarmStage;
+import com.n4monitor.alarm.model.AlarmStatus;
 import com.n4monitor.tdengine.TdengineSyncService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.n4monitor.alarm.dto.AlarmHourChartDto;
@@ -56,11 +58,11 @@ public class AlarmService {
 
         return switch (tab != null ? tab : "active") {
             case "unacknowledged" -> allAlarms.stream()
-                    .filter(a -> "Unack".equals(a.getStatus())).collect(Collectors.toList());
+                    .filter(a -> AlarmStatus.UNACK.equals(a.getStatus())).collect(Collectors.toList());
             case "acknowledged" -> allAlarms.stream()
-                    .filter(a -> "Ack".equals(a.getStatus())).collect(Collectors.toList());
+                    .filter(a -> AlarmStatus.ACK.equals(a.getStatus())).collect(Collectors.toList());
             case "cleared" -> allAlarms.stream()
-                    .filter(a -> "Cleared".equals(a.getStatus())).collect(Collectors.toList());
+                    .filter(a -> AlarmStatus.CLEARED.equals(a.getStatus())).collect(Collectors.toList());
             default -> allAlarms;
         };
     }
@@ -121,7 +123,7 @@ public class AlarmService {
 
                 String stage = node.has("stage") ? node.get("stage").asText() : "";
 
-                boolean recovered = "end".equals(stage);
+                boolean recovered = AlarmStage.END.equals(stage);
 
                 // Duration handling differs by stage:
                 //  - stage=end (recovered): the alarm already ended; Flink froze the final
@@ -157,7 +159,7 @@ public class AlarmService {
                 // timestamp is left untouched so it keeps the alarm's historical start time.
                 // transition=Ack marks this record as a user-acknowledgement event.
                 ((com.fasterxml.jackson.databind.node.ObjectNode) node)
-                        .put("status", "Ack")
+                        .put("status", AlarmStatus.ACK)
                         .put("ackBy", ackBy)
                         .put("stageMessage", "Ack");
                 if (!recovered) {
@@ -233,7 +235,7 @@ public class AlarmService {
             if (level == null || level.isEmpty()) {
                 return;
             }
-            latestNode.put("status", "Ack");
+            latestNode.put("status", AlarmStatus.ACK);
             latestNode.put("ackBy", ackBy);
             latestNode.put("timestamp", ackTimestamp);
             latestNode.put("duration", String.valueOf(ackDurationSeconds));

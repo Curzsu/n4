@@ -1,5 +1,6 @@
 package com.n4monitor.alarm.service;
 
+import com.n4monitor.alarm.model.AlarmSeverity;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -42,7 +43,7 @@ public final class AlarmAggregator {
 
     private static final DateTimeFormatter HOUR_FORMAT = DateTimeFormatter.ofPattern("HH:00");
 
-    private static final List<String> SEVERITIES = List.of("Critical", "Major", "Minor", "Warning");
+    private static final List<String> SEVERITIES = AlarmSeverity.ORDERED;
 
     private AlarmAggregator() {
     }
@@ -206,10 +207,10 @@ public final class AlarmAggregator {
         for (ActiveAlarm alarm : alarms) {
             String severity = orNormal(alarm.record().getSeverity());
             switch (severity) {
-                case "Critical" -> critical++;
-                case "Major" -> major++;
-                case "Minor" -> minor++;
-                case "Warning" -> warning++;
+                case AlarmSeverity.CRITICAL -> critical++;
+                case AlarmSeverity.MAJOR -> major++;
+                case AlarmSeverity.MINOR -> minor++;
+                case AlarmSeverity.WARNING -> warning++;
                 default -> normal++;
             }
             if (alarm.epochMillis() != null) {
@@ -227,10 +228,10 @@ public final class AlarmAggregator {
         int total = critical + major + minor + warning + normal;
         severityData.put("total", total);
         ArrayNode severityItems = objectMapper.createArrayNode();
-        addSeverityItem(objectMapper, severityItems, "Critical", critical, total);
-        addSeverityItem(objectMapper, severityItems, "Major", major, total);
-        addSeverityItem(objectMapper, severityItems, "Minor", minor, total);
-        addSeverityItem(objectMapper, severityItems, "Warning", warning, total);
+        addSeverityItem(objectMapper, severityItems, AlarmSeverity.CRITICAL, critical, total);
+        addSeverityItem(objectMapper, severityItems, AlarmSeverity.MAJOR, major, total);
+        addSeverityItem(objectMapper, severityItems, AlarmSeverity.MINOR, minor, total);
+        addSeverityItem(objectMapper, severityItems, AlarmSeverity.WARNING, warning, total);
         severityData.set("items", severityItems);
 
         ArrayNode hours = objectMapper.createArrayNode();
@@ -259,6 +260,6 @@ public final class AlarmAggregator {
     }
 
     private static String orNormal(String severity) {
-        return severity == null || severity.isEmpty() ? "Normal" : severity;
+        return severity == null || severity.isEmpty() ? AlarmSeverity.NORMAL : severity;
     }
 }

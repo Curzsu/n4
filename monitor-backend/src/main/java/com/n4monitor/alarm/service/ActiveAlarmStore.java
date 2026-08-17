@@ -1,5 +1,6 @@
 package com.n4monitor.alarm.service;
 
+import com.n4monitor.alarm.model.AlarmStatus;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.n4monitor.alarm.dto.AlarmRecordDto;
@@ -105,7 +106,7 @@ public class ActiveAlarmStore {
                 dto.setMessage(text(node, "message", ""));
                 dto.setLocation(text(node, "location", ""));
                 dto.setPath(text(node, "mqttPath", ""));
-                dto.setStatus(text(node, "status", "Unack"));
+                dto.setStatus(text(node, "status", AlarmStatus.UNACK));
                 dto.setAckBy(text(node, "ackBy", "-"));
                 dto.setDuration(text(node, "duration", ""));
                 dto.setStage(text(node, "stage", ""));

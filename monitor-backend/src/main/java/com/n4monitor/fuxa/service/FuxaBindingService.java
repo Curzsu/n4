@@ -140,52 +140,15 @@ public class FuxaBindingService {
             .put("mode", "interval")
             .put("interval", 0.1)
             .set("schedules", objectMapper.createArrayNode()));
-        script.put("code", """
-            const sourceDeviceId = new URLSearchParams(window.location.search).get('sourceDeviceId');
-            document.documentElement.classList.toggle('n4-source-device-mode', Boolean(sourceDeviceId));
-            if (sourceDeviceId && window.__n4FuxaSourceDeviceId !== sourceDeviceId) {
-              window.__n4FuxaSourceDeviceId = sourceDeviceId;
-              $openCard('%s', {
-                hideClose: true,
-                left: 0,
-                top: 54,
-                relativeFrom: 'window',
-                singleCard: true,
-                sourceDeviceId
-              });
-            }
-            """.formatted(
-                properties.getTemplateViewName().replace("'", "\\'")
-            ));
+        script.put("code", loadResource("fuxa/source-device-view.js").formatted(
+                properties.getTemplateViewName().replace("'", "\\'"))
+        );
         setClientScript(script);
 
         ObjectNode layout = requireObject(project.path("hmi").path("layout"), "FUXA layout not found");
-        String sourceDeviceStyles = """
-            %s
-            html.n4-source-device-mode app-fuxa-view#home > .view-container {
-              visibility: hidden !important;
-            }
-            html.n4-source-device-mode .fab-card:has(app-fuxa-view svg[width="1215"]) {
-              width: 1215px !important;
-              height: 548px !important;
-              overflow: hidden !important;
-              background: #050505 !important;
-              border: 0 !important;
-              border-radius: 0 !important;
-              box-shadow: none !important;
-            }
-            html.n4-source-device-mode .fab-card:has(app-fuxa-view svg[width="1215"]) > .card-move-area,
-            html.n4-source-device-mode .fab-card:has(app-fuxa-view svg[width="1215"]) .card-close {
-              display: none !important;
-            }
-            html.n4-source-device-mode .fab-card:has(app-fuxa-view svg[width="1215"]) > app-fuxa-view {
-              display: block !important;
-              width: 1215px !important;
-              height: 548px !important;
-              transform: none !important;
-            }
-            %s
-            """.formatted(SOURCE_DEVICE_STYLE_START, SOURCE_DEVICE_STYLE_END);
+        String sourceDeviceStyles = SOURCE_DEVICE_STYLE_START + "\n"
+                + loadResource("fuxa/source-device-styles.css").stripTrailing() + "\n"
+                + SOURCE_DEVICE_STYLE_END;
         layout.put("customStyles", upsertMarkedBlock(
             layout.path("customStyles").asText(""),
             SOURCE_DEVICE_STYLE_START,
@@ -368,6 +331,15 @@ public class FuxaBindingService {
                 .toBodilessEntity();
         } catch (Exception ex) {
             throw new IllegalStateException("Cannot update FUXA project data: " + ex.getMessage(), ex);
+        }
+    }
+
+    /** Load a bundled FUXA snippet (client script / styles) from the classpath. */
+    private String loadResource(String path) {
+        try (var in = new org.springframework.core.io.ClassPathResource(path).getInputStream()) {
+            return new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("Missing bundled FUXA resource: " + path, e);
         }
     }
 
