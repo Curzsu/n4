@@ -70,10 +70,7 @@ public class AlarmRuleSyncService {
                 log.error("Failed to serialize numeric rule: {}", e.getAlarmName(), ex);
             }
         }
-        redisTemplate.delete(rulesNumericKey);
-        if (!redisData.isEmpty()) {
-            redisTemplate.opsForHash().putAll(rulesNumericKey, redisData);
-        }
+        atomicReplaceHash(rulesNumericKey, redisData);
         log.info("Synced {} numeric rules to Redis key '{}'", redisData.size(), rulesNumericKey);
     }
 
@@ -91,10 +88,7 @@ public class AlarmRuleSyncService {
                 log.error("Failed to serialize enum rules: {}", entry.getKey(), ex);
             }
         }
-        redisTemplate.delete(rulesEnumKey);
-        if (!redisData.isEmpty()) {
-            redisTemplate.opsForHash().putAll(rulesEnumKey, redisData);
-        }
+        atomicReplaceHash(rulesEnumKey, redisData);
         log.info("Synced {} enum rule groups to Redis key '{}'", redisData.size(), rulesEnumKey);
     }
 
@@ -117,20 +111,42 @@ public class AlarmRuleSyncService {
             String alarmCode = p.getAlarmCode() != null ? p.getAlarmCode().trim() : "";
             // Every point is written so its type is always resolvable at runtime.
             // alarm_code is "" when the point has no alarm rule (Flink treats it as "no rule").
-            try {
-                var node = objectMapper.createObjectNode();
-                node.put("type", type);
-                node.put("alarm_code", alarmCode);
-                redisData.put(path, objectMapper.writeValueAsString(node));
-            } catch (Exception ex) {
-                log.error("Failed to serialize point metadata for path: {}", path, ex);
-            }
+        try {
+            var node = objectMapper.createObjectNode();
+            node.put("type", type);
+            node.put("alarm_code", alarmCode);
+            redisData.put(path, objectMapper.writeValueAsString(node));
+        } catch (Exception ex) {
+            log.error("Failed to serialize point metadata for path: {}", path, ex);
         }
-        redisTemplate.delete(pointRuleMapKey);
-        if (!redisData.isEmpty()) {
-            redisTemplate.opsForHash().putAll(pointRuleMapKey, redisData);
         }
+        atomicReplaceHash(pointRuleMapKey, redisData);
         log.info("Synced {} point metadata mappings to Redis key '{}'", redisData.size(), pointRuleMapKey);
+    }
+
+    /**
+     * Replace a rule hash atomically: fill a unique temp key, then RENAME it
+     * over the live key. Readers (the Flink job, per-message) see either the
+     * complete old map or the complete new map - never the empty window the
+     * previous delete-then-putAll produced on every sync.
+     */
+    private void atomicReplaceHash(String key, Map<String, String> data) {
+        if (data.isEmpty()) {
+            redisTemplate.delete(key);
+            return;
+        }
+        String tempKey = key + ":sync:" + java.util.UUID.randomUUID();
+        try {
+            redisTemplate.opsForHash().putAll(tempKey, data);
+            redisTemplate.rename(tempKey, key);
+        } catch (Exception e) {
+            try {
+                redisTemplate.delete(tempKey);
+            } catch (Exception cleanupEx) {
+                log.warn("Failed to clean up temp sync key '{}'", tempKey);
+            }
+            throw e;
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════
