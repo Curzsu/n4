@@ -25,6 +25,17 @@ public class GlobalExceptionHandler {
         return ApiResponse.error(400, String.format("请求参数类型不匹配: %s", e.getName()));
     }
 
+    /**
+     * Services throw IllegalArgumentException for user-input problems
+     * (missing names, duplicate codes, unknown ids). Surfaces them as 400
+     * instead of the generic 500 so callers can tell bad input from failures.
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ApiResponse<Void> handleIllegalArgumentException(IllegalArgumentException e) {
+        log.warn("非法参数: {}", e.getMessage());
+        return ApiResponse.error(400, e.getMessage());
+    }
+
     @ExceptionHandler(Exception.class)
     public ApiResponse<Void> handleException(Exception e) {
         log.error("服务器内部错误: ", e);

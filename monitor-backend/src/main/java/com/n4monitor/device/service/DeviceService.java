@@ -267,7 +267,7 @@ public class DeviceService {
         if (device == null) {
             throw new IllegalArgumentException("设备不存在");
         }
-        
+
         if (targetPath == null || targetPath.trim().isEmpty()) {
             throw new IllegalArgumentException("目标路径不能为空");
         }
@@ -293,5 +293,97 @@ public class DeviceService {
         
         deviceMapper.update(device);
     }
-}
 
+    // ── Monitor point CRUD (moved from DeviceController) ────────────────────
+
+    /**
+     * Create a point for a device, or update the existing point when one with
+     * the same point_code already exists (duplicate keys become an upsert).
+     *
+     * @return true when an existing point was updated, false when inserted
+     */
+    @org.springframework.transaction.annotation.Transactional
+    public boolean addOrUpdatePoint(Long deviceId, com.n4monitor.device.entity.MonitorPoint point) {
+        point.setDeviceId(deviceId);
+        if (point.getPointCode() == null || point.getPointCode().trim().isEmpty()) {
+            point.setPointCode(deviceId + "_" + point.getRegisterId());
+        }
+        if (point.getPointStatus() == null) {
+            point.setPointStatus(1);
+        }
+        if (point.getPointValue() == null) {
+            point.setPointValue("0");
+        }
+        if (point.getDataType() == null) {
+            point.setDataType((point.getDisplayPrecision() != null && point.getDisplayPrecision() > 0) ? 2 : 1);
+        }
+
+        // Check if point with the same point_code already exists for this device to prevent duplicate keys
+        List<com.n4monitor.device.entity.MonitorPoint> existingPoints = monitorPointMapper.findByDeviceId(deviceId);
+        com.n4monitor.device.entity.MonitorPoint existingPoint = existingPoints.stream()
+                .filter(p -> p.getPointCode() != null && p.getPointCode().equals(point.getPointCode()))
+                .findFirst()
+                .orElse(null);
+
+        if (existingPoint == null) {
+            monitorPointMapper.insert(point);
+            return false;
+        }
+        point.setPointId(existingPoint.getPointId());
+        if (point.getPointValue() == null || "0".equals(point.getPointValue())) {
+            point.setPointValue(existingPoint.getPointValue());
+        }
+        if (point.getPointStatus() == null) {
+            point.setPointStatus(existingPoint.getPointStatus());
+        }
+        monitorPointMapper.update(point);
+        return true;
+    }
+
+    /**
+     * Patch-update a point by id (null fields on the payload are ignored).
+     *
+     * @return the updated point, or null when the id does not exist
+     */
+    @org.springframework.transaction.annotation.Transactional
+    public com.n4monitor.device.entity.MonitorPoint updatePoint(Long pointId, com.n4monitor.device.entity.MonitorPoint point) {
+        com.n4monitor.device.entity.MonitorPoint existing = monitorPointMapper.findById(pointId);
+        if (existing == null) {
+            return null;
+        }
+
+        if (point.getRegisterId() != null) {
+            existing.setRegisterId(point.getRegisterId());
+        }
+        if (point.getPointName() != null) {
+            existing.setPointName(point.getPointName());
+        }
+        if (point.getPointType() != null) {
+            existing.setPointType(point.getPointType());
+        }
+        if (point.getUnit() != null) {
+            existing.setUnit(point.getUnit());
+        }
+        if (point.getDisplayPrecision() != null) {
+            existing.setDisplayPrecision(point.getDisplayPrecision());
+            existing.setDataType((point.getDisplayPrecision() > 0) ? 2 : 1);
+        }
+        if (point.getPointValue() != null) {
+            existing.setPointValue(point.getPointValue());
+        }
+        if (point.getPointStatus() != null) {
+            existing.setPointStatus(point.getPointStatus());
+        }
+
+        // Re-calculate pointCode in case deviceId or registerId changed
+        existing.setPointCode(existing.getDeviceId() + "_" + existing.getRegisterId());
+
+        monitorPointMapper.update(existing);
+        return existing;
+    }
+
+    @org.springframework.transaction.annotation.Transactional
+    public void deletePoint(Long pointId) {
+        monitorPointMapper.deleteByPointId(pointId);
+    }
+}

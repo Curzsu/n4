@@ -41,50 +41,26 @@ public class ProductController {
 
     @PostMapping
     public ApiResponse<Product> createProduct(@RequestBody Product product) {
-        try {
-            productService.createProduct(product);
-            return ApiResponse.success(product);
-        } catch (IllegalArgumentException e) {
-            log.error("Invalid product argument", e);
-            return ApiResponse.error(400, e.getMessage());
-        } catch (Exception e) {
-            log.error("Unexpected error creating product", e);
-            return ApiResponse.error(500, e.getMessage());
-        }
+        productService.createProduct(product);
+        return ApiResponse.success(product);
     }
 
     @PutMapping("/{id}")
     public ApiResponse<String> updateProduct(@PathVariable("id") Long id, @RequestBody Product product) {
-        try {
-            product.setProductId(id);
-            productService.updateProduct(product);
-            return ApiResponse.success("更新成功");
-        } catch (IllegalArgumentException e) {
-            return ApiResponse.error(400, e.getMessage());
-        } catch (Exception e) {
-            return ApiResponse.error(500, "服务器错误: " + e.getMessage());
-        }
+        product.setProductId(id);
+        productService.updateProduct(product);
+        return ApiResponse.success("更新成功");
     }
 
     @DeleteMapping("/{id}")
     public ApiResponse<String> deleteProduct(@PathVariable("id") Long id) {
-        try {
-            productService.deleteProduct(id);
-            return ApiResponse.success("删除成功");
-        } catch (IllegalArgumentException e) {
-            return ApiResponse.error(400, e.getMessage());
-        } catch (Exception e) {
-            return ApiResponse.error(500, "服务器错误: " + e.getMessage());
-        }
+        productService.deleteProduct(id);
+        return ApiResponse.success("删除成功");
     }
 
     @GetMapping("/{id}/points")
     public ApiResponse<List<com.n4monitor.device.entity.MonitorPoint>> getProductPoints(@PathVariable("id") Long id) {
-        try {
-            com.n4monitor.device.entity.Device templateDevice = productService.getOrCreateTemplateDevice(id);
-            return ApiResponse.success(monitorPointMapper.findByDeviceId(templateDevice.getDeviceId()));
-        } catch (Exception e) {
-            return ApiResponse.error(500, e.getMessage());
-        }
+        com.n4monitor.device.entity.Device templateDevice = productService.getOrCreateTemplateDevice(id);
+        return ApiResponse.success(monitorPointMapper.findByDeviceId(templateDevice.getDeviceId()));
     }
 }

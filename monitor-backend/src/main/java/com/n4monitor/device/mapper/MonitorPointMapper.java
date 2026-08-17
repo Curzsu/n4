@@ -13,6 +13,8 @@ public interface MonitorPointMapper {
 
     List<MonitorPoint> findAll();
 
+    MonitorPoint findById(@Param("pointId") Long pointId);
+
     /** Count points by status (1=normal, 0=alarm) */
     int countByPointStatus(@Param("pointStatus") Integer pointStatus);
 

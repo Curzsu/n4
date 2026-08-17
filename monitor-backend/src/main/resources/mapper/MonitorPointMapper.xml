@@ -11,6 +11,10 @@
         SELECT * FROM monitor_point
     </select>
 
+    <select id="findById" resultType="com.n4monitor.device.entity.MonitorPoint">
+        SELECT * FROM monitor_point WHERE point_id = #{pointId}
+    </select>
+
     <select id="countByPointStatus" resultType="int">
         SELECT COUNT(*) FROM monitor_point WHERE point_status = #{pointStatus}
     </select>

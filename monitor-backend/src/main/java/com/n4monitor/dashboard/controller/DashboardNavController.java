@@ -50,49 +50,25 @@ public class DashboardNavController {
     /** 新增节点 */
     @PostMapping("/nodes")
     public ApiResponse<NavNode> createNode(@RequestBody NavNode node) {
-        try {
-            return ApiResponse.success(navService.createNode(node));
-        } catch (IllegalArgumentException e) {
-            return ApiResponse.error(400, e.getMessage());
-        } catch (Exception e) {
-            return ApiResponse.error(500, "新增节点失败：" + e.getMessage());
-        }
+        return ApiResponse.success(navService.createNode(node));
     }
 
     /** 编辑节点 */
     @PutMapping("/nodes/{nodeId}")
     public ApiResponse<NavNode> updateNode(@PathVariable Long nodeId, @RequestBody NavNode node) {
-        try {
-            return ApiResponse.success(navService.updateNode(nodeId, node));
-        } catch (IllegalArgumentException e) {
-            return ApiResponse.error(400, e.getMessage());
-        } catch (Exception e) {
-            return ApiResponse.error(500, "更新节点失败：" + e.getMessage());
-        }
+        return ApiResponse.success(navService.updateNode(nodeId, node));
     }
 
     /** 删除节点（级联：删一级连带子节点并解绑设备） */
     @DeleteMapping("/nodes/{nodeId}")
     public ApiResponse<DeleteImpactDto> deleteNode(@PathVariable Long nodeId) {
-        try {
-            return ApiResponse.success(navService.deleteNode(nodeId));
-        } catch (IllegalArgumentException e) {
-            return ApiResponse.error(400, e.getMessage());
-        } catch (Exception e) {
-            return ApiResponse.error(500, "删除节点失败：" + e.getMessage());
-        }
+        return ApiResponse.success(navService.deleteNode(nodeId));
     }
 
     /** 删除前预览影响范围（子节点数 + 设备数） */
     @GetMapping("/nodes/{nodeId}/impact")
     public ApiResponse<DeleteImpactDto> getDeleteImpact(@PathVariable Long nodeId) {
-        try {
-            return ApiResponse.success(navService.getDeleteImpact(nodeId));
-        } catch (IllegalArgumentException e) {
-            return ApiResponse.error(400, e.getMessage());
-        } catch (Exception e) {
-            return ApiResponse.error(500, "查询影响范围失败：" + e.getMessage());
-        }
+        return ApiResponse.success(navService.getDeleteImpact(nodeId));
     }
 
     // ===== 设备挂载/卸载 =====
@@ -107,22 +83,12 @@ public class DashboardNavController {
     @PostMapping("/nodes/{nodeId}/devices")
     public ApiResponse<Integer> mountDevices(@PathVariable Long nodeId,
                                              @RequestBody List<Long> deviceIds) {
-        try {
-            return ApiResponse.success(navService.mountDevices(nodeId, deviceIds));
-        } catch (IllegalArgumentException e) {
-            return ApiResponse.error(400, e.getMessage());
-        } catch (Exception e) {
-            return ApiResponse.error(500, "挂载设备失败：" + e.getMessage());
-        }
+        return ApiResponse.success(navService.mountDevices(nodeId, deviceIds));
     }
 
     /** 卸载单台设备（nav_node_id 置空） */
     @DeleteMapping("/devices/{deviceDeployId}/mount")
     public ApiResponse<Integer> unmountDevice(@PathVariable Long deviceDeployId) {
-        try {
-            return ApiResponse.success(navService.unmountDevice(deviceDeployId));
-        } catch (Exception e) {
-            return ApiResponse.error(500, "卸载设备失败：" + e.getMessage());
-        }
+        return ApiResponse.success(navService.unmountDevice(deviceDeployId));
     }
 }
