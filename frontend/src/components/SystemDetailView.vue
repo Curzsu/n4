@@ -201,7 +201,7 @@ const currentNodeType = computed(() => {
 // Recursively gather all devices under the selected node
 const devicesList = computed(() => {
   if (!store.selectedNode) return []
-  return getDevicesRec(store.selectedNode)
+  return getDevicesRec(store.selectedNode as unknown as DeviceTreeNode)
 })
 
 function getDevicesRec(node: DeviceTreeNode): DeviceTreeNode[] {

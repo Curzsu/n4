@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { dashboardApi } from '@/api/dashboard'
 import { dashboardNavApi } from '@/api/dashboardNav'
 import { templateApi } from '@/api/template'
-import type { KpiMetrics, AlarmSummary, AlarmItem, SystemStatusItem, TrendData, DeviceTreeNode, Product, NavTreeNode, DeviceDeployItem, DeviceTemplate } from '@/api/types'
+import type { KpiMetrics, AlarmSummary, AlarmItem, SystemStatusItem, TrendData, DeviceTreeNode, Product, NavTreeNode, DeviceDeployItem, DeviceTemplate, UiTreeNode } from '@/api/types'
 
 export const useDashboardStore = defineStore('dashboard', () => {
   const kpiMetrics = ref<KpiMetrics | null>(null)
@@ -17,7 +17,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const deviceTree = ref<DeviceTreeNode[]>([])
   const allProducts = ref<Product[]>([])
   const allTemplates = ref<DeviceTemplate[]>([])
-  const selectedNode = ref<any | null>(null)
+  const selectedNode = ref<UiTreeNode | null>(null)
   const loading = ref(false)
   const isRightCollapsed = ref(true)
 

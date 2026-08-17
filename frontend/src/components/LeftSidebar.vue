@@ -94,7 +94,7 @@ import {
 import type { TreeNodeData } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { useDashboardStore } from '@/stores/dashboard'
-import type { DeviceTreeNode, NavTreeNode } from '@/api/types'
+import type { DeviceTreeNode, NavTreeNode, UiTreeNode } from '@/api/types'
 import type ElTree from 'element-plus/es/components/tree/index'
 
 const route = useRoute()
@@ -160,7 +160,7 @@ const visibleTreeData = computed(() => {
 })
 
 // NavTreeNode 转 el-tree 节点
-function toTreeNode(n: NavTreeNode): any {
+function toTreeNode(n: NavTreeNode): UiTreeNode {
   const isLeafGroup = !n.children || n.children.length === 0
   return {
     id: n.nodeId,
@@ -181,7 +181,7 @@ async function refreshTreeData() {
   ElMessage.success('已从本地数据库刷新最新设备数据树')
 }
 
-function getNodeIcon(data: any) {
+function getNodeIcon(data: UiTreeNode) {
   if (data.id === 'overview') return DataAnalysis
   if (data.type === 'site') return Location
   if (data.type === 'device') return Monitor
@@ -193,7 +193,7 @@ function getNodeIcon(data: any) {
   return OfficeBuilding
 }
 
-function handleNodeClick(data: any) {
+function handleNodeClick(data: UiTreeNode) {
   if (props.mode === 'nav') {
     // 点击"数据总览"虚拟节点：清空选中，回到首页数据图
     if (data.id === 'overview') {

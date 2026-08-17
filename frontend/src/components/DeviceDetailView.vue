@@ -64,7 +64,7 @@
       </div>
     </div>
 
-    <FuxaMonitorPanel :device="store.selectedNode" />
+    <FuxaMonitorPanel :device="(store.selectedNode as unknown as DeviceTreeNode)" />
 
     <div class="device-alarm-table">
       <AlarmTable :device-name="store.selectedNode?.label" />
@@ -79,7 +79,7 @@ import AlarmTable from '@/components/AlarmTable.vue'
 import FuxaMonitorPanel from '@/components/FuxaMonitorPanel.vue'
 import { useDashboardStore } from '@/stores/dashboard'
 import { deviceApi } from '@/api/device'
-import type { MonitorPoint } from '@/api/types'
+import type { DeviceTreeNode, MonitorPoint } from '@/api/types'
 
 const store = useDashboardStore()
 const loading = ref(false)
@@ -92,7 +92,7 @@ let refreshIntervalId: number | null = null
 async function fetchPoints() {
   if (!store.selectedNode?.id) return
   try {
-    const data = await deviceApi.getDevicePoints(store.selectedNode.id)
+    const data = await deviceApi.getDevicePoints(Number(store.selectedNode.id))
     points.value = data
     updateTimestamp()
   } catch (err) {
