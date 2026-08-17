@@ -100,8 +100,8 @@ public class TdengineSyncService {
 
             if (!initialized) {
                 initDatabase();
-                initSupertable();
-                initRealtimeSupertable();
+                initSupertable(tdengineConfig.getSupertable(), "Snapshot");
+                initSupertable(tdengineConfig.getRealtimeSupertable(), "Realtime");
                 initialized = true;
                 log.info("TDengine database and supertables initialized");
             }
@@ -129,7 +129,9 @@ public class TdengineSyncService {
     }
 
     /**
-     * Create snapshot supertable if not exists.
+     * Create a supertable if not exists. Both supertables share one schema:
+     * the snapshot table (latest state per point, 5s cadence) and the realtime
+     * table (one row per alarm lifecycle event) differ only by name.
      * <p>
      * Schema has been slimmed to match the new Kafka message format (only
      * clientId/path/timestamp/value + resolved type). Removed columns:
@@ -137,8 +139,7 @@ public class TdengineSyncService {
      * display_name (path is now the only tag and the unique point key).
      * Added column: alarm_stage_message (alarm state transition label).
      */
-    private void initSupertable() throws SQLException {
-        String supertable = tdengineConfig.getSupertable();
+    private void initSupertable(String supertable, String label) throws SQLException {
         String sql = "CREATE STABLE IF NOT EXISTS " + supertable + " ("
                 + "ts TIMESTAMP, "
                 + "data_timestamp TIMESTAMP, "
@@ -162,39 +163,7 @@ public class TdengineSyncService {
                 + ")";
         try (Statement stmt = connection.createStatement()) {
             stmt.execute(sql);
-            log.info("Snapshot supertable '{}' created/verified", supertable);
-        }
-    }
-
-    /**
-     * Create real-time alarm supertable if not exists.
-     */
-    private void initRealtimeSupertable() throws SQLException {
-        String supertable = tdengineConfig.getRealtimeSupertable();
-        String sql = "CREATE STABLE IF NOT EXISTS " + supertable + " ("
-                + "ts TIMESTAMP, "
-                + "data_timestamp TIMESTAMP, "
-                + "point_value NCHAR(64), "
-                + "point_type NCHAR(32), "
-                + "alarm_level NCHAR(32), "
-                + "alarm_severity NCHAR(32), "
-                + "alarm_message NCHAR(256), "
-                + "time_delay NCHAR(32), "
-                + "deadband NCHAR(64), "
-                + "ack_by NCHAR(32), "
-                + "alarm_status NCHAR(32), "
-                + "alarm_source NCHAR(64), "
-                + "alarm_location NCHAR(128), "
-                + "alarm_stage NCHAR(16), "
-                + "alarm_stage_message NCHAR(64), "
-                + "alarm_duration NCHAR(32), "
-                + "alarm_start_time TIMESTAMP"
-                + ") TAGS ("
-                + "path NCHAR(256)"
-                + ")";
-        try (Statement stmt = connection.createStatement()) {
-            stmt.execute(sql);
-            log.info("Realtime supertable '{}' created/verified", supertable);
+            log.info("{} supertable '{}' created/verified", label, supertable);
         }
     }
 
@@ -247,7 +216,7 @@ public class TdengineSyncService {
 
             try {
                 PointAlarmState state = objectMapper.readValue(json, new TypeReference<>() {});
-                writeToSnapshotSupertable(state);
+                writeAlarmRow(tdengineConfig.getSupertable(), "", state);
                 successCount++;
             } catch (SQLException e) {
                 failCount++;
@@ -277,7 +246,7 @@ public class TdengineSyncService {
                             state.getMqttPath(), state.getStage());
                     return;
                 }
-                writeToRealtimeSupertable(state);
+                writeAlarmRow(tdengineConfig.getRealtimeSupertable(), "_rt", state);
                 log.info("Wrote realtime alarm to TDengine: path={}, stage={}, level={}",
                         state.getMqttPath(), state.getStage(), state.getLevel());
             } catch (Exception e) {
@@ -288,12 +257,16 @@ public class TdengineSyncService {
     }
 
     /**
-     * Write a single PointAlarmState to the snapshot supertable.
+     * Write a single PointAlarmState row into one of the two supertables
+     * (shared schema; they differ only by supertable name and subtable suffix).
+     *
+     * @param supertable     target supertable name
+     * @param subtableSuffix appended to the sanitized path to build the
+     *                       per-point subtable name ("" for snapshot, "_rt" for realtime)
      */
-    private void writeToSnapshotSupertable(PointAlarmState state) throws SQLException {
-        String supertable = tdengineConfig.getSupertable();
+    private void writeAlarmRow(String supertable, String subtableSuffix, PointAlarmState state) throws SQLException {
         String path = state.getMqttPath();
-        String subtable = sanitizeTableName(path);
+        String subtable = sanitizeTableName(path) + subtableSuffix;
 
         // TAGS(path) + 17 VALUES columns
         String sql = "INSERT INTO " + subtable + " USING " + supertable
@@ -342,54 +315,6 @@ public class TdengineSyncService {
         }
     }
 
-    /**
-     * Write a single confirmed alarm record to the realtime supertable.
-     */
-    private void writeToRealtimeSupertable(PointAlarmState state) throws SQLException {
-        String supertable = tdengineConfig.getRealtimeSupertable();
-        String path = state.getMqttPath();
-        String subtable = sanitizeTableName(path) + "_rt";
-
-        // TAGS(path) + 17 VALUES columns
-        String sql = "INSERT INTO " + subtable + " USING " + supertable
-                + " TAGS (?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            // TAG
-            pstmt.setString(1, path);
-
-            // VALUES
-            // Raw epoch-millis (setLong) avoids the REST driver's local-zone
-            // string serialization that shifts timestamps by the JVM/server TZ
-            // offset. See writeToSnapshotSupertable for the full rationale.
-            pstmt.setLong(2, System.currentTimeMillis());
-            Long dataTimestamp = state.getTimestamp();
-            pstmt.setLong(3, dataTimestamp != null ? dataTimestamp : System.currentTimeMillis());
-            pstmt.setString(4, state.getValue());
-            pstmt.setString(5, state.getType());
-            pstmt.setString(6, state.getLevel());
-            pstmt.setString(7, state.getSeverity());
-            pstmt.setString(8, state.getMessage());
-            pstmt.setString(9, state.getTimeDelay() != null ? String.valueOf(state.getTimeDelay()) : null);
-            pstmt.setString(10, state.getDeadband());
-            pstmt.setString(11, state.getAckBy());
-            pstmt.setString(12, state.getStatus());
-            pstmt.setString(13, state.getSource());
-            pstmt.setString(14, state.getLocation());
-            pstmt.setString(15, state.getStage());
-            pstmt.setString(16, state.getStageMessage());
-            pstmt.setString(17, state.getDuration());
-            Long alarmStart = state.getAlarmStartTime();
-            if (alarmStart != null) {
-                pstmt.setLong(18, alarmStart);
-            } else {
-                pstmt.setNull(18, Types.TIMESTAMP);
-            }
-
-            pstmt.executeUpdate();
-        }
-    }
-
     // ═══════════════════════════════════════════════════════════════════════
     //  Query methods (read from TDengine)
     // ═══════════════════════════════════════════════════════════════════════
@@ -407,7 +332,7 @@ public class TdengineSyncService {
 
         String sql = "SELECT data_timestamp, alarm_level, alarm_severity, alarm_source, " +
                 "alarm_message, alarm_location, alarm_status, ack_by, alarm_duration, " +
-                "alarm_stage, alarm_stage_message, alarm_start_time, path FROM alarm_realtime " +
+                "alarm_stage, alarm_stage_message, alarm_start_time, path FROM " + tdengineConfig.getRealtimeSupertable() + " " +
                 // ts (write moment) is a stable tiebreaker: when two records share the same
                 // data_timestamp (e.g. an End + Start written in the same tick during a level
                 // escalation), ts breaks the tie by insertion order so the later-written
