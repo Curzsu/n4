@@ -518,7 +518,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import { Plus, Edit, Check, Delete, List, Odometer, Warning, Download, Upload, UploadFilled, Search, Picture } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { templateApi } from '@/api/template'
@@ -528,6 +528,16 @@ import { useDashboardStore } from '@/stores/dashboard'
 import TemplateDiagramDialog from './dialogs/TemplateDiagramDialog.vue'
 
 const store = useDashboardStore()
+
+// Ensure templates load when entering this page directly (e.g. via System nav).
+// Without this, store.allTemplates stays empty unless the user first visits
+// Dashboard or Device Deployment, which populate it as a side effect.
+onMounted(async () => {
+  if (!store.allTemplates.length) {
+    await store.loadTemplates()
+  }
+})
+
 const loading = ref(false)
 const submitting = ref(false)
 const tableSearchQuery = ref('')
