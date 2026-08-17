@@ -1,5 +1,7 @@
 package com.n4monitor.flink;
 
+import com.n4monitor.alarm.model.AlarmStage;
+import com.n4monitor.alarm.model.AlarmStatus;
 import com.n4monitor.alarm.model.PointAlarmState;
 import com.n4monitor.alarm.model.PointData;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -230,7 +232,7 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
         // because the gate only fires when isAlarm is already false.
         if (!isAlarm && "numeric".equals(ruleType)
                 && history != null && !isBlank(history.getLevel())
-                && !"end".equals(history.getStage())) {
+                && !AlarmStage.END.equals(history.getStage())) {
             if (ruleEvaluator.isInDeadband(jedis, alarmName, history, current)) {
                 isAlarm = true;
                 level = history.getLevel();
@@ -304,7 +306,7 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
                 stateStore.publishRealTimeChannel(jedis, current, current.getTimestamp());
             }
             // else: still normal, nothing to do in alarm:active
-        } else if ("end".equals(history.getStage())) {
+        } else if (AlarmStage.END.equals(history.getStage())) {
             // History is a frozen (recovered) alarm record
             if (isAlarm) {
                 // Re-alarmed after recovery: new start, drop the frozen record.
@@ -324,7 +326,7 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
             if (isAlarm) {
                 if (history.getLevel().equals(current.getLevel())) {
                     // Same level continues: preserve ack state so it survives across ticks
-                    current.setStage("continue");
+                    current.setStage(AlarmStage.CONTINUE);
                     current.setStageMessage("Continue");
                     current.setDuration(String.valueOf(intervalSeconds));
                     current.setStatus(history.getStatus());
@@ -333,7 +335,7 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
                     current.setAlarmStartTime(history.getAlarmStartTime());
                 } else {
                     // Level escalated (e.g. High -> High-High): close old phase, start new
-                    history.setStage("end");
+                    history.setStage(AlarmStage.END);
                     history.setStageMessage("End - " + history.getLevel() + " to " + current.getLevel());
                     history.setDuration(String.valueOf(intervalSeconds));
                     stateStore.publishRealTimeChannel(jedis, history, current.getTimestamp());
@@ -347,19 +349,19 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
                 stateStore.writeActiveState(jedis, current);
             } else {
                 // Alarm recovered
-                if ("Ack".equals(history.getStatus())) {
+                if (AlarmStatus.ACK.equals(history.getStatus())) {
                     // Already acknowledged + recovered -> remove from active, signal frontend.
                     // Persist the end record to TDengine first (publishRealTimeChannel sets stage/duration
                     // and serializes), then broadcast a cleared signal to the frontend.
                     stateStore.removeActive(jedis, path);
-                    history.setStage("end");
+                    history.setStage(AlarmStage.END);
                     history.setStageMessage("End");
                     history.setDuration(String.valueOf(intervalSeconds));
                     stateStore.publishNotificationChannel(jedis, history);
                     stateStore.publishRealTimeChannel(jedis, history, current.getTimestamp());
                 } else {
                     // Not yet acknowledged -> freeze the alarm record with final duration
-                    history.setStage("end");
+                    history.setStage(AlarmStage.END);
                     history.setStageMessage("End");
                     history.setDuration(String.valueOf(intervalSeconds));
                     stateStore.writeActiveState(jedis, history);
@@ -509,11 +511,11 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
      * recovery, level escalations and the onTimer confirmation.
      */
     private static void markAlarmStart(PointAlarmState state, String stageMessage, Long alarmStartTs) {
-        state.setStage("start");
+        state.setStage(AlarmStage.START);
         state.setStageMessage(stageMessage);
         state.setDuration("0");
         state.setAckBy("-");
-        state.setStatus("Unack");
+        state.setStatus(AlarmStatus.UNACK);
         state.setAlarmStartTime(alarmStartTs);
     }
 

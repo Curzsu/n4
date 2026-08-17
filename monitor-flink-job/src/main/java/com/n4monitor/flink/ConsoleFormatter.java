@@ -1,5 +1,6 @@
 package com.n4monitor.flink;
 
+import com.n4monitor.alarm.model.AlarmSeverity;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -27,10 +28,10 @@ final class ConsoleFormatter {
     /** ANSI color per severity; unknown or null severity gets no color. */
     private static String severityColor(String severity) {
         return switch (severity != null ? severity : "") {
-            case "Critical" -> "\033[91m";
-            case "Major"    -> "\033[93m";
-            case "Minor"    -> "\033[33m";
-            case "Warning"  -> "\033[94m";
+            case AlarmSeverity.CRITICAL -> "\033[91m";
+            case AlarmSeverity.MAJOR    -> "\033[93m";
+            case AlarmSeverity.MINOR    -> "\033[33m";
+            case AlarmSeverity.WARNING  -> "\033[94m";
             default         -> "";
         };
     }
