@@ -170,7 +170,7 @@ public final class AlarmAggregator {
             String severity = alarm.record().getSeverity();
             // Only count actual alarm records: an empty severity comes from the
             // record DTO default and means "non-alarm", same as "Normal".
-            if (severity == null || severity.isEmpty() || "Normal".equals(severity)) {
+            if (severity == null || severity.isEmpty() || AlarmSeverity.NORMAL.equals(severity)) {
                 continue;
             }
             String source = alarm.record().getSource();
