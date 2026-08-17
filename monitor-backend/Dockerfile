@@ -52,6 +52,14 @@ COPY --from=builder /app-extracted ./app-extracted
 # Spring Boot exposes the API + WebSocket on 8089
 EXPOSE 8089
 
+# Liveness probe: TCP-connect to the API port. Spring Boot has no actuator
+# endpoint, so a port-open check is the cheapest reliable signal that the JVM is
+# up and listening. bash + /dev/tcp avoids installing curl in the runtime image.
+# Non-fatal if the shell feature were unavailable (Docker would only mark the
+# container unhealthy; restart:unless-stopped still handles real crashes).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD ["bash", "-c", "</dev/tcp/127.0.0.1/8089 || exit 1"]
+
 # Build a flat classpath (BOOT-INF/classes + every jar in BOOT-INF/lib) and launch
 # the Spring Boot main class directly with -cp instead of -jar. The nested-jar URL
 # scheme (nested:...!/BOOT-INF/lib/...) used by java -jar is not understood by

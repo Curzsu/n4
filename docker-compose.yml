@@ -57,6 +57,13 @@ services:
     # volume so they survive container restarts and can be inspected on the host.
     volumes:
       - n4-monitor-logs:/app/logs
+    # Container resource cap + privilege hardening. The JVM heap (-Xmx1024m in
+    # JAVA_OPTS) plus Flink/Spring native overhead stays well under the cap; the
+    # cap prevents a runaway process from OOM-killing co-located middleware.
+    mem_limit: 2048m
+    mem_reservation: 1024m
+    security_opt:
+      - no-new-privileges:true
 
   n4-monitor-frontend:
     build:
@@ -79,6 +86,10 @@ services:
       options:
         max-size: "20m"
         max-file: "5"
+    mem_limit: 256m
+    mem_reservation: 64m
+    security_opt:
+      - no-new-privileges:true
 
   # ---- Flink standalone cluster (Application Mode) ----
   # Guarded by the "flink" profile: these services start ONLY with
@@ -126,6 +137,13 @@ services:
     ports:
       - "127.0.0.1:8081:8081"    # Web UI has NO auth: bind local-only, use an SSH tunnel for remote access
     restart: unless-stopped
+    # Flink already runs as the non-root `flink` user (uid 999) in the base
+    # image; this caps memory above jobmanager.memory.process.size and blocks
+    # privilege escalation.
+    mem_limit: 2048m
+    mem_reservation: 1024m
+    security_opt:
+      - no-new-privileges:true
 
   flink-taskmanager:
     profiles: ["flink"]
@@ -143,6 +161,10 @@ services:
     volumes:
       - flink-logs:/opt/flink/log
     restart: unless-stopped
+    mem_limit: 2200m
+    mem_reservation: 1024m
+    security_opt:
+      - no-new-privileges:true
 
 # Named volume for backend logback file output (logs/n4-monitor.log).
 volumes:
