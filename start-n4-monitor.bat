@@ -2,8 +2,14 @@
 setlocal
 
 set "ROOT=%~dp0"
-set "BACKEND=%ROOT%backend"
+set "BACKEND=%ROOT%monitor-backend"
 set "FRONTEND=%ROOT%frontend"
+
+if not exist "%ROOT%pom.xml" (
+  echo [ERROR] Root aggregator pom was not found: %ROOT%pom.xml
+  pause
+  exit /b 1
+)
 
 if not exist "%BACKEND%\pom.xml" (
   echo [ERROR] Backend project was not found: %BACKEND%
@@ -36,7 +42,9 @@ where npm.cmd >nul 2>&1 || (
 )
 
 echo Starting N4 Monitor backend on port 8089...
-start "N4 Monitor Backend" cmd.exe /k "cd /d ""%BACKEND%"" && mvn.cmd spring-boot:run"
+rem -pl monitor-backend -am: build monitor-common + monitor-flink-job in-reactor,
+rem then run the Spring Boot app from the reactor root.
+start "N4 Monitor Backend" cmd.exe /k "cd /d ""%ROOT%"" && mvn.cmd -pl monitor-backend -am spring-boot:run"
 
 echo Starting N4 Monitor frontend on port 5173...
 start "N4 Monitor Frontend" cmd.exe /k "cd /d ""%FRONTEND%"" && npm.cmd run dev"

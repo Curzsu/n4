@@ -6,8 +6,6 @@
 
 <script setup lang="ts">
 import MainLayout from '@/layouts/MainLayout.vue'
-import { useDashboardStore } from '@/stores/dashboard'
-
-const store = useDashboardStore()
-store.fetchAllDashboardData()
+// Dashboard KPI data is fetched by DashboardView on mount; the shell only
+// needs the nav tree (MainLayout) and the alarm summary (WebSocket seed).
 </script>

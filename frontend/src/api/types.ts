@@ -52,6 +52,23 @@ export interface TrendData {
   unit: string
 }
 
+/**
+ * UI tree node rendered in the sidebar: the NavTreeNode transform plus the
+ * synthetic "overview" node built in LeftSidebar.
+ */
+export interface UiTreeNode {
+  /** Absent on synthetic highlight-only nodes. */
+  id?: number | string
+  label: string
+  type: string
+  status?: number
+  nodeLevel?: number
+  hasRealData?: boolean
+  raw?: NavTreeNode | null
+  children: UiTreeNode[]
+  deviceCode?: string
+}
+
 export interface DeviceTreeNode {
   id: number | string
   deviceCode?: string

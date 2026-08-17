@@ -4,12 +4,19 @@
 .vscode/
 
 # Build
-backend/target/
+monitor-backend/target/
+monitor-common/target/
+monitor-flink-job/target/
 node_modules/
 frontend/dist/
 
 # Environment
+# .env is intentionally tracked (self-hosted private Gitea) so deploy hosts can
+# pull connection settings with the repo. To stop tracking it again: remove the
+# "!.env" line below, run "git rm --cached .env", and rotate all credentials.
 *.env
+!.env
+!.env.example
 *.env.local
 application-local.yaml
 
@@ -29,7 +36,6 @@ logs/
 .superpowers/
 .zcode/
 #test-producer/
-docs/
 .firecrawl/
 __pycache__/
 
@@ -41,3 +47,7 @@ __pycache__/
 构建数据/KVTP-A0806/
 构建数据/KVTP-A0807/
 构建数据/KVTP-A单画面规划.xlsx
+
+# FUXA backup JSON dumps (multi-GB, never belong in git)
+tools/backups/
+outputs/

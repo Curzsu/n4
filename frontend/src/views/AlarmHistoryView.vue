@@ -27,7 +27,7 @@
         </el-table-column>
         <el-table-column prop="severity" label="Severity" width="90">
           <template #default="{ row }">
-            <span class="severity-tag" :style="severityStyle(row)">{{ row.severity }}</span>
+            <span class="severity-tag" :style="severityStyle(row as AlarmRecord)">{{ row.severity }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="source" label="Source" min-width="200" show-overflow-tooltip />

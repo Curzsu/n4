@@ -276,7 +276,7 @@
               <el-table-column prop="deviceDeployId" label="ID" width="70" align="center" />
               <el-table-column prop="deviceDeployName" label="设备名称" min-width="220" show-overflow-tooltip>
                 <template #default="{ row }">
-                  <el-link type="primary" class="device-link" @click="viewDeviceDetail(row)">
+                  <el-link type="primary" class="device-link" @click="viewDeviceDetail(row as DeviceDeployment)">
                     {{ row.deviceDeployName }}
                   </el-link>
                   <el-tag v-if="row.isMock" size="small" type="info" class="data-tag">示例数据</el-tag>
@@ -294,9 +294,9 @@
               </el-table-column>
               <el-table-column label="操作" width="150" align="center" fixed="right">
                 <template #default="{ row }">
-                  <el-button type="primary" link size="small" @click="viewDeviceDetail(row)">编辑</el-button>
-                  <el-button type="warning" link size="small" @click="openMoveDialog(row)">移动</el-button>
-                  <el-button type="danger" link size="small" @click="deleteDeviceFromTable(row)">删除</el-button>
+                  <el-button type="primary" link size="small" @click="viewDeviceDetail(row as DeviceDeployment)">编辑</el-button>
+                  <el-button type="warning" link size="small" @click="openMoveDialog(row as DeviceDeployment)">移动</el-button>
+                  <el-button type="danger" link size="small" @click="deleteDeviceFromTable(row as DeviceDeployment)">删除</el-button>
                 </template>
               </el-table-column>
             </el-table>
@@ -595,7 +595,7 @@ async function submitUpdate() {
   if (!detailFormRef.value) return
   try {
     await detailFormRef.value.validate()
-  } catch (err) {
+  } catch {
     return
   }
   try {
@@ -617,7 +617,7 @@ async function submitUpdate() {
       status: deviceForm.value.status
     }
     await deploymentApi.update(deviceForm.value.deviceDeployId, payload)
-    await store.fetchAllDashboardData()
+    await store.refreshAfterMutation()
     ElMessage.success('更新设备属性成功')
     isEditing.value = false
     await viewDeviceDetail(deviceForm.value)
@@ -642,7 +642,7 @@ function deleteDevice() {
       ElMessage.success('删除设备成功')
       selectedNode.value = null
       await loadTree()
-      await store.fetchAllDashboardData()
+      await store.refreshAfterMutation()
     } catch (e: any) {
       ElMessage.error(e.message || '删除设备失败')
     } finally {
@@ -700,7 +700,7 @@ function batchDeleteDevices() {
 
 async function refreshAfterChange() {
   await loadTree()
-  await store.fetchAllDashboardData()
+  await store.refreshAfterMutation()
   if (selectedNode.value && selectedNode.value.deviceCount != null) {
     await loadNodeDevices(selectedNode.value.nodeId)
   } else if (selectedNode.value && selectedNode.value.type === 'device') {

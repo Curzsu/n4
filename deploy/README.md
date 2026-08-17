@@ -16,6 +16,10 @@ Linux 服务器 (47.121.30.136)
 └── 本次部署 (Docker Compose 编排两个容器):
       ├── n4-monitor-backend   Spring Boot fat jar + 内嵌 Flink   端口 8089
       └── n4-monitor-frontend  Nginx 托管 Vue dist + 反代         对外端口 80
+
+可选：`docker compose --profile flink up -d` 另起独立 Flink 集群运行告警作业
+（flink-jobmanager + flink-taskmanager）。与后端内嵌作业互斥——两者消费同一
+Kafka topic，同时运行会瓜分分区导致告警随机丢失；切换顺序见 docker-compose.yml 注释。
 ```
 
 - 后端容器通过 `47.121.30.136` 访问已运行的中间件。
@@ -36,11 +40,11 @@ docker compose version
 # 3. 端口 80、8089 未被占用
 ss -tlnp | grep -E ':80|:8089'
 
-# 4. 外部组件连通性自检
+# 4. 外部组件连通性自检（口令见 .env，勿写入文档或命令历史）
 mysql -h 47.121.30.136 -P 3306 -uroot -p -e "SELECT 1"          # MySQL
-redis-cli -h 47.121.30.136 -p 6379 -a 'Password@redis' ping     # Redis 应返回 PONG
+redis-cli -h 47.121.30.136 -p 6379 -a "$REDIS_PASSWORD" ping    # Redis 应返回 PONG
 curl http://47.121.30.136:1881                                   # FUXA
-curl http://47.121.30.136:6041/rest/login/root/taosdata         # TDengine REST
+curl http://47.121.30.136:6041/rest/login/root/$TDENGINE_PASSWORD  # TDengine REST
 # Kafka 可用 kafkacat: kcat -b 47.121.30.136:9092 -L
 ```
 
@@ -64,8 +68,10 @@ cd N4-monitor
 **方式 B：本地打包上传**
 ```bash
 # 本地（项目根目录）打包，排除不需要的大目录
+# tools/backups 与 outputs 含数 GB 的 FUXA 备份 JSON，务必排除，否则包会巨大
 tar --exclude='node_modules' --exclude='target' --exclude='.git' \
-    --exclude='材料' --exclude='构建数据' \
+    --exclude='材料' --exclude='构建数据' --exclude='logs' \
+    --exclude='tools' --exclude='outputs' --exclude='旧脚本备份' \
     -czf n4-monitor.tar.gz .
 
 # 上传到服务器
@@ -77,26 +83,36 @@ mkdir -p /opt/N4-monitor && cd /opt/N4-monitor
 tar -xzf /opt/n4-monitor.tar.gz
 ```
 
-## 四、配置调整（可选）
+## 四、配置调整（必做）
 
-默认配置已指向 `47.121.30.136`。如果中间件地址有变，编辑 `docker-compose.yml` 中 `n4-monitor-backend.environment` 段，修改对应的环境变量：
+中间件地址与口令不再写死在仓库里。部署机上执行：
 
-| 环境变量 | 说明 | 默认值 |
-|---------|------|--------|
-| `MYSQL_URL` | MySQL JDBC 连接串 | `jdbc:mysql://47.121.30.136:3306/n4_monitor?...` |
-| `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker 地址 | `47.121.30.136:9092` |
-| `REDIS_HOST` / `REDIS_PORT` | Redis 地址 / 端口 | `47.121.30.136` / `6379` |
-| `TDENGINE_URL` | TDengine REST JDBC 连接串 | `jdbc:TAOS-RS://47.121.30.136:6041/n4` |
-| `FUXA_BASE_URL` | FUXA 服务地址（后端调模板 provisioning） | `http://47.121.30.136:1881` |
-| `JAVA_OPTS` | JVM 参数 | `-Xms512m -Xmx1024m -Dfile.encoding=UTF-8` |
-| `ALARM_FLINK_ENABLED` | 是否启动内嵌 Flink 告警作业 | `true` |
+```bash
+cp .env.example .env
+vi .env   # 填入真实的中间件地址与口令
+```
 
-前端 FUXA iframe 地址在 `n4-monitor-frontend.build.args.VITE_FUXA_URL` 中配置（构建时注入）。
+`docker compose` 与后端 `application.yaml` 均从根目录 `.env` 读取（当前 `.env` 随仓库入库，部署机拉取代码即得；若仓库转为公开或扩大共享范围，请先移除 `.env` 并轮换口令）：
+
+| 环境变量 | 说明 |
+|---------|------|
+| `MYSQL_URL` / `MYSQL_USERNAME` / `MYSQL_PASSWORD` | MySQL JDBC 连接串与账号 |
+| `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker 地址 |
+| `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` | Redis 地址与口令 |
+| `TDENGINE_URL` / `TDENGINE_USERNAME` / `TDENGINE_PASSWORD` | TDengine REST 连接与口令 |
+| `FUXA_BASE_URL` | FUXA 服务地址（后端调模板 provisioning） |
+| `JAVA_OPTS` | JVM 参数（在 docker-compose.yml 中调整） |
+| `ALARM_FLINK_ENABLED` | 是否启动内嵌 Flink 告警作业（docker-compose.yml 中调整） |
+
+前端 FUXA iframe 构建地址取自同一 `FUXA_BASE_URL`（`n4-monitor-frontend.build.args.VITE_FUXA_URL` 引用）。
 
 ## 五、构建并启动
 
 ```bash
 cd /opt/N4-monitor
+
+# 准备环境变量文件（中间件地址与口令，见"四、配置调整"）
+cp .env.example .env && vi .env
 
 # 构建镜像（首次较慢，后端会下载 Maven 依赖，前端会 npm ci）
 docker compose build
@@ -179,7 +195,7 @@ telnet 47.121.30.136 9092
 ### 3. FUXA 图形监控 iframe 不显示
 - 确认 FUXA 容器运行中：`docker ps | grep fuxa`
 - 确认浏览器能直接访问 `http://47.121.30.136:1881`
-- 若 FUXA 地址变更，修改 `docker-compose.yml` 中 `VITE_FUXA_URL` 后重新 `docker compose build n4-monitor-frontend`
+- 若 FUXA 地址变更，修改 `.env` 中 `FUXA_BASE_URL` 后重新 `docker compose build n4-monitor-frontend`
 
 ### 4. TDengine 时区问题（时间戳偏移）
 容器已设 `TZ=Asia/Shanghai`，且 JDBC 连接串带 `serverTimezone=Asia/Shanghai`。若仍有偏移：
@@ -190,8 +206,8 @@ docker exec n4-monitor-backend env | grep TZ
 确认 `application.yaml` 中 `tdengine.url` 使用 `jdbc:TAOS-RS://`（REST 模式，无本地客户端时区依赖）。
 
 ### 5. Kafka 消费者组冲突
-若本地与服务器共用同一 Kafka `group-id`（`n4-flink-alarm-processor`），会导致消息被抢占。
-修改 `docker-compose.yml` 中 `ALARM_FLINK_GROUP_ID`（需同时在 `application.yaml` 加该占位）或停掉本地后端再部署。
+本地开发与服务器共用同一 Kafka `group-id`（内嵌作业取 `application.yaml` 的 `alarm.flink.group-id`，默认 `n4-flink-alarm-processor`；独立集群取 compose 中 flink command 的 `--group-id`，当前为 `n4-flink-alarm-processor-prod`）会导致消息被抢占。
+解决：部署前停掉本地后端，或修改上述 group-id 保证两侧不同。
 
 ### 6. 内存不足（OOM）
 后端默认 `-Xmx1024m`，加上 Flink 嵌入式执行开销，建议服务器至少 2GB 可用内存。如不足，调整 `JAVA_OPTS: "-Xms256m -Xmx512m ..."`。
@@ -207,7 +223,7 @@ docker stats             # 查看容器实时资源占用
 | 端口 | 用途 |
 |------|------|
 | 80   | N4-monitor 前端（对外） |
-| 8089 | 后端 API（可选对外，一般仅前端 Nginx 对外） |
+| 8089 | 后端 API。compose 当前绑定所有网卡（`8089:8089`）；若无需直连后端调试，可改为 `127.0.0.1:8089:8089` 收敛为仅本机访问，常规流量一律走前端 Nginx 反代 |
 | 1881 | FUXA 图形监控（浏览器需直接访问 iframe） |
 
 中间件端口（3306/6379/9092/6041）只需对后端容器可达，**不建议对公网开放**。

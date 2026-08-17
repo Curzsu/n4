@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { dashboardApi } from '@/api/dashboard'
 import { dashboardNavApi } from '@/api/dashboardNav'
 import { templateApi } from '@/api/template'
-import type { KpiMetrics, AlarmSummary, AlarmItem, SystemStatusItem, TrendData, DeviceTreeNode, Product, NavTreeNode, DeviceDeployItem, DeviceTemplate } from '@/api/types'
+import type { KpiMetrics, AlarmSummary, AlarmItem, SystemStatusItem, TrendData, DeviceTreeNode, Product, NavTreeNode, DeviceDeployItem, DeviceTemplate, UiTreeNode } from '@/api/types'
 
 export const useDashboardStore = defineStore('dashboard', () => {
   const kpiMetrics = ref<KpiMetrics | null>(null)
@@ -17,7 +17,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const deviceTree = ref<DeviceTreeNode[]>([])
   const allProducts = ref<Product[]>([])
   const allTemplates = ref<DeviceTemplate[]>([])
-  const selectedNode = ref<any | null>(null)
+  const selectedNode = ref<UiTreeNode | null>(null)
   const loading = ref(false)
   const isRightCollapsed = ref(true)
 
@@ -93,6 +93,15 @@ export const useDashboardStore = defineStore('dashboard', () => {
     }
   }
 
+  /**
+   * Narrow refresh after deploy-view mutations (create/update/delete of
+   * products, templates, devices): only template list and nav tree change,
+   * so skip the 8 dashboard KPI/trend calls the old full refresh made.
+   */
+  async function refreshAfterMutation() {
+    await Promise.all([loadTemplates(), loadNavTree()])
+  }
+
   /** 加载设备模板列表（device_template 表，含真实/Mock 标识） */
   async function loadTemplates() {
     try {
@@ -118,6 +127,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     loading,
     isRightCollapsed,
     fetchAllDashboardData,
+    refreshAfterMutation,
     loadTemplates,
     navTree,
     navLoading,

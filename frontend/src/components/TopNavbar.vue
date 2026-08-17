@@ -34,12 +34,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Search, UserFilled } from '@element-plus/icons-vue'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
-import { alarmApi } from '@/api/alarm'
 import { severityColors } from '@/config/severityColors'
 
 const router = useRouter()
@@ -63,20 +62,9 @@ const alarmSummary = computed(() => {
   }
 })
 
-// Seed summaryData with the real-time alarm summary on mount. Without this the
-// badges stay at 0 until either an alarm fires (WS push) or the right panel
-// (AlarmSummaryPanel) is opened - because summaryData's initial value is all
-// zeros and only AlarmSummaryPanel.onMounted fetched it before. Doing the fetch
-// here guarantees correct counts immediately on page load and after refresh,
-// independent of the right panel.
-onMounted(async () => {
-  try {
-    const data = await alarmApi.getAlarmSummary()
-    summaryData.value = data
-  } catch (e) {
-    console.error('Failed to fetch alarm summary:', e)
-  }
-})
+// The initial summary is seeded by useAlarmWebSocket on connect, so this
+// component only reads the shared state (previously it duplicated the seed
+// fetch that AlarmSummaryPanel / the WebSocket already performed).
 
 // Badge order left-to-right: Critical, Major, Minor, Warning. Each badge maps
 // to a canonical severity label (used both for the title tooltip and for the

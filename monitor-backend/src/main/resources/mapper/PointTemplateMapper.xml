@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.n4monitor.template.mapper.PointTemplateMapper">
+
+    <select id="findByDeviceTmplId" resultType="com.n4monitor.template.entity.PointTemplate">
+        SELECT pt.*,
+               (dt.device_tmpl_name NOT LIKE 'MOCK\_%') AS isReal
+        FROM point_template pt
+        LEFT JOIN device_template dt ON pt.device_tmpl_id = dt.device_tmpl_id
+        WHERE pt.device_tmpl_id = #{deviceTmplId} AND pt.is_deleted = 0
+        ORDER BY pt.point_tmpl_id
+    </select>
+
+    <select id="findByPointTmplId" resultType="com.n4monitor.template.entity.PointTemplate">
+        SELECT pt.*,
+               (dt.device_tmpl_name NOT LIKE 'MOCK\_%') AS isReal
+        FROM point_template pt
+        LEFT JOIN device_template dt ON pt.device_tmpl_id = dt.device_tmpl_id
+        WHERE pt.point_tmpl_id = #{pointTmplId} AND pt.is_deleted = 0
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="pointTmplId">
+        INSERT INTO point_template (device_tmpl_id, alarm_code, point_name, point_type, data_type, unit, display_precision)
+        VALUES (#{deviceTmplId}, #{alarmCode}, #{pointName}, #{pointType}, #{dataType}, #{unit}, #{displayPrecision})
+    </insert>
+
+    <update id="update">
+        UPDATE point_template
+        SET point_name = #{pointName},
+            point_type = #{pointType},
+            data_type = #{dataType},
+            unit = #{unit},
+            display_precision = #{displayPrecision}
+        WHERE point_tmpl_id = #{pointTmplId}
+    </update>
+
+    <update id="logicalDelete">
+        UPDATE point_template
+        SET is_deleted = 1
+        WHERE point_tmpl_id = #{pointTmplId}
+    </update>
+
+    <select id="countByDeviceTmplId" resultType="int">
+        SELECT COUNT(*) FROM point_template WHERE device_tmpl_id = #{deviceTmplId} AND is_deleted = 0
+    </select>
+
+</mapper>
