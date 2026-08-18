@@ -287,6 +287,26 @@
                   <el-tag size="small" :type="row.isReal ? 'success' : 'warning'" effect="dark">{{ row.isReal ? '真实数据' : 'Mock' }}</el-tag>
                 </template>
               </el-table-column>
+              <el-table-column label="关联报警规则" min-width="170" align="center" :resizable="false">
+                <template #default="{ row }">
+                  <span
+                    v-if="row.alarmCode"
+                    class="alarm-code-tag"
+                    title="点击配置该测点报警规则"
+                    @click="openPointAlarmConfig(row)"
+                  >
+                    {{ row.alarmCode }}
+                  </span>
+                  <span
+                    v-else
+                    class="alarm-none-tag"
+                    title="点击配置该测点报警规则"
+                    @click="openPointAlarmConfig(row)"
+                  >
+                    未配置报警
+                  </span>
+                </template>
+              </el-table-column>
               <el-table-column v-if="isPointBatchManaging" label="操作" width="180" fixed="right" align="center" :resizable="false">
                 <template #default="{ row }">
                   <el-button size="small" type="primary" link :icon="Edit" @click="openEditPointDialog(row)">修改</el-button>
@@ -514,6 +534,12 @@
       :fallback-template="selectedTemplate"
       :fallback-form="form"
     />
+
+    <!-- Device Alarm Configuration Modal Dialog -->
+    <DeviceAlarmConfigDialog
+      ref="alarmConfigDialogRef"
+      @saved="handleAlarmSaved"
+    />
   </div>
 </template>
 
@@ -526,6 +552,7 @@ import type { DeviceTemplate, PointTemplateItem } from '@/api/types'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useDashboardStore } from '@/stores/dashboard'
 import TemplateDiagramDialog from './dialogs/TemplateDiagramDialog.vue'
+import DeviceAlarmConfigDialog from './dialogs/DeviceAlarmConfigDialog.vue'
 
 const store = useDashboardStore()
 
@@ -1045,8 +1072,7 @@ async function batchDeletePoints() {
   }).catch(() => {})
 }
 
-// Diagram dialog is now rendered by the TemplateDiagramDialog child component;
-// the parent only opens it via the exposed open(target) method.
+// Diagram dialog is rendered by TemplateDiagramDialog
 const diagramDialogRef = ref<InstanceType<typeof TemplateDiagramDialog> | null>(null)
 
 function openConfigPanel() {
@@ -1057,16 +1083,30 @@ function openConfigPanelWithTarget(target: DeviceTemplate) {
   diagramDialogRef.value?.open(target)
 }
 
+// Alarm configuration dialog
+const alarmConfigDialogRef = ref<InstanceType<typeof DeviceAlarmConfigDialog> | null>(null)
+
 function openDeviceAlarmConfig() {
-  ElMessageBox.alert('当前正在为该设备模板配置报警规则：当设备发生断电、通信中断时，下属测点全部报故障状态。', '设备级报警配置', {
-    confirmButtonText: '确定'
-  })
+  const target = selectedTemplate.value || form.value
+  if (!target || !target.deviceTmplId) {
+    ElMessage.warning('请先在左侧选择具体的设备模板')
+    return
+  }
+  alarmConfigDialogRef.value?.open(target)
 }
 
 function openPointAlarmConfig(row: any) {
-  ElMessageBox.alert(`当前正在为测点 [${row.pointName}] 配置报警规则：阈值高低限设置、告警延迟及告警级别配置。`, '点位级报警配置', {
-    confirmButtonText: '确定'
-  })
+  const target = selectedTemplate.value || form.value
+  if (!target || !target.deviceTmplId) {
+    ElMessage.warning('请先在左侧选择具体的设备模板')
+    return
+  }
+  alarmConfigDialogRef.value?.open(target, row)
+}
+
+async function handleAlarmSaved() {
+  await loadTemplatePoints()
+  await store.loadTemplates()
 }
 
 function handleExport() {
@@ -1344,6 +1384,7 @@ $text-muted: #64748b;
 $accent-green: #10b981;
 $accent-blue: #3b82f6;
 $accent-yellow: #f59e0b;
+$accent-red: #ef4444;
 $bg-dark: #0b1119;
 
 .product-manager-view {
@@ -1574,6 +1615,52 @@ $bg-dark: #0b1119;
   }
 }
 
+.alarm-code-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 11px;
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.25;
+  border: none !important;
+  background-color: rgba(239, 68, 68, 0.22) !important;
+  color: #fca5a5 !important;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+
+  &:hover {
+    background-color: rgba(239, 68, 68, 0.35) !important;
+    color: #ffffff !important;
+    transform: translateY(-0.5px);
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
+  }
+}
+
+.alarm-none-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 11px;
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.25;
+  background-color: rgba(100, 116, 139, 0.10) !important;
+  color: #94a3b8 !important;
+  border: 1px dashed rgba(100, 116, 139, 0.3) !important;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+
+  &:hover {
+    background-color: rgba($accent-blue, 0.15) !important;
+    border-color: rgba($accent-blue, 0.4) !important;
+    color: #93c5fd !important;
+    transform: translateY(-0.5px);
+  }
+}
+
 :deep(.el-tag) {
   border: none !important;
   border-radius: 11px !important;
@@ -1590,6 +1677,10 @@ $bg-dark: #0b1119;
   &.el-tag--warning {
     background-color: rgba($accent-yellow, 0.14) !important;
     color: #facc15 !important;
+  }
+  &.el-tag--danger {
+    background-color: rgba($accent-red, 0.14) !important;
+    color: #f87171 !important;
   }
   &.el-tag--info {
     background-color: rgba(100, 116, 139, 0.18) !important;

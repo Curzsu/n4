@@ -42,9 +42,8 @@ where npm.cmd >nul 2>&1 || (
 )
 
 echo Starting N4 Monitor backend on port 8089...
-rem -pl monitor-backend -am: build monitor-common + monitor-flink-job in-reactor,
-rem then run the Spring Boot app from the reactor root.
-start "N4 Monitor Backend" cmd.exe /k "cd /d ""%ROOT%"" && mvn.cmd -pl monitor-backend -am spring-boot:run"
+rem Run Spring Boot from the monitor-backend module directory where the plugin is declared.
+start "N4 Monitor Backend" cmd.exe /k "cd /d ""%BACKEND%"" && mvn.cmd spring-boot:run"
 
 echo Starting N4 Monitor frontend on port 5173...
 start "N4 Monitor Frontend" cmd.exe /k "cd /d ""%FRONTEND%"" && npm.cmd run dev"

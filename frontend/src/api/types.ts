@@ -240,15 +240,17 @@ export interface DeviceTemplate {
   manuDate?: string
   functionalArea?: string
   facePlateId?: string
-  /** 该模板下的点位数量 */
+  alarmCode?: string
+  /** Point count under this template */
   pointCount?: number
-  /** 是否真实数据（与远程库模板一致） */
+  /** Whether matched real remote template */
   isReal?: boolean
 }
 
 export interface PointTemplateItem {
   pointTmplId?: number
   deviceTmplId?: number
+  alarmCode?: string
   pointName: string
   /** DI|DO|AI|AO */
   pointType?: string
