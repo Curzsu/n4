@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     v-model="dialogVisible"
-    :title="`设备报警规则配置 - ${currentTemplate?.deviceTmplName || '设备模板'}`"
+    :title="`Device Alarm Rules Configuration - ${currentTemplate?.deviceTmplName || 'Device Template'}`"
     width="720px"
     top="6vh"
     append-to-body
@@ -13,15 +13,15 @@
       <div class="top-bar">
         <el-input
           v-model="searchQuery"
-          placeholder="快速搜索点位名称 / 规则名称..."
+          placeholder="Quick search point name / rule name..."
           clearable
-          size="default"
+          size="small"
           :prefix-icon="Search"
-          style="width: 320px;"
+          style="width: 280px;"
         />
         <div class="point-count-badge">
-          <span>共 <strong>{{ points.length }}</strong> 个点位</span>
-          <span v-if="dirtyCount > 0" class="dirty-badge">（已修改 {{ dirtyCount }} 项）</span>
+          <span>Total: <strong>{{ points.length }}</strong> points</span>
+          <span v-if="dirtyCount > 0" class="dirty-badge">({{ dirtyCount }} modified)</span>
         </div>
       </div>
 
@@ -31,15 +31,17 @@
         size="small"
         border
         class="custom-table simple-point-table"
+        :header-cell-style="headerCellStyle"
+        :cell-style="cellStyle"
         max-height="480"
       >
-        <el-table-column prop="pointName" label="点位名称" min-width="200" show-overflow-tooltip>
+        <el-table-column prop="pointName" label="Point Name" min-width="200" show-overflow-tooltip :resizable="false">
           <template #default="{ row }">
             <span class="point-name">{{ row.pointName }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column prop="dataType" label="类型" width="100" align="center">
+        <el-table-column prop="dataType" label="Type" width="100" align="center" :resizable="false">
           <template #default="{ row }">
             <span :class="['type-tag', row.dataType === 'enum' ? 'tag-enum' : 'tag-numeric']">
               {{ row.dataType || 'numeric' }}
@@ -47,17 +49,17 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="绑定报警规则" min-width="240">
+        <el-table-column label="Bind Alarm Rule" min-width="240" :resizable="false">
           <template #default="{ row }">
             <el-select
               v-model="row.alarmCode"
-              placeholder="无报警规则"
+              placeholder="No Alarm Rule"
               size="small"
               filterable
               clearable
               style="width: 100%"
             >
-              <el-option label="-- 无报警规则 --" :value="''" />
+              <el-option label="-- No Alarm Rule --" :value="''" />
               <template v-if="row.dataType === 'enum'">
                 <el-option
                   v-for="name in allEnumRuleNames"
@@ -83,9 +85,9 @@
     <!-- Footer Actions -->
     <template #footer>
       <div class="dialog-footer">
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" :icon="Check" @click="handleSave">
-          保存配置
+        <el-button class="btn-secondary" size="small" @click="dialogVisible = false">Cancel</el-button>
+        <el-button type="primary" class="btn-primary" size="small" :loading="saving" :icon="Check" @click="handleSave">
+          Save Configuration
         </el-button>
       </div>
     </template>
@@ -103,6 +105,21 @@ import type { DeviceTemplate, PointTemplateItem, NumericRuleItem, EnumRuleItem }
 const emit = defineEmits<{
   (e: 'saved'): void
 }>()
+
+const headerCellStyle = {
+  backgroundColor: '#0d1117',
+  color: '#e5e7eb',
+  fontSize: '10px',
+  fontWeight: '600',
+  borderBottom: '1px solid #2d3748',
+}
+
+const cellStyle = {
+  backgroundColor: '#111827',
+  color: '#e5e7eb',
+  fontSize: '10px',
+  borderBottom: '1px solid #1f2937',
+}
 
 // State
 const dialogVisible = ref(false)
@@ -186,7 +203,7 @@ async function open(template: DeviceTemplate, targetPoint?: PointTemplateItem) {
       points.value = []
     }
   } catch (err: any) {
-    ElMessage.error(err.message || '加载测点失败')
+    ElMessage.error(err.message || 'Failed to load points')
   } finally {
     loading.value = false
   }
@@ -194,7 +211,7 @@ async function open(template: DeviceTemplate, targetPoint?: PointTemplateItem) {
 
 async function handleSave() {
   if (!currentTemplate.value?.deviceTmplId) {
-    ElMessage.error('设备模板无效')
+    ElMessage.error('Invalid device template')
     return
   }
 
@@ -217,15 +234,15 @@ async function handleSave() {
 
     if (promises.length > 0) {
       await Promise.all(promises)
-      ElMessage.success(`保存成功（已更新 ${promises.length} 个点位规则）`)
+      ElMessage.success(`Saved successfully (${promises.length} rule(s) updated)`)
     } else {
-      ElMessage.info('未修改任何规则')
+      ElMessage.info('No rules modified')
     }
 
     dialogVisible.value = false
     emit('saved')
   } catch (err: any) {
-    ElMessage.error(err.message || '保存失败')
+    ElMessage.error(err.message || 'Save failed')
   } finally {
     saving.value = false
   }
@@ -249,7 +266,7 @@ $accent-yellow: #f59e0b;
 
 .simple-alarm-dialog {
   :deep(.el-dialog__body) {
-    padding: 16px 20px;
+    padding: 12px 16px;
     background-color: $bg-dark;
     color: $text-primary;
   }
@@ -258,17 +275,17 @@ $accent-yellow: #f59e0b;
 .simple-alarm-container {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .top-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 
   .point-count-badge {
-    font-size: 13px;
+    font-size: 10px;
     color: $text-secondary;
 
     strong {
@@ -286,17 +303,19 @@ $accent-yellow: #f59e0b;
   .point-name {
     font-weight: 400;
     color: $text-primary;
+    font-size: 10px;
   }
 
   .type-tag {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 3px 11px;
-    border-radius: 11px;
-    font-size: 12px;
+    padding: 0 6px;
+    height: 16px;
+    border-radius: 8px;
+    font-size: 10px;
     font-weight: 400;
-    line-height: 1.25;
+    line-height: 16px;
     border: none !important;
 
     &.tag-numeric {
@@ -314,6 +333,28 @@ $accent-yellow: #f59e0b;
 .dialog-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 8px;
+}
+
+.btn-primary {
+  background-color: rgba(16, 185, 129, 0.16) !important;
+  color: #34d399 !important;
+  border: none !important;
+  border-radius: 9px !important;
+  font-size: 10px !important;
+  height: 20px !important;
+  line-height: 16px !important;
+  padding: 2px 8px !important;
+}
+
+.btn-secondary {
+  background-color: rgba(59, 130, 246, 0.16) !important;
+  color: #93c5fd !important;
+  border: none !important;
+  border-radius: 9px !important;
+  font-size: 10px !important;
+  height: 20px !important;
+  line-height: 16px !important;
+  padding: 2px 8px !important;
 }
 </style>

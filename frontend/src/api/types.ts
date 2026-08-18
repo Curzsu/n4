@@ -229,7 +229,7 @@ export interface Product {
   isDeleted?: boolean
 }
 
-// ===== Device Template Types (device_template / point_template 表) =====
+// ===== Device Template Types (device_template / point_template tables) =====
 
 export interface DeviceTemplate {
   deviceTmplId?: number
@@ -269,13 +269,13 @@ export interface NavTreeNode {
   nodeLevel: number
   icon?: string
   sortOrder: number
-  /** 一级节点允许的最大层级（2/3/...），子节点继承；未配置按两级 */
+  /** Maximum level allowed for root node (2/3/...), inherited by children */
   maxLevel?: number
-  /** 叶子分组节点的设备数；非叶子节点为 null */
+  /** Number of devices in leaf group; null for non-leaf */
   deviceCount?: number
-  /** 叶子分组节点下的真实设备数（非 MOCK_ 前缀） */
+  /** Number of real devices in leaf group (without MOCK_ prefix) */
   realDeviceCount?: number
-  /** 该节点子树内是否含真实设备 */
+  /** Whether this subtree contains real data */
   hasRealData?: boolean
   children: NavTreeNode[]
 }
@@ -292,7 +292,7 @@ export interface DeviceDeployItem {
   isMock: boolean
 }
 
-// ===== Device Deployment Types (device_deployment / point_deployment 表) =====
+// ===== Device Deployment Types (device_deployment / point_deployment tables) =====
 
 export interface DeviceDeployment {
   deviceDeployId?: number
@@ -335,15 +335,15 @@ export interface PointDeploymentItem {
   isReal?: boolean
 }
 
-/** 删除导航节点时的影响预览 */
+/** Impact preview when deleting navigation nodes */
 export interface DeleteImpact {
-  /** 将被级联删除的二级子节点数 */
+  /** Number of cascaded child nodes to be deleted */
   childCount: number
-  /** 将被解绑的设备数 */
+  /** Number of devices to be unmounted */
   deviceCount: number
 }
 
-/** 新增/编辑节点表单数据 */
+/** Form data for creating or editing navigation nodes */
 export interface NavNodeForm {
   nodeName: string
   parentId: number | null
