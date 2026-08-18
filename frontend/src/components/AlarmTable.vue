@@ -633,7 +633,7 @@ async function ackSelected() {
     // recovered between fetch and click). Skip the optimistic update so the UI
     // stays consistent with the backend; the user can refresh and retry.
     if (updated < paths.length) {
-      ElMessage.warning(`仅确认 ${updated}/${paths.length} 条告警，部分告警可能已恢复，请刷新后重试`)
+      ElMessage.warning(`Only acknowledged ${updated}/${paths.length} alarms; some may have recovered, please refresh and retry`)
       return
     }
     selectedRows.forEach(row => {
@@ -695,7 +695,6 @@ onUpdate((data: any) => {
 
   const newRecord = normalizeRecord(data.alarm)
 
-  //TODO: 这个代码是否多余？
   // When scoped to a device, skip records that don't belong to it — but still
   // process cleared signals so a device's removed alarm disappears.
   if (props.deviceName && !matchesDevice(newRecord)) {

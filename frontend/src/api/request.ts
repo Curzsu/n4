@@ -30,7 +30,7 @@ request.interceptors.response.use(
       if (apiResponse.code === 200) {
         return apiResponse.data
       }
-      const errMsg = apiResponse.message || `业务逻辑错误(代码: ${apiResponse.code})`
+      const errMsg = apiResponse.message || `Business logic error (Code: ${apiResponse.code})`
       showErrorToast(errMsg)
       return Promise.reject(new Error(errMsg))
     }
@@ -39,16 +39,16 @@ request.interceptors.response.use(
     return response.data
   },
   (error) => {
-    let msg = '网络连接异常，请检查后端服务'
+    let msg = 'Network connection error, please check backend service'
     if (error.code === 'ECONNABORTED') {
-      msg = '请求超时，请稍后重试'
+      msg = 'Request timed out, please try again later'
     } else if (error.response) {
       const status = error.response.status
       const data = error.response.data
       if (status === 404) {
-        msg = '接口不存在(404)'
+        msg = 'Endpoint not found (404)'
       } else if (status === 500) {
-        msg = '服务器内部错误(500)'
+        msg = 'Internal server error (500)'
       } else if (data && typeof data === 'object') {
         msg = data.message || data.error || msg
       }

@@ -189,7 +189,7 @@
                 <el-input v-model="item.enumValue" placeholder="0" />
               </el-form-item>
               <el-form-item label="Meaning" class="field-quarter">
-                <el-input v-model="item.enumMeaning" placeholder="e.g. 关机" />
+                <el-input v-model="item.enumMeaning" placeholder="e.g. Shutdown" />
               </el-form-item>
               <el-form-item label="Severity" class="field-quarter">
                 <el-select v-model="item.severity" placeholder="-" clearable popper-class="alarm-config-popper">

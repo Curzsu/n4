@@ -12,7 +12,7 @@ export const dashboardNavApi = {
     return request.get(`/api/dashboard/nav/devices/${deviceDeployId}`)
   },
 
-  // ===== System Deployment 页：节点 CRUD =====
+  // ===== System Deployment: Navigation Node CRUD =====
   createNode(payload: {
     nodeName: string
     parentId: number | null
@@ -36,7 +36,7 @@ export const dashboardNavApi = {
     return request.get(`/api/dashboard/nav/nodes/${nodeId}/impact`)
   },
 
-  // ===== 设备挂载/卸载 =====
+  // ===== Device Mount / Unmount =====
   getMountableDevices(): Promise<DeviceDeployItem[]> {
     return request.get('/api/dashboard/nav/devices/mountable')
   },

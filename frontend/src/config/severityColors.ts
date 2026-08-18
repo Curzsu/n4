@@ -1,12 +1,10 @@
 /**
- * 报警等级颜色配置
+ * Alarm Severity Colors Configuration
  *
- * 统一定义各报警等级的颜色，供报警弹窗（border-left）和报警列表（el-tag）
- * 共同使用，确保两者颜色一致。
+ * Uniformly defines colors for each alarm severity level, used by both
+ * alarm popup dialogs (border-left) and alarm tables (el-tag).
  *
- * 修改此处的颜色值即可全局生效，无需改动各组件。
- *
- * color   — 主色（用于弹窗、标签背景色）
+ * Changing color values here applies globally without modifying individual components.
  */
 
 export const severityColors: Record<string, string> = {
@@ -16,7 +14,7 @@ export const severityColors: Record<string, string> = {
   Warning: '#3b82f6',
 }
 
-/** 获取某等级的主色，未知等级返回灰色 */
+/** Get primary color for severity; returns gray for unknown levels */
 export function getSeverityColor(severity: string): string {
   return severityColors[severity] ?? '#6b7280'
 }

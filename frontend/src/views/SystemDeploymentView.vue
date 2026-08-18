@@ -1,14 +1,14 @@
 <template>
   <div class="system-deployment-view">
-    <!-- 左栏：可编辑导航树 -->
+    <!-- Left: Navigation Tree Panel -->
     <aside class="nav-tree-panel" v-loading="treeLoading">
       <header class="panel-header">
         <div class="panel-title">
           <el-icon><Operation /></el-icon>
-          <span>导航结构</span>
+          <span>Navigation</span>
         </div>
-        <el-button type="primary" size="small" :icon="Plus" @click="openCreateDialog(null)">
-          新增一级
+        <el-button type="primary" size="small" :icon="Plus" class="btn-primary" @click="openCreateDialog(null)">
+          Add Root
         </el-button>
       </header>
 
@@ -34,70 +34,68 @@
                 </span>
               </span>
               <span class="node-actions" @click.stop>
-                <el-tooltip content="新增子节点" placement="top" v-if="canAddChild(data)">
+                <el-tooltip content="Add Child Node" placement="top" v-if="canAddChild(data)">
                   <el-button link size="small" :icon="CirclePlus" @click="openCreateDialog(data)" />
                 </el-tooltip>
-                <el-tooltip content="编辑" placement="top">
+                <el-tooltip content="Edit" placement="top">
                   <el-button link size="small" :icon="EditPen" @click="openEditDialog(data)" />
                 </el-tooltip>
-                <el-tooltip content="删除" placement="top">
+                <el-tooltip content="Delete" placement="top">
                   <el-button link size="small" :icon="Delete" class="del-btn" @click="handleDeleteNode(data)" />
                 </el-tooltip>
               </span>
             </div>
           </template>
         </el-tree>
-        <el-empty v-if="!treeData.length" description="暂无导航节点" :image-size="60" />
+        <el-empty v-if="!treeData.length" description="No navigation nodes" :image-size="60" />
       </div>
     </aside>
 
-    <!-- 右栏：内容区 -->
+    <!-- Right: Content Area -->
     <section class="detail-panel" v-loading="devicesLoading">
       <template v-if="selectedNode">
-        <!-- ======= 设备详情视图 ======= -->
+        <!-- ======= Device Detail View ======= -->
         <template v-if="viewMode === 'detail'">
           <header class="panel-header detail-header">
             <div class="panel-title">
               <el-icon class="title-icon"><Connection /></el-icon>
-              <span>已部署设备详情 - {{ deviceForm.deviceDeployName }}</span>
-              <el-tag v-if="deviceForm.isMock" size="small" type="info" class="data-tag">示例数据</el-tag>
-              <el-tag v-else size="small" type="success" effect="dark" class="data-tag">真实数据</el-tag>
+              <span>Deployed Device Details - {{ deviceForm.deviceDeployName }}</span>
             </div>
             <div class="header-actions">
-              <el-button type="primary" plain size="small" @click="goBackToList">返回列表</el-button>
-              <el-button v-if="!isEditing" type="primary" plain size="small" :icon="Edit" @click="startEdit">修改设备与点位</el-button>
-              <el-button v-else type="primary" plain size="small" :icon="Check" :loading="submitting" @click="submitUpdate">保存</el-button>
-              <el-button type="danger" size="small" :icon="Delete" plain @click="deleteDeviceFromDetail">删除设备</el-button>
+              <el-button size="small" class="btn-secondary" @click="goBackToList">Back to List</el-button>
+              <el-button v-if="!isEditing" size="small" class="btn-secondary" :icon="Edit" @click="startEdit">Edit Device</el-button>
+              <el-button v-else size="small" class="btn-primary" :icon="Check" :loading="submitting" @click="submitUpdate">Save</el-button>
+              <el-button size="small" class="btn-danger" :icon="Delete" @click="deleteDeviceFromDetail">Delete Device</el-button>
             </div>
           </header>
 
           <div class="detail-body">
-            <!-- 设备属性表单 -->
+            <!-- Device Properties Form -->
             <el-form
               :model="deviceForm"
               :rules="detailRules"
               ref="detailFormRef"
-              label-width="80px"
+              label-width="110px"
               label-position="right"
               class="custom-form-compact"
               :disabled="!isEditing"
             >
-              <el-row :gutter="20">
+              <el-row :gutter="16">
                 <el-col :span="12">
-                  <el-form-item label="设备名称" prop="deviceDeployName">
+                  <el-form-item label="Device Name" prop="deviceDeployName">
                     <el-input v-model="deviceForm.deviceDeployName" />
                   </el-form-item>
                 </el-col>
                 <el-col :span="12">
-                  <el-form-item label="设备别名">
+                  <el-form-item label="Device Alias">
                     <el-input v-model="deviceForm.deviceAlias" />
                   </el-form-item>
                 </el-col>
               </el-row>
-              <el-row :gutter="20">
+              <el-row :gutter="16">
                 <el-col :span="8">
-                  <el-form-item label="设备模板">
-                    <el-select v-model="deviceForm.deviceTmplId" placeholder="选择设备模板" style="width: 100%">
+                  <el-form-item label="Template">
+                    <el-select v-model="deviceForm.deviceTmplId" placeholder="Select template" style="width: 100%">
                       <el-option
                         v-for="t in store.allTemplates"
                         :key="t.deviceTmplId"
@@ -108,13 +106,13 @@
                   </el-form-item>
                 </el-col>
                 <el-col :span="8">
-                  <el-form-item label="设备类型">
+                  <el-form-item label="Device Type">
                     <el-input :value="deviceForm.deviceType || '-'" disabled />
                   </el-form-item>
                 </el-col>
                 <el-col :span="8">
-                  <el-form-item label="部署节点">
-                    <el-select v-model="deviceForm.navNodeId" placeholder="选择部署节点" style="width: 100%">
+                  <el-form-item label="Node">
+                    <el-select v-model="deviceForm.navNodeId" placeholder="Select node" style="width: 100%">
                       <el-option
                         v-for="n in nodeOptions"
                         :key="n.nodeId"
@@ -125,19 +123,19 @@
                   </el-form-item>
                 </el-col>
               </el-row>
-              <el-row :gutter="20">
+              <el-row :gutter="16">
                 <el-col :span="8">
-                  <el-form-item label="IP 地址">
+                  <el-form-item label="IP Address">
                     <el-input v-model="deviceForm.ipAddress" />
                   </el-form-item>
                 </el-col>
                 <el-col :span="8">
-                  <el-form-item label="MAC 地址" prop="macAddress">
+                  <el-form-item label="MAC Address" prop="macAddress">
                     <el-input v-model="deviceForm.macAddress" />
                   </el-form-item>
                 </el-col>
                 <el-col :span="8">
-                  <el-form-item label="安装日期">
+                  <el-form-item label="Install Date">
                     <el-date-picker
                       v-model="deviceForm.installDate"
                       type="date"
@@ -148,7 +146,7 @@
                   </el-form-item>
                 </el-col>
               </el-row>
-              <el-row :gutter="20">
+              <el-row :gutter="16">
                 <el-col :span="24">
                   <el-form-item label="N4 Topic">
                     <el-input :value="deviceForm.n4Address" disabled />
@@ -157,60 +155,55 @@
               </el-row>
             </el-form>
 
-            <!-- 设备报警配置 -->
+            <!-- Device Alarm Config Button -->
             <div class="extra-property-buttons">
-              <el-button type="primary" plain size="small" :icon="Warning" @click="openDeviceAlarmConfig">
-                配置设备本身报警
+              <el-button size="small" class="btn-secondary" :icon="Warning" @click="openDeviceAlarmConfig">
+                Set Device Alarm
               </el-button>
             </div>
 
-            <!-- 点位配置表格 -->
+            <!-- Points Configuration Table -->
             <div class="point-table-section">
               <div class="points-header">
                 <div class="section-title">
                   <el-icon class="section-icon"><List /></el-icon>
-                  <span>监测点位配置 (共 {{ devicePoints.length }} 个)</span>
+                  <span>Points Configuration (Total: {{ devicePoints.length }})</span>
                 </div>
               </div>
 
               <el-table
                 :data="devicePoints"
-                style="width: 100%; margin-top: 12px;"
+                style="width: 100%; margin-top: 6px;"
                 border
                 size="small"
                 class="custom-table"
+                :header-cell-style="headerCellStyle"
+                :cell-style="cellStyle"
               >
-                <el-table-column prop="pointName" label="点位名称" min-width="220" show-overflow-tooltip />
-                <el-table-column prop="pointType" label="点位类型" min-width="110">
+                <el-table-column prop="pointName" label="Point Name" min-width="220" show-overflow-tooltip :resizable="false" />
+                <el-table-column prop="pointType" label="Point Type" min-width="110" align="center" :resizable="false">
                   <template #default="{ row }">
                     <span :class="['type-badge', getPointTypeClass(row.pointType)]">
                       {{ getPointTypeText(row.pointType) }}
                     </span>
                   </template>
                 </el-table-column>
-                <el-table-column prop="dataType" label="数据类型" width="100" align="center" />
-                <el-table-column prop="unit" label="单位" width="80" align="center" />
-                <el-table-column label="数据来源" width="110" align="center">
-                  <template #default="{ row }">
-                    <el-tag size="small" :type="row.isReal ? 'success' : 'warning'" effect="dark">
-                      {{ row.isReal ? '真实数据' : 'Mock' }}
-                    </el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="register" label="寄存器地址" min-width="160" align="center">
+                <el-table-column prop="dataType" label="Data Type" width="100" align="center" :resizable="false" />
+                <el-table-column prop="unit" label="Unit" width="80" align="center" :resizable="false" />
+                <el-table-column prop="register" label="Register Address" min-width="160" align="center" :resizable="false">
                   <template #default="{ row }">
                     <el-input
                       v-if="isEditing"
                       v-model="row.register"
                       size="small"
-                      placeholder="输入寄存器"
+                      placeholder="Enter register"
                     />
                     <code v-else class="addr-code">{{ row.register || 'N/A' }}</code>
                   </template>
                 </el-table-column>
-                <el-table-column label="操作" width="120" fixed="right" align="center">
+                <el-table-column label="Actions" width="120" fixed="right" align="center" :resizable="false">
                   <template #default="{ row }">
-                    <el-button size="small" type="primary" link :icon="Warning" @click="openPointAlarmConfig(row)">报警设置</el-button>
+                    <el-button size="small" type="primary" link :icon="Warning" @click="openPointAlarmConfig(row)">Alarm Rule</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -218,7 +211,7 @@
           </div>
         </template>
 
-        <!-- ======= 列表视图（叶子节点）/ 子节点概览（非叶子节点）======= -->
+        <!-- ======= List / Overview View ======= -->
         <template v-else>
           <header class="panel-header detail-header">
             <div class="panel-title">
@@ -227,71 +220,71 @@
               </el-icon>
               <span>{{ selectedNode.nodeName }}</span>
               <el-tag size="small" :type="selectedNode.nodeLevel === 1 ? 'info' : 'success'" effect="dark">
-                第 {{ selectedNode.nodeLevel }} 级{{ selectedNode.nodeLevel === 1 ? '分类' : '分组' }}
+                Level {{ selectedNode.nodeLevel }} Group
               </el-tag>
             </div>
             <div class="header-actions">
-              <el-button type="primary" plain size="small" :icon="EditPen" @click="openEditDialog(selectedNode)">编辑</el-button>
-              <el-button type="danger" plain size="small" :icon="Delete" @click="handleDeleteNode(selectedNode)">删除</el-button>
+              <el-button size="small" class="btn-secondary" :icon="EditPen" @click="openEditDialog(selectedNode)">Edit</el-button>
+              <el-button size="small" class="btn-danger" :icon="Delete" @click="handleDeleteNode(selectedNode)">Delete</el-button>
             </div>
           </header>
 
           <div class="detail-body">
-            <!-- 节点信息卡片 -->
+            <!-- Node Info Card -->
             <div class="info-card">
               <div class="info-row">
-                <span class="info-label">节点ID</span>
+                <span class="info-label">Node ID</span>
                 <span class="info-value">{{ selectedNode.nodeId }}</span>
               </div>
               <div class="info-row">
-                <span class="info-label">排序序号</span>
+                <span class="info-label">Sort Order</span>
                 <span class="info-value">{{ selectedNode.sortOrder }}</span>
               </div>
               <div class="info-row" v-if="selectedNode.nodeLevel === 1">
-                <span class="info-label">图标</span>
-                <span class="info-value">{{ selectedNode.icon || '默认' }}</span>
+                <span class="info-label">Icon</span>
+                <span class="info-value">{{ selectedNode.icon || 'Default' }}</span>
               </div>
             </div>
 
-            <!-- 叶子节点：设备列表 -->
+            <!-- Leaf Node: Deployed Device List -->
             <div v-if="isLeafNode(selectedNode)" class="device-section">
               <div class="section-header">
-                <h3>已部署设备
-                  <span class="section-count">({{ currentDevices.length }} 台，真实 {{ realCount }} 台)</span>
+                <h3>Deployed Devices
+                  <span class="section-count">(Total: {{ currentDevices.length }})</span>
                 </h3>
                 <div class="header-actions">
                   <template v-if="isBatchManaging">
                     <el-button
                       type="danger"
-                      plain
                       size="small"
+                      class="btn-danger"
                       :icon="Delete"
                       :disabled="selectedDevices.length === 0"
                       @click="batchDeleteDevices"
                     >
-                      批量删除 (已选 {{ selectedDevices.length }} 个)
+                      Batch Delete ({{ selectedDevices.length }} selected)
                     </el-button>
-                    <el-button type="primary" plain size="small" @click="exitBatchManage">退出管理</el-button>
+                    <el-button size="small" class="btn-secondary" @click="exitBatchManage">Exit Manage</el-button>
                   </template>
                   <template v-else>
-                    <el-button type="primary" plain size="small" :icon="Edit" @click="enterBatchManage">
-                      批量管理
+                    <el-button size="small" class="btn-secondary" :icon="Edit" @click="enterBatchManage">
+                      Batch Manage
                     </el-button>
                   </template>
-                  <el-button type="primary" plain size="small" :icon="Plus" @click="openDeployDialog">
-                    新增部署设备
+                  <el-button size="small" class="btn-primary" :icon="Plus" @click="openDeployDialog">
+                    Deploy Device
                   </el-button>
-                  <el-button type="primary" plain size="small" :icon="Link" @click="openMountDialog">
-                    挂载已有设备
+                  <el-button size="small" class="btn-secondary" :icon="Link" @click="openMountDialog">
+                    Mount Device
                   </el-button>
                 </div>
               </div>
 
-              <!-- 搜索栏 -->
+              <!-- Search Bar -->
               <div class="search-box-table">
                 <el-input
                   v-model="searchQuery"
-                  placeholder="搜索设备名称或别名..."
+                  placeholder="Search device name or alias..."
                   size="small"
                   :prefix-icon="Search"
                   clearable
@@ -299,57 +292,58 @@
                 />
               </div>
 
-              <!-- 设备表格 -->
+              <!-- Device Table -->
               <el-table
                 :data="filteredDevices"
                 class="custom-table"
-                stripe
+                border
+                size="small"
+                :header-cell-style="headerCellStyle"
+                :cell-style="cellStyle"
                 @selection-change="handleDeviceSelectionChange"
               >
-                <el-table-column v-if="isBatchManaging" type="selection" width="45" align="center" />
-                <el-table-column prop="deviceDeployId" label="ID" width="70" align="center" />
-                <el-table-column prop="deviceDeployName" label="设备名称" min-width="220" show-overflow-tooltip>
+                <el-table-column v-if="isBatchManaging" type="selection" width="35" align="center" :resizable="false" />
+                <el-table-column prop="deviceDeployId" label="ID" width="55" align="center" :resizable="false" />
+                <el-table-column prop="deviceDeployName" label="Device Name" min-width="220" show-overflow-tooltip :resizable="false">
                   <template #default="{ row }">
                     <el-link type="primary" class="device-link" @click="viewDeviceDetail(row as DeviceDeployment)">
                       {{ row.deviceDeployName }}
                     </el-link>
-                    <el-tag v-if="row.isMock" size="small" type="info" class="data-tag">示例数据</el-tag>
-                    <el-tag v-else size="small" type="success" effect="dark" class="data-tag">真实数据</el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column prop="deviceAlias" label="设备别名" width="150" show-overflow-tooltip />
-                <el-table-column prop="deviceType" label="设备类型" width="110" align="center" />
-                <el-table-column prop="manufacturer" label="厂商" width="110" align="center" />
-                <el-table-column label="状态" width="90" align="center">
+                <el-table-column prop="deviceAlias" label="Device Alias" width="150" show-overflow-tooltip :resizable="false" />
+                <el-table-column prop="deviceType" label="Device Type" width="110" align="center" :resizable="false" />
+                <el-table-column prop="manufacturer" label="Manufacturer" width="110" align="center" :resizable="false" />
+                <el-table-column label="Status" width="90" align="center" :resizable="false">
                   <template #default="{ row }">
                     <span class="status-dot" :class="getStatusClass(row.status)"></span>
                     <span class="status-text">{{ getStatusText(row.status) }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column label="操作" width="200" align="center" fixed="right">
+                <el-table-column label="Actions" width="160" align="center" fixed="right" :resizable="false">
                   <template #default="{ row }">
-                    <el-button type="primary" link size="small" @click="viewDeviceDetail(row as DeviceDeployment)">编辑</el-button>
-                    <el-button type="primary" link size="small" @click="handleUnmount(row as DeviceDeployment)">卸载</el-button>
-                    <el-button type="danger" link size="small" @click="deleteDeviceFromTable(row as DeviceDeployment)">删除</el-button>
+                    <el-button type="primary" link size="small" @click="viewDeviceDetail(row as DeviceDeployment)">Edit</el-button>
+                    <el-button type="primary" link size="small" @click="handleUnmount(row as DeviceDeployment)">Unmount</el-button>
+                    <el-button type="danger" link size="small" @click="deleteDeviceFromTable(row as DeviceDeployment)">Delete</el-button>
                   </template>
                 </el-table-column>
                 <template #empty>
-                  <span class="empty-text">该节点下暂无设备，点击"新增部署设备"或"挂载已有设备"添加</span>
+                  <span class="empty-text">No deployed devices under this node</span>
                 </template>
               </el-table>
             </div>
 
-            <!-- 非叶子节点：子节点概览 -->
+            <!-- Non-leaf Node: Sub-nodes Overview -->
             <div v-else class="device-section">
               <div class="section-header">
-                <h3>下属子节点 <span class="section-count">({{ selectedNode.children?.length || 0 }})</span></h3>
+                <h3>Child Groups <span class="section-count">({{ selectedNode.children?.length || 0 }})</span></h3>
               </div>
-              <el-table :data="selectedNode.children || []" class="custom-table" stripe>
-                <el-table-column prop="nodeName" label="子分组名称" min-width="200" />
-                <el-table-column prop="deviceCount" label="设备数" min-width="100" />
-                <el-table-column prop="sortOrder" label="排序序号" min-width="100" />
+              <el-table :data="selectedNode.children || []" class="custom-table" border size="small" :header-cell-style="headerCellStyle" :cell-style="cellStyle">
+                <el-table-column prop="nodeName" label="Group Name" min-width="200" :resizable="false" />
+                <el-table-column prop="deviceCount" label="Devices" min-width="100" align="center" :resizable="false" />
+                <el-table-column prop="sortOrder" label="Sort Order" min-width="100" align="center" :resizable="false" />
                 <template #empty>
-                  <span class="empty-text">该节点下暂无子分组，点击左侧"新增子节点"添加</span>
+                  <span class="empty-text">No child groups under this node</span>
                 </template>
               </el-table>
             </div>
@@ -357,35 +351,35 @@
         </template>
       </template>
 
-      <el-empty v-else description="请从左侧选择一个导航节点" :image-size="100" class="select-prompt" />
+      <el-empty v-else description="Please select a navigation node from the left tree" :image-size="100" class="select-prompt" />
     </section>
 
-    <!-- ===== 弹窗：新增/编辑节点 ===== -->
+    <!-- ===== Dialog: Create/Edit Node ===== -->
     <el-dialog
       v-model="nodeDialogVisible"
-      :title="nodeDialogMode === 'create' ? '新增导航节点' : '编辑导航节点'"
+      :title="nodeDialogMode === 'create' ? 'Add Navigation Node' : 'Edit Navigation Node'"
       width="480px"
       append-to-body
       class="dark-dialog"
     >
-      <el-form :model="nodeForm" :rules="nodeRules" ref="nodeFormRef" label-width="90px">
-        <el-form-item label="节点名称" prop="nodeName">
-          <el-input v-model="nodeForm.nodeName" placeholder="如：电气系统 / 中压系统" maxlength="50" show-word-limit />
+      <el-form :model="nodeForm" :rules="nodeRules" ref="nodeFormRef" label-width="100px">
+        <el-form-item label="Node Name" prop="nodeName">
+          <el-input v-model="nodeForm.nodeName" placeholder="e.g. Electrical / MV System" maxlength="50" show-word-limit />
         </el-form-item>
-        <el-form-item label="父级节点" v-if="showParentSelect">
+        <el-form-item label="Parent Node" v-if="showParentSelect">
           <el-cascader
             v-model="nodeForm.parentId"
             :options="parentCascaderOptions"
             :props="parentCascaderProps"
-            placeholder="请选择父级节点"
+            placeholder="Select parent node"
             :clearable="false"
             popper-class="dark-cascader-dropdown"
             style="width: 100%"
           />
-          <div class="form-tip">只能选择同层级的合法分组作为目标父级</div>
+          <div class="form-tip">Select an eligible group as the target parent</div>
         </el-form-item>
-        <el-form-item label="图标" v-if="nodeForm.parentId == null">
-          <el-select v-model="nodeForm.icon" placeholder="选择图标（仅一级节点）" clearable style="width: 100%">
+        <el-form-item label="Icon" v-if="nodeForm.parentId == null">
+          <el-select v-model="nodeForm.icon" placeholder="Select icon (Root node only)" clearable style="width: 100%">
             <el-option
               v-for="opt in iconOptions"
               :key="opt.name"
@@ -399,20 +393,20 @@
             </el-option>
           </el-select>
         </el-form-item>
-        <el-form-item label="排序序号" prop="sortOrder">
-          <el-input-number v-model="nodeForm.sortOrder" :min="0" :max="9999" />
+        <el-form-item label="Sort Order" prop="sortOrder">
+          <el-input-number v-model="nodeForm.sortOrder" :min="0" :max="9999" style="width: 100%" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="nodeDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitNodeForm" :loading="nodeSubmitting">确认</el-button>
+        <el-button class="btn-secondary" @click="nodeDialogVisible = false">Cancel</el-button>
+        <el-button type="primary" class="btn-primary" @click="submitNodeForm" :loading="nodeSubmitting">Confirm</el-button>
       </template>
     </el-dialog>
 
-    <!-- ===== 弹窗：挂载已有设备 ===== -->
+    <!-- ===== Dialog: Mount Existing Device ===== -->
     <el-dialog
       v-model="mountDialogVisible"
-      title="挂载已有设备到当前节点"
+      title="Mount Existing Devices to Current Node"
       width="640px"
       append-to-body
       class="dark-dialog"
@@ -420,38 +414,42 @@
       <el-table
         :data="mountableDevices"
         class="custom-table"
-        stripe
+        border
+        size="small"
+        :header-cell-style="headerCellStyle"
+        :cell-style="cellStyle"
         @selection-change="handleMountSelectionChange"
         max-height="360"
       >
-        <el-table-column type="selection" width="45" />
-        <el-table-column prop="deviceDeployId" label="设备ID" min-width="90" />
-        <el-table-column prop="deviceDeployName" label="设备名称" min-width="220" show-overflow-tooltip />
-        <el-table-column prop="deviceType" label="设备类型" min-width="100" />
+        <el-table-column type="selection" width="35" align="center" :resizable="false" />
+        <el-table-column prop="deviceDeployId" label="Device ID" min-width="90" align="center" :resizable="false" />
+        <el-table-column prop="deviceDeployName" label="Device Name" min-width="220" show-overflow-tooltip :resizable="false" />
+        <el-table-column prop="deviceType" label="Device Type" min-width="100" align="center" :resizable="false" />
         <template #empty>
-          <span class="empty-text">暂无可挂载的设备（所有设备已挂载到节点）</span>
+          <span class="empty-text">No mountable devices available (all devices are mounted)</span>
         </template>
       </el-table>
       <template #footer>
         <span class="mount-selected-tip" v-if="mountSelectedIds.length">
-          已选 {{ mountSelectedIds.length }} 台
+          {{ mountSelectedIds.length }} device(s) selected
         </span>
-        <el-button @click="mountDialogVisible = false">取消</el-button>
+        <el-button class="btn-secondary" @click="mountDialogVisible = false">Cancel</el-button>
         <el-button
           type="primary"
+          class="btn-primary"
           @click="submitMount"
           :loading="mountSubmitting"
           :disabled="!mountSelectedIds.length"
         >
-          挂载选中设备
+          Mount Selected Devices
         </el-button>
       </template>
     </el-dialog>
 
-    <!-- ===== 弹窗：部署新设备（从模板） ===== -->
+    <!-- ===== Dialog: Deploy New Device (from template) ===== -->
     <el-dialog
       v-model="deployDialogVisible"
-      title="在当前节点部署新设备"
+      title="Deploy New Device to Current Node"
       width="540px"
       append-to-body
       class="dark-dialog"
@@ -460,43 +458,43 @@
         :model="deployForm"
         :rules="deployRules"
         ref="deployFormRef"
-        label-width="110px"
+        label-width="120px"
         label-position="right"
         size="small"
         class="custom-form"
       >
-        <el-form-item label="当前部署节点">
+        <el-form-item label="Target Node">
           <el-input :value="selectedNode?.nodeName" disabled />
         </el-form-item>
 
-        <el-form-item label="选择设备模板" prop="deviceTmplId">
-          <el-select v-model="deployForm.deviceTmplId" placeholder="请选择对应设备模板..." style="width: 100%">
+        <el-form-item label="Device Template" prop="deviceTmplId">
+          <el-select v-model="deployForm.deviceTmplId" placeholder="Select device template..." style="width: 100%">
             <el-option
               v-for="t in store.allTemplates"
               :key="t.deviceTmplId"
-              :label="`${t.deviceTmplName} (${t.deviceType}${t.isReal ? '' : ' - Mock'})`"
+              :label="`${t.deviceTmplName} (${t.deviceType})`"
               :value="t.deviceTmplId!"
             />
           </el-select>
         </el-form-item>
 
-        <el-form-item label="设备部署名称" prop="deviceDeployName">
-          <el-input v-model="deployForm.deviceDeployName" placeholder="例如：A1_PTU_A1_LVP_A1_00_Collector_00" />
+        <el-form-item label="Device Name" prop="deviceDeployName">
+          <el-input v-model="deployForm.deviceDeployName" placeholder="e.g. A1_PTU_A1_LVP_A1_00_Collector_00" />
         </el-form-item>
 
-        <el-form-item label="设备别名">
-          <el-input v-model="deployForm.deviceAlias" placeholder="默认同部署名称" />
+        <el-form-item label="Device Alias">
+          <el-input v-model="deployForm.deviceAlias" placeholder="Defaults to device name" />
         </el-form-item>
 
-        <el-form-item label="IP 地址">
-          <el-input v-model="deployForm.ipAddress" placeholder="例如：192.168.1.100" />
+        <el-form-item label="IP Address">
+          <el-input v-model="deployForm.ipAddress" placeholder="e.g. 192.168.1.100" />
         </el-form-item>
 
-        <el-form-item label="MAC 地址" prop="macAddress">
-          <el-input v-model="deployForm.macAddress" placeholder="例如：00:1A:2B:3C:4D:5E" />
+        <el-form-item label="MAC Address" prop="macAddress">
+          <el-input v-model="deployForm.macAddress" placeholder="e.g. 00:1A:2B:3C:4D:5E" />
         </el-form-item>
 
-        <el-form-item label="安装日期">
+        <el-form-item label="Install Date">
           <el-date-picker
             v-model="deployForm.installDate"
             type="date"
@@ -507,10 +505,11 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button size="small" @click="deployDialogVisible = false">取消</el-button>
-        <el-button size="small" type="primary" :loading="deploySubmitting" @click="submitDeploy">部署并生成点位</el-button>
+        <el-button class="btn-secondary" size="small" @click="deployDialogVisible = false">Cancel</el-button>
+        <el-button class="btn-primary" size="small" type="primary" :loading="deploySubmitting" @click="submitDeploy">Deploy & Generate Points</el-button>
       </template>
-    </el-dialog>  </div>
+    </el-dialog>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -531,14 +530,29 @@ import type { NavTreeNode, DeviceDeployItem, DeviceDeployment, PointDeploymentIt
 
 const store = useDashboardStore()
 
+const headerCellStyle = {
+  backgroundColor: '#0d1117',
+  color: '#e5e7eb',
+  fontSize: '10px',
+  fontWeight: '600',
+  borderBottom: '1px solid #2d3748',
+}
+
+const cellStyle = {
+  backgroundColor: '#111827',
+  color: '#e5e7eb',
+  fontSize: '10px',
+  borderBottom: '1px solid #1f2937',
+}
+
 // =====================================================================
-//  视图模式管理
+//  View Mode Management
 // =====================================================================
-/** 'list' = 列表/概览视图, 'detail' = 设备详情视图 */
+/** 'list' = List/overview view, 'detail' = Device detail view */
 const viewMode = ref<'list' | 'detail'>('list')
 
 // =====================================================================
-//  导航树
+//  Navigation Tree
 // =====================================================================
 const treeData = ref<NavTreeNode[]>([])
 const treeLoading = ref(false)
@@ -568,7 +582,6 @@ async function loadTree() {
   treeLoading.value = true
   try {
     treeData.value = await dashboardNavApi.getNavTree()
-    // 保持选中态同步
     if (selectedNode.value) {
       const refreshed = findNodeById(treeData.value, selectedNode.value.nodeId)
       selectedNode.value = refreshed
@@ -579,7 +592,7 @@ async function loadTree() {
       }
     }
   } catch (e: any) {
-    ElMessage.error(e.message || '加载导航树失败')
+    ElMessage.error(e.message || 'Failed to load navigation tree')
   } finally {
     treeLoading.value = false
   }
@@ -607,7 +620,7 @@ async function handleNodeClick(data: NavTreeNode) {
   }
 }
 
-// 节点下拉选项（扁平化路径显示，供设备详情里的节点选择）
+// Flat node options for select dropdown
 const nodeOptions = computed(() => {
   const out: { nodeId: number; nodeName: string }[] = []
   const walk = (nodes: NavTreeNode[], prefix: string) => {
@@ -621,7 +634,7 @@ const nodeOptions = computed(() => {
 })
 
 // =====================================================================
-//  图标映射
+//  Icon Mapping
 // =====================================================================
 const iconMap: Record<string, any> = {
   Location, Picture, OfficeBuilding, Grid, Lightning, Warning, EditPen,
@@ -648,7 +661,7 @@ function getNodeIcon(node: NavTreeNode) {
 }
 
 // =====================================================================
-//  节点 CRUD 弹窗
+//  Node CRUD Dialog
 // =====================================================================
 const nodeDialogVisible = ref(false)
 const nodeDialogMode = ref<'create' | 'edit'>('create')
@@ -662,12 +675,11 @@ const nodeForm = ref({
   sortOrder: 0,
 })
 const nodeRules = {
-  nodeName: [{ required: true, message: '请输入节点名称', trigger: 'blur' }],
+  nodeName: [{ required: true, message: 'Please enter node name', trigger: 'blur' }],
 }
 const targetParentLevel = ref<number>(0)
 const showParentSelect = computed(() => targetParentLevel.value > 0)
 
-/** 供父级节点选择器使用的纯粹可作父节点的分组树（严格按照目标层级过滤） */
 const parentCascaderOptions = computed(() => {
   const targetLevel = targetParentLevel.value
   if (targetLevel === 0) return []
@@ -678,7 +690,6 @@ const parentCascaderOptions = computed(() => {
       if (n.nodeLevel > targetLevel) continue
 
       if (n.nodeLevel === targetLevel) {
-        // 作为目标父节点，它本身必须允许添加子节点
         const maxL = n.maxLevel ?? 4
         if (n.nodeLevel >= maxL) continue
         
@@ -760,7 +771,7 @@ async function submitNodeForm() {
           icon: nodeForm.value.parentId == null ? nodeForm.value.icon : null,
           sortOrder: nodeForm.value.sortOrder,
         })
-        ElMessage.success('新增成功')
+        ElMessage.success('Node created successfully')
       } else {
         await dashboardNavApi.updateNode(editingNodeId.value!, {
           nodeName: nodeForm.value.nodeName,
@@ -768,12 +779,12 @@ async function submitNodeForm() {
           icon: nodeForm.value.parentId == null ? nodeForm.value.icon : null,
           sortOrder: nodeForm.value.sortOrder,
         })
-        ElMessage.success('更新成功')
+        ElMessage.success('Node updated successfully')
       }
       nodeDialogVisible.value = false
       await loadTree()
     } catch (e: any) {
-      ElMessage.error(e.message || '操作失败')
+      ElMessage.error(e.message || 'Operation failed')
     } finally {
       nodeSubmitting.value = false
     }
@@ -781,20 +792,20 @@ async function submitNodeForm() {
 }
 
 // =====================================================================
-//  节点删除
+//  Node Delete
 // =====================================================================
 async function handleDeleteNode(node: NavTreeNode) {
   try {
     const impact = await dashboardNavApi.getDeleteImpact(node.nodeId)
     const msg = !isLeafNode(node)
-      ? `将删除该节点及其下 ${impact.childCount} 个子节点，并解绑 ${impact.deviceCount} 台设备。`
-      : `将删除该节点，并解绑其下 ${impact.deviceCount} 台设备。`
+      ? `This will delete this node along with its ${impact.childCount} sub-nodes, and unbind ${impact.deviceCount} devices.`
+      : `This will delete this node, and unbind ${impact.deviceCount} devices.`
     await ElMessageBox.confirm(
-      `${msg}\n节点删除后不可恢复，是否继续？`,
-      '删除确认',
+      `${msg}\nNode deletion cannot be undone. Do you want to proceed?`,
+      'Delete Confirmation',
       {
-        confirmButtonText: '确定删除',
-        cancelButtonText: '取消',
+        confirmButtonText: 'Delete',
+        cancelButtonText: 'Cancel',
         type: 'warning',
         confirmButtonClass: 'el-button--danger',
       },
@@ -804,7 +815,7 @@ async function handleDeleteNode(node: NavTreeNode) {
   }
   try {
     await dashboardNavApi.deleteNode(node.nodeId)
-    ElMessage.success('删除成功')
+    ElMessage.success('Deleted successfully')
     if (selectedNode.value?.nodeId === node.nodeId) {
       selectedNode.value = null
       currentDevices.value = []
@@ -812,25 +823,23 @@ async function handleDeleteNode(node: NavTreeNode) {
     }
     await loadTree()
   } catch (e: any) {
-    ElMessage.error(e.message || '删除失败')
+    ElMessage.error(e.message || 'Failed to delete node')
   }
 }
 
 // =====================================================================
-//  设备列表（使用 deploymentApi 获取完整信息）
+//  Device List
 // =====================================================================
 const currentDevices = ref<DeviceDeployment[]>([])
 const searchQuery = ref('')
 const submitting = ref(false)
-
-const realCount = computed(() => currentDevices.value.filter(d => !d.isMock).length)
 
 async function loadNodeDevices(nodeId: number) {
   devicesLoading.value = true
   try {
     currentDevices.value = await deploymentApi.listByNode(nodeId)
   } catch (e: any) {
-    ElMessage.error(e.message || '加载设备列表失败')
+    ElMessage.error(e.message || 'Failed to load device list')
   } finally {
     devicesLoading.value = false
   }
@@ -848,7 +857,7 @@ const filteredDevices = computed(() => {
   return list
 })
 
-// 批量管理
+// Batch Management
 const selectedDevices = ref<DeviceDeployment[]>([])
 const isBatchManaging = ref(false)
 
@@ -865,14 +874,14 @@ function exitBatchManage() {
 }
 
 // =====================================================================
-//  设备详情/编辑
+//  Device Detail / Edit
 // =====================================================================
 const deviceForm = ref<any>({})
 const devicePoints = ref<PointDeploymentItem[]>([])
 const isEditing = ref(false)
 const detailFormRef = ref<FormInstance>()
 const detailRules = ref<FormRules>({
-  deviceDeployName: [{ required: true, message: '请输入设备名称', trigger: 'blur' }],
+  deviceDeployName: [{ required: true, message: 'Please enter device name', trigger: 'blur' }],
   macAddress: [{ validator: validateMacAddress, trigger: 'blur' }]
 })
 
@@ -885,7 +894,7 @@ async function viewDeviceDetail(row: DeviceDeployment) {
     viewMode.value = 'detail'
     isEditing.value = false
   } catch (e: any) {
-    ElMessage.error(e.message || '加载设备详情失败')
+    ElMessage.error(e.message || 'Failed to load device details')
   } finally {
     devicesLoading.value = false
   }
@@ -894,7 +903,6 @@ async function viewDeviceDetail(row: DeviceDeployment) {
 function goBackToList() {
   viewMode.value = 'list'
   isEditing.value = false
-  // 刷新当前节点设备列表
   if (selectedNode.value && isLeafNode(selectedNode.value)) {
     loadNodeDevices(selectedNode.value.nodeId)
   }
@@ -906,7 +914,7 @@ function startEdit() {
 
 function validateMacAddress(_rule: any, value: any, callback: any) {
   if (value && !/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/.test(value)) {
-    callback(new Error('MAC地址格式无效，应如 00:1A:2B:3C:4D:5E'))
+    callback(new Error('Invalid MAC address format (e.g. 00:1A:2B:3C:4D:5E)'))
     return
   }
   callback()
@@ -914,7 +922,7 @@ function validateMacAddress(_rule: any, value: any, callback: any) {
 
 async function submitUpdate() {
   if (!deviceForm.value.deviceDeployId) {
-    ElMessage.error('无法保存: 缺少设备ID')
+    ElMessage.error('Cannot save: Missing device ID')
     return
   }
   if (!detailFormRef.value) return
@@ -943,34 +951,34 @@ async function submitUpdate() {
     }
     await deploymentApi.update(deviceForm.value.deviceDeployId, payload)
     await store.refreshAfterMutation()
-    ElMessage.success('更新设备属性成功')
+    ElMessage.success('Device updated successfully')
     isEditing.value = false
     await viewDeviceDetail(deviceForm.value)
   } catch (err: any) {
-    ElMessage.error(err.message || '更新失败')
+    ElMessage.error(err.message || 'Update failed')
   } finally {
     submitting.value = false
   }
 }
 
 // =====================================================================
-//  设备删除
+//  Device Delete
 // =====================================================================
 function deleteDeviceFromDetail() {
-  ElMessageBox.confirm(`确认删除已部署设备 "${deviceForm.value.deviceDeployName}" 吗？该操作将物理删除该设备及其所有部署点位。`, '删除设备确认', {
-    confirmButtonText: '确定删除',
-    cancelButtonText: '取消',
+  ElMessageBox.confirm(`Are you sure you want to delete deployed device "${deviceForm.value.deviceDeployName}"? This will permanently delete the device and all its points.`, 'Delete Confirmation', {
+    confirmButtonText: 'Delete',
+    cancelButtonText: 'Cancel',
     type: 'warning',
     confirmButtonClass: 'el-button--danger'
   }).then(async () => {
     try {
       devicesLoading.value = true
       await deploymentApi.remove(deviceForm.value.deviceDeployId)
-      ElMessage.success('删除设备成功')
+      ElMessage.success('Device deleted successfully')
       viewMode.value = 'list'
       await refreshAfterChange()
     } catch (e: any) {
-      ElMessage.error(e.message || '删除设备失败')
+      ElMessage.error(e.message || 'Failed to delete device')
     } finally {
       devicesLoading.value = false
     }
@@ -978,19 +986,19 @@ function deleteDeviceFromDetail() {
 }
 
 function deleteDeviceFromTable(row: DeviceDeployment) {
-  ElMessageBox.confirm(`确认删除已部署设备 "${row.deviceDeployName}" 吗？该操作将物理删除该设备及其所有部署点位。`, '删除设备确认', {
-    confirmButtonText: '确定删除',
-    cancelButtonText: '取消',
+  ElMessageBox.confirm(`Are you sure you want to delete deployed device "${row.deviceDeployName}"? This will permanently delete the device and all its points.`, 'Delete Confirmation', {
+    confirmButtonText: 'Delete',
+    cancelButtonText: 'Cancel',
     type: 'warning',
     confirmButtonClass: 'el-button--danger'
   }).then(async () => {
     try {
       devicesLoading.value = true
       await deploymentApi.remove(row.deviceDeployId!)
-      ElMessage.success('删除设备成功')
+      ElMessage.success('Device deleted successfully')
       await refreshAfterChange()
     } catch (e: any) {
-      ElMessage.error(e.message || '删除设备失败')
+      ElMessage.error(e.message || 'Failed to delete device')
     } finally {
       devicesLoading.value = false
     }
@@ -998,9 +1006,9 @@ function deleteDeviceFromTable(row: DeviceDeployment) {
 }
 
 function batchDeleteDevices() {
-  ElMessageBox.confirm(`确认删除选中的 ${selectedDevices.value.length} 个已部署设备吗？该操作将物理删除这些设备及其所有部署点位。`, '批量删除确认', {
-    confirmButtonText: '确定删除',
-    cancelButtonText: '取消',
+  ElMessageBox.confirm(`Are you sure you want to delete ${selectedDevices.value.length} selected device(s)? This will permanently delete the devices and all their points.`, 'Batch Delete Confirmation', {
+    confirmButtonText: 'Delete',
+    cancelButtonText: 'Cancel',
     type: 'warning',
     confirmButtonClass: 'el-button--danger'
   }).then(async () => {
@@ -1009,9 +1017,9 @@ function batchDeleteDevices() {
       for (const d of selectedDevices.value) {
         await deploymentApi.remove(d.deviceDeployId!)
       }
-      ElMessage.success('批量删除设备成功')
+      ElMessage.success('Batch delete completed successfully')
     } catch (e: any) {
-      ElMessage.error(e.message || '批量删除失败')
+      ElMessage.error(e.message || 'Batch delete failed')
     } finally {
       selectedDevices.value = []
       isBatchManaging.value = false
@@ -1030,7 +1038,7 @@ async function refreshAfterChange() {
 }
 
 // =====================================================================
-//  部署新设备弹窗
+//  Deploy New Device Dialog
 // =====================================================================
 const deployDialogVisible = ref(false)
 const deploySubmitting = ref(false)
@@ -1044,14 +1052,14 @@ const deployForm = ref({
   installDate: ''
 })
 const deployRules = ref<FormRules>({
-  deviceTmplId: [{ required: true, message: '请选择设备所属模板', trigger: 'change' }],
-  deviceDeployName: [{ required: true, message: '请输入部署设备名称', trigger: 'blur' }],
+  deviceTmplId: [{ required: true, message: 'Please select device template', trigger: 'change' }],
+  deviceDeployName: [{ required: true, message: 'Please enter device name', trigger: 'blur' }],
   macAddress: [{ validator: validateMacAddress, trigger: 'blur' }]
 })
 
 function openDeployDialog() {
   if (!selectedNode.value) {
-    ElMessage.warning('请先从左侧导航树中选择具体的部署节点！')
+    ElMessage.warning('Please select a deployment node from the left tree first!')
     return
   }
   deployForm.value = {
@@ -1075,7 +1083,7 @@ async function submitDeploy() {
   await deployFormRef.value.validate(async (valid) => {
     if (valid) {
       if (!selectedNode.value?.nodeId) {
-        ElMessage.warning('当前选择的节点无效，请重新在左侧导航树中选择！')
+        ElMessage.warning('Invalid target node, please select again.')
         return
       }
       deploySubmitting.value = true
@@ -1090,11 +1098,11 @@ async function submitDeploy() {
       }
       try {
         await deploymentApi.create(payload)
-        ElMessage.success('部署新设备并生成点位成功！')
+        ElMessage.success('Device deployed and points generated successfully!')
         deployDialogVisible.value = false
         await refreshAfterChange()
       } catch (err: any) {
-        ElMessage.error(err.message || '部署设备失败')
+        ElMessage.error(err.message || 'Failed to deploy device')
       } finally {
         deploySubmitting.value = false
       }
@@ -1102,9 +1110,8 @@ async function submitDeploy() {
   })
 }
 
-
 // =====================================================================
-//  设备挂载/卸载
+//  Mount / Unmount Device
 // =====================================================================
 const mountDialogVisible = ref(false)
 const mountSubmitting = ref(false)
@@ -1117,7 +1124,7 @@ async function openMountDialog() {
   try {
     mountableDevices.value = await dashboardNavApi.getMountableDevices()
   } catch (e: any) {
-    ElMessage.error(e.message || '加载可挂载设备失败')
+    ElMessage.error(e.message || 'Failed to load mountable devices')
   }
 }
 
@@ -1133,11 +1140,11 @@ async function submitMount() {
       selectedNode.value.nodeId,
       mountSelectedIds.value,
     )
-    ElMessage.success(`成功挂载 ${count} 台设备`)
+    ElMessage.success(`Successfully mounted ${count} device(s)`)
     mountDialogVisible.value = false
     await refreshAfterChange()
   } catch (e: any) {
-    ElMessage.error(e.message || '挂载失败')
+    ElMessage.error(e.message || 'Mount failed')
   } finally {
     mountSubmitting.value = false
   }
@@ -1146,24 +1153,24 @@ async function submitMount() {
 async function handleUnmount(device: DeviceDeployment) {
   try {
     await ElMessageBox.confirm(
-      `确认将设备 "${device.deviceDeployName}" 从当前节点卸载吗？卸载后该设备不再出现在任何导航分组中。`,
-      '卸载确认',
-      { confirmButtonText: '确定卸载', cancelButtonText: '取消', type: 'warning' },
+      `Are you sure you want to unmount device "${device.deviceDeployName}" from the current node?`,
+      'Unmount Confirmation',
+      { confirmButtonText: 'Unmount', cancelButtonText: 'Cancel', type: 'warning' },
     )
   } catch {
     return
   }
   try {
     await dashboardNavApi.unmountDevice(device.deviceDeployId!)
-    ElMessage.success('已卸载')
+    ElMessage.success('Unmounted successfully')
     await refreshAfterChange()
   } catch (e: any) {
-    ElMessage.error(e.message || '卸载失败')
+    ElMessage.error(e.message || 'Unmount failed')
   }
 }
 
 // =====================================================================
-//  辅助函数
+//  Helper Functions
 // =====================================================================
 function getStatusClass(status: number): string {
   switch (status) {
@@ -1176,44 +1183,54 @@ function getStatusClass(status: number): string {
 }
 function getStatusText(status: number): string {
   switch (status) {
-    case 1: return '在线'
-    case 2: return '离线'
-    case 3: return '维护'
-    case 4: return '故障'
-    default: return '未知'
+    case 1: return 'Online'
+    case 2: return 'Offline'
+    case 3: return 'Maintenance'
+    case 4: return 'Fault'
+    default: return 'Unknown'
   }
 }
+
+function cleanPointType(type: any): string {
+  if (!type) return ''
+  return String(type).replace(/['"]/g, '').trim().toUpperCase()
+}
+
 function getPointTypeText(type: string): string {
-  switch (type) {
-    case 'DI': return 'DI - 数字输入'
-    case 'DO': return 'DO - 数字输出'
-    case 'AI': return 'AI - 模拟输入'
-    case 'AO': return 'AO - 模拟输出'
-    default: return type || '未知'
+  const cleaned = cleanPointType(type)
+  switch (cleaned) {
+    case 'DI': return 'DI'
+    case 'DO': return 'DO'
+    case 'AI': return 'AI'
+    case 'AO': return 'AO'
+    default: return cleaned || 'Unknown'
   }
 }
+
 function getPointTypeClass(type: string): string {
-  switch (type) {
+  const cleaned = cleanPointType(type)
+  switch (cleaned) {
     case 'DI': return 'type-di'
     case 'DO': return 'type-do'
     case 'AI': return 'type-ai'
     case 'AO': return 'type-ao'
-    default: return ''
+    default: return 'type-default'
   }
 }
+
 function openDeviceAlarmConfig() {
-  ElMessageBox.alert(`当前正在为该设备配置报警规则：当设备离线或心跳失效时，下属测点全部报通信异常故障。`, '配置设备本身报警', {
-    confirmButtonText: '确定'
+  ElMessageBox.alert(`Configuring device-level alarm rules: When the device is offline or heartbeat fails, all sub-points report communication faults.`, 'Set Device Alarm', {
+    confirmButtonText: 'OK'
   })
 }
 function openPointAlarmConfig(row: any) {
-  ElMessageBox.alert(`当前正在为部署测点 [${row.pointName}] 配置报警规则：高低限阈值触发、报警推送通道等。`, '配置点位报警', {
-    confirmButtonText: '确定'
+  ElMessageBox.alert(`Configuring point alarm rules for [${row.pointName}]: Thresholds, notification channels, etc.`, 'Point Alarm Rule', {
+    confirmButtonText: 'OK'
   })
 }
 
 // =====================================================================
-//  初始化
+//  Initialization
 // =====================================================================
 onMounted(async () => {
   await loadTree()
@@ -1224,81 +1241,98 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
+$bg-card: #111b27;
+$bg-card-hover: #1e293b;
+$border-color: #1e293b;
+$border-card: #2d3748;
+$text-primary: #e5e7eb;
+$text-secondary: #9ca3af;
+$text-muted: #64748b;
+$accent-green: #10b981;
+$accent-blue: #3b82f6;
+$accent-yellow: #f59e0b;
+$accent-red: #ef4444;
+$bg-dark: #0b1119;
+
 .system-deployment-view {
   display: flex;
-  gap: 16px;
+  gap: 12px;
   height: 100%;
   min-height: 0;
 }
 
-// ===== 左侧树面板 =====
+// ===== Left Tree Panel =====
 .nav-tree-panel {
-  width: 320px;
+  width: 280px;
   flex-shrink: 0;
-  background-color: $bg-card;
-  border: 1px solid $border-color;
-  border-radius: 8px;
+  background-color: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 6px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
 .panel-header {
-  height: 48px;
+  height: 38px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
-  border-bottom: 1px solid $border-color;
+  padding: 0 12px;
+  border-bottom: 1px solid #1f2937;
   flex-shrink: 0;
 }
 
 .panel-title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   color: $text-primary;
-  font-size: 14px;
+  font-size: 11px;
   font-weight: 600;
 
   .el-icon {
     color: $accent-green;
-    font-size: 16px;
+    font-size: 13px;
   }
 }
 
 .title-icon {
   color: $accent-green;
-  font-size: 16px;
+  font-size: 13px;
 }
 
 .detail-header {
   .header-actions {
     display: flex;
-    gap: 8px;
+    gap: 6px;
   }
 }
 
 .tree-body {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: 6px;
 }
 
 .deploy-tree {
   background: transparent !important;
 
   :deep(.el-tree-node__content) {
-    height: 34px;
+    height: 22px !important;
     border-radius: 4px;
     margin: 1px 0;
+    padding: 0 4px !important;
+
     &:hover {
-      background-color: rgba(255, 255, 255, 0.06) !important;
+      background-color: #1a2332 !important;
     }
   }
 
   :deep(.el-tree-node.is-current > .el-tree-node__content) {
-    background-color: rgba(0, 230, 118, 0.15) !important;
+    background-color: rgba(16, 185, 129, 0.16) !important;
+    color: #34d399 !important;
+    font-weight: 500;
   }
 }
 
@@ -1314,13 +1348,13 @@ onMounted(async () => {
 .tree-node-label {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
+  gap: 5px;
+  font-size: 10px;
   overflow: hidden;
   flex: 1;
 
   .node-icon {
-    font-size: 14px;
+    font-size: 12px;
     color: $text-secondary;
     &.real-data-icon {
       color: $accent-green;
@@ -1331,6 +1365,7 @@ onMounted(async () => {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-size: 10px;
   }
 
   &.level-1 {
@@ -1348,18 +1383,25 @@ onMounted(async () => {
 }
 
 .count-badge {
-  font-size: 11px;
+  font-size: 9px;
   color: $accent-green;
   background-color: rgba($accent-green, 0.12);
-  padding: 1px 6px;
-  border-radius: 10px;
+  padding: 0 4px;
+  border-radius: 6px;
   flex-shrink: 0;
+  line-height: 14px;
 }
 
 .node-actions {
   display: none;
   gap: 2px;
   flex-shrink: 0;
+
+  :deep(.el-button) {
+    height: 18px !important;
+    padding: 0 2px !important;
+    font-size: 10px !important;
+  }
 }
 
 .tree-node-row:hover .node-actions {
@@ -1370,13 +1412,13 @@ onMounted(async () => {
   color: $accent-red !important;
 }
 
-// ===== 右侧面板 =====
+// ===== Right Panel =====
 .detail-panel {
   flex: 1;
   min-width: 0;
   background-color: $bg-card;
   border: 1px solid $border-color;
-  border-radius: 8px;
+  border-radius: 6px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1385,23 +1427,23 @@ onMounted(async () => {
 .detail-body {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 8px 12px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
 }
 
 .info-card {
   background-color: $bg-dark;
   border: 1px solid $border-color;
-  border-radius: 6px;
-  padding: 12px 16px;
+  border-radius: 4px;
+  padding: 6px 10px;
 }
 
 .info-row {
   display: flex;
-  padding: 4px 0;
-  font-size: 13px;
+  padding: 2px 0;
+  font-size: 10px;
 
   .info-label {
     width: 80px;
@@ -1416,7 +1458,7 @@ onMounted(async () => {
 .device-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
   flex: 1;
   min-height: 0;
 }
@@ -1426,68 +1468,116 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 
   h3 {
     margin: 0;
-    font-size: 14px;
+    font-size: 11px;
     color: $text-primary;
     font-weight: 600;
   }
   .section-count {
     color: $accent-green;
-    font-size: 13px;
+    font-size: 11px;
     font-weight: 500;
   }
 }
 
 .header-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
 }
 
 .search-box-table {
-  width: 320px;
+  width: 240px;
   flex-shrink: 0;
 
   :deep(.el-input__wrapper) {
     background-color: $bg-dark !important;
+    height: 22px !important;
+    padding: 0 6px !important;
+  }
+
+  :deep(.el-input__inner) {
+    font-size: 10px !important;
+    height: 22px !important;
+    line-height: 22px !important;
   }
 }
 
-// ===== 设备详情表单 =====
+// ===== Device Details Form =====
 .custom-form-compact {
   background-color: rgba($bg-card-hover, 0.3);
-  border-radius: 8px;
-  padding: 16px;
+  border-radius: 6px;
+  padding: 6px 10px 0;
   border: 1px solid $border-color;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
   flex-shrink: 0;
 
   :deep(.el-form-item) {
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
   :deep(.el-form-item__label) {
     color: $text-secondary;
     font-weight: 500;
+    font-size: 10px !important;
+    height: 20px !important;
+    line-height: 20px !important;
+    padding-right: 6px !important;
   }
-  :deep(.el-input__wrapper) {
+  :deep(.el-input__wrapper),
+  :deep(.el-select__wrapper),
+  :deep(.el-date-editor.el-input__wrapper) {
     background-color: $bg-dark !important;
+    height: 20px !important;
+    min-height: 20px !important;
+    line-height: 20px !important;
+    padding: 0 6px !important;
+    border-radius: 4px !important;
+    border: 1px solid $border-color !important;
+    box-shadow: none !important;
+  }
+  :deep(.el-input.is-disabled .el-input__wrapper),
+  :deep(.el-select.is-disabled .el-select__wrapper),
+  :deep(.el-select__wrapper.is-disabled),
+  :deep(.el-date-editor.is-disabled),
+  :deep(.el-date-editor.is-disabled.el-input__wrapper) {
+    background-color: rgba(11, 17, 25, 0.85) !important;
+    border-color: rgba(30, 41, 59, 0.8) !important;
+    box-shadow: none !important;
+  }
+  :deep(.el-input__inner),
+  :deep(.el-select__selected-item),
+  :deep(.el-select__placeholder) {
+    font-size: 10px !important;
+    height: 20px !important;
+    line-height: 20px !important;
+    color: #e5e7eb !important;
+  }
+  :deep(.el-input.is-disabled .el-input__inner),
+  :deep(.el-select.is-disabled .el-select__selected-item),
+  :deep(.el-select__wrapper.is-disabled .el-select__selected-item),
+  :deep(.el-date-editor.is-disabled .el-input__inner) {
+    color: #94a3b8 !important;
+    -webkit-text-fill-color: #94a3b8 !important;
+  }
+  :deep(.el-input__prefix), :deep(.el-input__suffix), :deep(.el-select__suffix) {
+    font-size: 10px !important;
   }
 }
 
 .extra-property-buttons {
   display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
   border-bottom: 1px dashed rgba($border-color, 0.6);
   flex-shrink: 0;
 }
 
 .point-table-section {
-  margin-top: 16px;
+  margin-top: 8px;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -1498,81 +1588,115 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 6px;
   flex-shrink: 0;
 }
 
 .section-title {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
+  gap: 6px;
+  font-size: 11px;
   font-weight: 600;
   color: $text-primary;
 
   .section-icon {
     color: $accent-green;
-    font-size: 16px;
+    font-size: 13px;
   }
 }
 
-// ===== 表格样式 =====
+// ===== Table Style =====
 .custom-table {
   --el-table-border-color: #1f2937;
-  --el-table-header-bg-color: #1a2332;
-  --el-table-tr-bg-color: transparent;
+  --el-table-header-bg-color: #0d1117;
+  --el-table-text-color: #e5e7eb;
+  --el-table-header-text-color: #e5e7eb;
 
-  background-color: transparent !important;
+  font-size: 10px !important;
 
-  :deep(tr) {
-    background-color: transparent !important;
-    color: $text-primary;
-
-    &:hover td {
-      background-color: $bg-card-hover !important;
-    }
+  .el-table .cell {
+    line-height: 20px;
   }
 
-  :deep(th) {
-    background-color: #182232 !important;
-    color: $text-secondary;
-    font-weight: 600;
+  .el-table__inner-wrapper {
+    background-color: #111827;
   }
 
-  :deep(td) {
+  .el-table__body-wrapper {
+    background-color: #111827;
+  }
+
+  .el-table__header-wrapper {
+    background-color: #0d1117;
+  }
+
+  .el-table__row {
+    background-color: #111827;
+  }
+
+  .el-table__row:hover > td {
+    background-color: #1a2332 !important;
+  }
+
+  td, th {
     border-bottom: 1px solid #1f2937;
+  }
+
+  :deep(.el-table__cell) {
+    padding: 0 0 !important;
+  }
+  :deep(.el-table__cell .cell) {
+    padding: 0 4px !important;
+  }
+  :deep(.el-table__header-cell) {
+    padding: 0 4px !important;
+  }
+  :deep(td.el-table__cell .cell),
+  :deep(th.el-table__cell .cell) {
+    padding: 0 4px !important;
+    line-height: 20px !important;
+    height: 20px !important;
+    font-size: 10px !important;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+  }
+  :deep(td.el-table__cell.is-center .cell) {
+    justify-content: center;
+  }
+  :deep(th.el-table__cell.is-center .cell) {
+    justify-content: center;
   }
 }
 
 .device-link {
   font-weight: 500;
   cursor: pointer;
-}
-
-.data-tag {
-  margin-left: 4px;
+  font-size: 10px;
 }
 
 .addr-code {
   background-color: rgba($text-muted, 0.1);
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: 1px 4px;
+  border-radius: 2px;
   font-family: monospace;
   color: $text-secondary;
-  font-size: 12px;
+  font-size: 10px;
+  line-height: 16px;
 }
 
-// ===== 点位类型 Badge =====
+// ===== Point Type Badge =====
 .type-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 3px 11px;
-  border-radius: 11px;
-  font-size: 13px;
+  padding: 0 6px;
+  height: 16px;
+  border-radius: 8px;
+  font-size: 10px;
   font-weight: 400;
-  line-height: 1.25;
-  letter-spacing: 0.1px;
+  line-height: 16px;
   border: none;
   transition: all 0.2s ease-in-out;
 
@@ -1599,35 +1723,36 @@ onMounted(async () => {
   }
 }
 
-// ===== 状态指示器 =====
+// ===== Status Dot Indicator =====
 .status-dot {
   display: inline-block;
-  width: 7px;
-  height: 7px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   margin-right: 4px;
-  &.online { background-color: $accent-green; box-shadow: 0 0 6px rgba(0, 230, 118, 0.6); }
+  &.online { background-color: $accent-green; box-shadow: 0 0 4px rgba(0, 230, 118, 0.6); }
   &.offline { background-color: $text-muted; }
-  &.maintenance { background-color: $accent-yellow; box-shadow: 0 0 6px rgba(255, 213, 79, 0.6); }
-  &.fault { background-color: #ff5252; box-shadow: 0 0 6px rgba(255, 82, 82, 0.6); }
+  &.maintenance { background-color: $accent-yellow; box-shadow: 0 0 4px rgba(255, 213, 79, 0.6); }
+  &.fault { background-color: #ff5252; box-shadow: 0 0 4px rgba(255, 82, 82, 0.6); }
 }
 .status-text {
-  font-size: 12px;
+  font-size: 10px;
   color: $text-secondary;
 }
 
-// ===== 通用 =====
+// ===== General =====
 .empty-text {
   color: $text-muted;
-  font-size: 13px;
+  font-size: 10px;
 }
 
 .select-prompt {
   margin: auto;
+  font-size: 10px;
 }
 
 .form-tip {
-  font-size: 12px;
+  font-size: 10px;
   color: $text-muted;
   margin-top: 4px;
   line-height: 1.4;
@@ -1636,7 +1761,7 @@ onMounted(async () => {
 .mount-selected-tip {
   margin-right: auto;
   color: $accent-green;
-  font-size: 13px;
+  font-size: 10px;
 }
 
 .text-secondary {
@@ -1647,6 +1772,7 @@ onMounted(async () => {
   :deep(.el-form-item__label) {
     color: $text-secondary;
     font-weight: 500;
+    font-size: 10px;
   }
   :deep(.el-input__wrapper) {
     background-color: $bg-dark !important;
@@ -1660,25 +1786,25 @@ onMounted(async () => {
 
   .el-dialog__title {
     color: $text-primary;
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 600;
   }
 
   .el-dialog__body {
     border-top: 1px solid #1f2937;
     border-bottom: 1px solid #1f2937;
-    padding: 20px 24px;
+    padding: 16px 20px;
   }
 }
 
 :deep(.el-tag) {
   border: none !important;
-  border-radius: 11px !important;
-  font-size: 13px !important;
+  border-radius: 8px !important;
+  font-size: 10px !important;
   font-weight: 400 !important;
-  padding: 3px 11px !important;
-  line-height: 1.25 !important;
-  height: auto !important;
+  padding: 0 6px !important;
+  line-height: 16px !important;
+  height: 16px !important;
 
   &.el-tag--success {
     background-color: rgba($accent-green, 0.14) !important;
@@ -1694,48 +1820,55 @@ onMounted(async () => {
   }
 }
 
-// ===== 按钮背景与文字优雅调优 =====
-// 1. 实心 Primary 按钮（深翠绿渐变背景 + 纯白高对比文字）
-:deep(.el-button--primary:not(.is-plain):not(.is-link)) {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
-  border-color: #059669 !important;
-  color: #ffffff !important;
-  font-weight: 500 !important;
-  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25) !important;
+:deep(.el-button) {
+  border-radius: 9px !important;
+  border: none !important;
+  font-size: 10px !important;
+  font-weight: 400 !important;
+  padding: 2px 8px !important;
+  height: 20px !important;
+  line-height: 16px !important;
+  transition: all 0.2s ease-in-out;
 
   &:hover {
-    background: linear-gradient(135deg, #34d399 0%, #10b981 100%) !important;
-    border-color: #10b981 !important;
-    color: #ffffff !important;
-    box-shadow: 0 4px 10px rgba(16, 185, 129, 0.35) !important;
+    transform: translateY(-0.5px);
+  }
+
+  &.is-link {
+    background-color: transparent !important;
+    padding: 0 2px !important;
+    border-radius: 4px !important;
+    height: auto !important;
   }
 }
 
-// 2. 浅亮色 Plain Primary 按钮（浅靓清新绿底 + 沉稳高对比度深绿字）
-:deep(.el-button--primary.is-plain) {
-  background-color: #ecfdf5 !important;
-  border-color: #a7f3d0 !important;
-  color: #047857 !important;
-  font-weight: 400 !important;
+.btn-primary, :deep(.el-button--primary:not(.is-link)) {
+  background-color: rgba($accent-green, 0.16) !important;
+  color: #34d399 !important;
 
   &:hover {
-    background-color: #d1fae5 !important;
-    border-color: #6ee7b7 !important;
-    color: #065f46 !important;
+    background-color: rgba($accent-green, 0.28) !important;
+    color: #6ee7b7 !important;
   }
 }
 
-// 3. 浅亮色 Plain Danger 按钮（浅亮浅红底 + 沉稳高对比度深红字）
-:deep(.el-button--danger.is-plain) {
-  background-color: #fef2f2 !important;
-  border-color: #fca5a5 !important;
-  color: #b91c1c !important;
-  font-weight: 400 !important;
+.btn-secondary, :deep(.el-button--default:not(.is-link)), :deep(.el-button--info:not(.is-link)) {
+  background-color: rgba($accent-blue, 0.16) !important;
+  color: #93c5fd !important;
 
   &:hover {
-    background-color: #fee2e2 !important;
-    border-color: #f87171 !important;
-    color: #991b1b !important;
+    background-color: rgba($accent-blue, 0.28) !important;
+    color: #bfdbfe !important;
+  }
+}
+
+.btn-danger, :deep(.el-button--danger:not(.is-link)) {
+  background-color: rgba($accent-red, 0.16) !important;
+  color: #fca5a5 !important;
+
+  &:hover {
+    background-color: rgba($accent-red, 0.28) !important;
+    color: #fecaca !important;
   }
 }
 </style>

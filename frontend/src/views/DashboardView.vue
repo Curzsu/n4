@@ -1,12 +1,12 @@
 <template>
   <div class="dashboard-view" v-loading="store.loading">
-    <!-- 未选导航节点：显示首页数据总览 -->
+    <!-- Unselected navigation node: render dashboard overview -->
     <template v-if="!store.currentNavNode">
       <KpiCardsRow />
       <BuildingPlaceholder />
       <TrendChartsGrid />
     </template>
-    <!-- 选了导航节点：显示该节点下设备列表 -->
+    <!-- Selected navigation node: render device list under the node -->
     <template v-else>
       <FuxaCabinMonitorPanel
         v-if="isConfiguredCabin"
@@ -40,11 +40,11 @@ const router = useRouter()
 const configuredCabins = ref<string[]>([])
 
 const currentTitle = computed(() => {
-  if (!store.currentNavNode) return '设备列表'
+  if (!store.currentNavNode) return 'Device List'
   const node = store.currentNavNode
   const isLeafGroup = !node.children || node.children.length === 0
   if (!isLeafGroup) {
-    return `${node.nodeName} - 全部设备`
+    return `${node.nodeName} - All Devices`
   }
   return node.nodeName
 })
