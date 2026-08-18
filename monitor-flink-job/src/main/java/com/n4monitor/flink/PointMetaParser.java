@@ -6,7 +6,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Parsing of point metadata: the Redis point-rule map entry ({"type",
- * "alarm_code"}) and the mqtt path segments (point name, location, source).
+ * "alarm_code"}) and the mqtt path segments (location, source).
  * Extracted verbatim from AlarmProcessFunction.
  */
 final class PointMetaParser {
@@ -43,13 +43,6 @@ final class PointMetaParser {
             log.warn("Failed to parse point metadata for path {}: {}", path, e.getMessage());
         }
         return new PointMeta(type, alarmName);
-    }
-
-    static String extractPointName(String path) {
-        if (path == null || path.isEmpty()) return "";
-        String normalized = path.startsWith("/") ? path.substring(1) : path;
-        String[] parts = normalized.split("/");
-        return parts.length > 0 ? parts[parts.length - 1] : "";
     }
 
     static String extractLocation(String path) {
