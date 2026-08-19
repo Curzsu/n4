@@ -35,13 +35,13 @@
         :cell-style="cellStyle"
         max-height="480"
       >
-        <el-table-column prop="pointName" label="Point Name" min-width="200" show-overflow-tooltip :resizable="false">
+        <el-table-column prop="pointName" label="Point Name" width="160" show-overflow-tooltip :resizable="false">
           <template #default="{ row }">
             <span class="point-name">{{ row.pointName }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column prop="dataType" label="Type" width="100" align="center" :resizable="false">
+        <el-table-column prop="dataType" label="Type" width="90" :resizable="false">
           <template #default="{ row }">
             <span :class="['type-tag', row.dataType === 'enum' ? 'tag-enum' : 'tag-numeric']">
               {{ row.dataType || 'numeric' }}

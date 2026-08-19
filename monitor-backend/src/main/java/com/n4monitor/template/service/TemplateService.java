@@ -97,11 +97,12 @@ public class TemplateService {
     public void updatePoint(Long pointTmplId, PointTemplate point) {
         PointTemplate existing = pointTemplateMapper.findByPointTmplId(pointTmplId);
         if (existing == null) {
-            throw new IllegalArgumentException("点位不存在或已删除");
+            throw new IllegalArgumentException("Point not found or deleted");
         }
         if (point.getPointName() == null || point.getPointName().trim().isEmpty()) {
-            throw new IllegalArgumentException("点位名称不能为空");
+            throw new IllegalArgumentException("Point name cannot be empty");
         }
+        existing.setAlarmCode(point.getAlarmCode());
         existing.setPointName(point.getPointName());
         existing.setPointType(point.getPointType());
         existing.setDataType(point.getDataType());

@@ -180,17 +180,10 @@
                 :header-cell-style="headerCellStyle"
                 :cell-style="cellStyle"
               >
-                <el-table-column prop="pointName" label="Point Name" min-width="220" show-overflow-tooltip :resizable="false" />
-                <el-table-column prop="pointType" label="Point Type" min-width="110" align="center" :resizable="false">
-                  <template #default="{ row }">
-                    <span :class="['type-badge', getPointTypeClass(row.pointType)]">
-                      {{ getPointTypeText(row.pointType) }}
-                    </span>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="dataType" label="Data Type" width="100" align="center" :resizable="false" />
-                <el-table-column prop="unit" label="Unit" width="80" align="center" :resizable="false" />
-                <el-table-column prop="register" label="Register Address" min-width="160" align="center" :resizable="false">
+                <el-table-column prop="pointName" label="Point Name" min-width="180" show-overflow-tooltip :resizable="false" />
+                <el-table-column prop="dataType" label="Data Type" width="110" :resizable="false" />
+                <el-table-column prop="unit" label="Unit" width="90" :resizable="false" />
+                <el-table-column prop="register" label="Register Address" min-width="150" :resizable="false">
                   <template #default="{ row }">
                     <el-input
                       v-if="isEditing"
@@ -201,7 +194,7 @@
                     <code v-else class="addr-code">{{ row.register || 'N/A' }}</code>
                   </template>
                 </el-table-column>
-                <el-table-column label="Actions" width="120" fixed="right" align="center" :resizable="false">
+                <el-table-column label="Actions" width="120" fixed="right" :resizable="false">
                   <template #default="{ row }">
                     <el-button size="small" type="primary" link :icon="Warning" @click="openPointAlarmConfig(row)">Alarm Rule</el-button>
                   </template>
@@ -302,25 +295,25 @@
                 :cell-style="cellStyle"
                 @selection-change="handleDeviceSelectionChange"
               >
-                <el-table-column v-if="isBatchManaging" type="selection" width="35" align="center" :resizable="false" />
-                <el-table-column prop="deviceDeployId" label="ID" width="55" align="center" :resizable="false" />
-                <el-table-column prop="deviceDeployName" label="Device Name" min-width="220" show-overflow-tooltip :resizable="false">
+                <el-table-column v-if="isBatchManaging" type="selection" width="30" :resizable="false" />
+                <el-table-column prop="deviceDeployId" label="ID" width="55" :resizable="false" />
+                <el-table-column prop="deviceDeployName" label="Device Name" min-width="180" show-overflow-tooltip :resizable="false">
                   <template #default="{ row }">
                     <el-link type="primary" class="device-link" @click="viewDeviceDetail(row as DeviceDeployment)">
                       {{ row.deviceDeployName }}
                     </el-link>
                   </template>
                 </el-table-column>
-                <el-table-column prop="deviceAlias" label="Device Alias" width="150" show-overflow-tooltip :resizable="false" />
-                <el-table-column prop="deviceType" label="Device Type" width="110" align="center" :resizable="false" />
-                <el-table-column prop="manufacturer" label="Manufacturer" width="110" align="center" :resizable="false" />
-                <el-table-column label="Status" width="90" align="center" :resizable="false">
+                <el-table-column prop="deviceAlias" label="Device Alias" min-width="140" show-overflow-tooltip :resizable="false" />
+                <el-table-column prop="deviceType" label="Device Type" width="110" show-overflow-tooltip :resizable="false" />
+                <el-table-column prop="manufacturer" label="Manufacturer" width="120" show-overflow-tooltip :resizable="false" />
+                <el-table-column label="Status" width="90" :resizable="false">
                   <template #default="{ row }">
                     <span class="status-dot" :class="getStatusClass(row.status)"></span>
                     <span class="status-text">{{ getStatusText(row.status) }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column label="Actions" width="160" align="center" fixed="right" :resizable="false">
+                <el-table-column label="Actions" width="160" fixed="right" :resizable="false">
                   <template #default="{ row }">
                     <el-button type="primary" link size="small" @click="viewDeviceDetail(row as DeviceDeployment)">Edit</el-button>
                     <el-button type="primary" link size="small" @click="handleUnmount(row as DeviceDeployment)">Unmount</el-button>
@@ -340,8 +333,8 @@
               </div>
               <el-table :data="selectedNode.children || []" class="custom-table" border size="small" :header-cell-style="headerCellStyle" :cell-style="cellStyle">
                 <el-table-column prop="nodeName" label="Group Name" min-width="200" :resizable="false" />
-                <el-table-column prop="deviceCount" label="Devices" min-width="100" align="center" :resizable="false" />
-                <el-table-column prop="sortOrder" label="Sort Order" min-width="100" align="center" :resizable="false" />
+                <el-table-column prop="deviceCount" label="Devices" width="100" :resizable="false" />
+                <el-table-column prop="sortOrder" label="Sort Order" width="100" :resizable="false" />
                 <template #empty>
                   <span class="empty-text">No child groups under this node</span>
                 </template>
@@ -513,7 +506,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, type CSSProperties } from 'vue'
 import {
   Plus, CirclePlus, EditPen, Delete, Operation,
   Location, Picture, OfficeBuilding, Grid, Lightning, Warning,
@@ -530,19 +523,21 @@ import type { NavTreeNode, DeviceDeployItem, DeviceDeployment, PointDeploymentIt
 
 const store = useDashboardStore()
 
-const headerCellStyle = {
+const headerCellStyle: CSSProperties = {
   backgroundColor: '#0d1117',
   color: '#e5e7eb',
   fontSize: '10px',
   fontWeight: '600',
   borderBottom: '1px solid #2d3748',
+  textAlign: 'left',
 }
 
-const cellStyle = {
+const cellStyle: CSSProperties = {
   backgroundColor: '#111827',
   color: '#e5e7eb',
   fontSize: '10px',
   borderBottom: '1px solid #1f2937',
+  textAlign: 'left',
 }
 
 // =====================================================================
@@ -1191,33 +1186,6 @@ function getStatusText(status: number): string {
   }
 }
 
-function cleanPointType(type: any): string {
-  if (!type) return ''
-  return String(type).replace(/['"]/g, '').trim().toUpperCase()
-}
-
-function getPointTypeText(type: string): string {
-  const cleaned = cleanPointType(type)
-  switch (cleaned) {
-    case 'DI': return 'DI'
-    case 'DO': return 'DO'
-    case 'AI': return 'AI'
-    case 'AO': return 'AO'
-    default: return cleaned || 'Unknown'
-  }
-}
-
-function getPointTypeClass(type: string): string {
-  const cleaned = cleanPointType(type)
-  switch (cleaned) {
-    case 'DI': return 'type-di'
-    case 'DO': return 'type-do'
-    case 'AI': return 'type-ai'
-    case 'AO': return 'type-ao'
-    default: return 'type-default'
-  }
-}
-
 function openDeviceAlarmConfig() {
   ElMessageBox.alert(`Configuring device-level alarm rules: When the device is offline or heartbeat fails, all sub-points report communication faults.`, 'Set Device Alarm', {
     confirmButtonText: 'OK'
@@ -1661,12 +1629,7 @@ $bg-dark: #0b1119;
     display: flex;
     align-items: center;
     justify-content: flex-start;
-  }
-  :deep(td.el-table__cell.is-center .cell) {
-    justify-content: center;
-  }
-  :deep(th.el-table__cell.is-center .cell) {
-    justify-content: center;
+    text-align: left !important;
   }
 }
 
