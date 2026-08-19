@@ -11,7 +11,6 @@
 monitor-backend/target/
 monitor-common/target/
 monitor-flink-job/target/
-backend/target/
 frontend/dist/
 frontend/.vite-cache/
 
