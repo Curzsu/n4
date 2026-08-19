@@ -105,12 +105,12 @@
               :cell-style="cellStyle"
               @selection-change="handleSelectionChange"
             >
-              <el-table-column type="selection" width="30" align="center" v-if="isPointBatchManaging" :resizable="false" />
+              <el-table-column type="selection" width="30" v-if="isPointBatchManaging" :resizable="false" />
               <el-table-column prop="pointName" label="Point Name" min-width="180" show-overflow-tooltip :resizable="false" />
-              <el-table-column prop="dataType" label="Data Type" min-width="90" align="center" :resizable="false" />
-              <el-table-column prop="unit" label="Unit" width="80" align="center" :resizable="false" />
-              <el-table-column prop="displayPrecision" label="Precision" width="70" align="center" :resizable="false" />
-              <el-table-column v-if="isPointBatchManaging" label="Actions" width="120" fixed="right" align="center" :resizable="false">
+              <el-table-column prop="dataType" label="Data Type" width="110" :resizable="false" />
+              <el-table-column prop="unit" label="Unit" width="90" :resizable="false" />
+              <el-table-column prop="displayPrecision" label="Precision" width="90" :resizable="false" />
+              <el-table-column label="Actions" width="120" fixed="right" :resizable="false">
                 <template #default="{ row }">
                   <el-button size="small" type="primary" link :icon="Edit" @click="openEditPointDialog(row)">Edit</el-button>
                   <el-button size="small" type="danger" link :icon="Delete" @click="deletePoint(row)">Delete</el-button>
@@ -129,6 +129,9 @@
             <span>Device Template - {{ selectedTemplate.deviceTmplName }}</span>
           </div>
           <div class="action-buttons">
+            <el-button size="small" class="btn-secondary" :icon="Odometer" @click="openConfigPanel">
+              Set Faceplate Panel
+            </el-button>
             <el-button size="small" class="btn-secondary" @click="goBackToList">Back to List</el-button>
             <el-button v-if="!isEditing" size="small" class="btn-secondary" :icon="Edit" @click="startEdit">Edit Template</el-button>
             <el-button v-else size="small" class="btn-primary" :icon="Check" :loading="submitting" @click="submitUpdate">Save</el-button>
@@ -190,13 +193,6 @@
             </el-row>
           </el-form>
 
-          <!-- Extra device-level property buttons -->
-          <div class="extra-property-buttons">
-            <el-button size="small" class="btn-secondary" :icon="Odometer" @click="openConfigPanel">
-              Set Faceplate Panel
-            </el-button>
-          </div>
-
           <!-- Device Template Points Table -->
           <div class="point-table-section" v-loading="loadingPoints">
             <div class="points-header">
@@ -250,13 +246,13 @@
               :cell-style="cellStyle"
               @selection-change="handleSelectionChange"
             >
-              <el-table-column type="selection" width="30" align="center" v-if="isPointBatchManaging" :resizable="false" />
-              <el-table-column prop="pointTmplId" label="Point ID" width="70" align="center" :resizable="false" />
+              <el-table-column type="selection" width="30" v-if="isPointBatchManaging" :resizable="false" />
+              <el-table-column prop="pointTmplId" label="ID" width="55" :resizable="false" />
               <el-table-column prop="pointName" label="Point Name" min-width="180" show-overflow-tooltip :resizable="false" />
-              <el-table-column prop="dataType" label="Data Type" min-width="90" align="center" :resizable="false" />
-              <el-table-column prop="unit" label="Unit" width="80" align="center" :resizable="false" />
-              <el-table-column prop="displayPrecision" label="Precision" width="70" align="center" :resizable="false" />
-              <el-table-column label="Alarm Rule" min-width="170" align="center" :resizable="false">
+              <el-table-column prop="dataType" label="Data Type" width="110" :resizable="false" />
+              <el-table-column prop="unit" label="Unit" width="90" :resizable="false" />
+              <el-table-column prop="displayPrecision" label="Precision" width="90" :resizable="false" />
+              <el-table-column label="Alarm Rule" min-width="160" :resizable="false">
                 <template #default="{ row }">
                   <span
                     v-if="row.alarmCode"
@@ -276,11 +272,10 @@
                   </span>
                 </template>
               </el-table-column>
-              <el-table-column v-if="isPointBatchManaging" label="Actions" width="180" fixed="right" align="center" :resizable="false">
+              <el-table-column label="Actions" width="120" fixed="right" :resizable="false">
                 <template #default="{ row }">
-                  <el-button size="small" type="primary" link :icon="Edit" @click="openEditPointDialog(row)">Edit</el-button>
+                  <el-button size="small" type="primary" link :icon="Edit" @click="openAlarmRuleEditModal(row)">Edit</el-button>
                   <el-button size="small" type="danger" link :icon="Delete" @click="deletePoint(row)">Delete</el-button>
-                  <el-button size="small" type="primary" link :icon="Warning" @click="openPointAlarmConfig(row)">Alarm Rule</el-button>
                 </template>
               </el-table-column>
             </el-table>
@@ -361,27 +356,27 @@
             :cell-style="cellStyle"
             @selection-change="handleTemplateSelectionChange"
           >
-            <el-table-column v-if="isTemplateBatchManaging" type="selection" width="30" align="center" :resizable="false" />
-            <el-table-column prop="deviceTmplId" label="ID" width="55" align="center" :resizable="false" />
-            <el-table-column prop="deviceTmplName" label="Template Name" min-width="170" show-overflow-tooltip :resizable="false" />
-            <el-table-column prop="deviceType" label="Type" min-width="100" align="center" show-overflow-tooltip :resizable="false" />
-            <el-table-column label="Model / Specs" min-width="110" align="center" show-overflow-tooltip :resizable="false">
+            <el-table-column v-if="isTemplateBatchManaging" type="selection" width="30" :resizable="false" />
+            <el-table-column prop="deviceTmplId" label="ID" width="55" :resizable="false" />
+            <el-table-column prop="deviceTmplName" label="Template Name" min-width="180" show-overflow-tooltip :resizable="false" />
+            <el-table-column prop="deviceType" label="Type" width="110" show-overflow-tooltip :resizable="false" />
+            <el-table-column label="Model / Specs" min-width="130" show-overflow-tooltip :resizable="false">
               <template #default="{ row }">
                 <span>{{ row.model || '—' }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="Manufacturer" min-width="130" align="center" show-overflow-tooltip :resizable="false">
+            <el-table-column label="Manufacturer" min-width="140" show-overflow-tooltip :resizable="false">
               <template #default="{ row }">
                 <span>{{ row.manufacturer || '—' }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="Manufacture Date" width="110" align="center" :resizable="false">
+            <el-table-column label="Manufacture Date" width="110" :resizable="false">
               <template #default="{ row }">
                 <span>{{ row.manuDate || '—' }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="pointCount" label="Points" width="65" align="center" :resizable="false" />
-            <el-table-column label="Actions" width="150" align="center" fixed="right" :resizable="false">
+            <el-table-column prop="pointCount" label="Points" width="70" :resizable="false" />
+            <el-table-column label="Actions" width="160" fixed="right" :resizable="false">
               <template #default="{ row }">
                 <el-button 
                   type="success" 
@@ -501,24 +496,24 @@
       :fallback-form="form"
     />
 
-    <!-- Device Alarm Configuration Modal Dialog -->
-    <DeviceAlarmConfigDialog
-      ref="alarmConfigDialogRef"
+    <!-- Edit Alarm Rule Modal Dialog (identical to Alarm Configuration) -->
+    <AlarmRuleEditModal
+      ref="alarmRuleEditModalRef"
       @saved="handleAlarmSaved"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted } from 'vue'
-import { Plus, Edit, Check, Delete, List, Odometer, Warning, Download, Upload, UploadFilled, Search, Picture } from '@element-plus/icons-vue'
+import { ref, computed, watch, nextTick, onMounted, type CSSProperties } from 'vue'
+import { Plus, Edit, Check, Delete, List, Odometer, Download, Upload, UploadFilled, Search, Picture } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { templateApi } from '@/api/template'
 import type { DeviceTemplate, PointTemplateItem } from '@/api/types'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useDashboardStore } from '@/stores/dashboard'
 import TemplateDiagramDialog from './dialogs/TemplateDiagramDialog.vue'
-import DeviceAlarmConfigDialog from './dialogs/DeviceAlarmConfigDialog.vue'
+import AlarmRuleEditModal from './dialogs/AlarmRuleEditModal.vue'
 
 const store = useDashboardStore()
 
@@ -529,19 +524,21 @@ onMounted(async () => {
 })
 
 // Unified table styling matching AlarmTable.vue exactly
-const headerCellStyle = {
+const headerCellStyle: CSSProperties = {
   backgroundColor: '#0d1117',
   color: '#e5e7eb',
   fontSize: '10px',
   fontWeight: '600',
   borderBottom: '1px solid #2d3748',
+  textAlign: 'left',
 }
 
-const cellStyle = {
+const cellStyle: CSSProperties = {
   backgroundColor: '#111827',
   color: '#e5e7eb',
   fontSize: '10px',
   borderBottom: '1px solid #1f2937',
+  textAlign: 'left',
 }
 
 const loading = ref(false)
@@ -1022,15 +1019,14 @@ function openConfigPanelWithTarget(target: DeviceTemplate) {
   diagramDialogRef.value?.open(target)
 }
 
-const alarmConfigDialogRef = ref<InstanceType<typeof DeviceAlarmConfigDialog> | null>(null)
+const alarmRuleEditModalRef = ref<InstanceType<typeof AlarmRuleEditModal> | null>(null)
+
+function openAlarmRuleEditModal(row: any) {
+  alarmRuleEditModalRef.value?.open(row)
+}
 
 function openPointAlarmConfig(row: any) {
-  const target = selectedTemplate.value || form.value
-  if (!target || !target.deviceTmplId) {
-    ElMessage.warning('Please select a device template first')
-    return
-  }
-  alarmConfigDialogRef.value?.open(target, row)
+  openAlarmRuleEditModal(row)
 }
 
 async function handleAlarmSaved() {
@@ -1566,12 +1562,7 @@ $bg-dark: #0b1119;
     display: flex;
     align-items: center;
     justify-content: flex-start;
-  }
-  :deep(td.el-table__cell.is-center .cell) {
-    justify-content: center;
-  }
-  :deep(th.el-table__cell.is-center .cell) {
-    justify-content: center;
+    text-align: left !important;
   }
 }
 

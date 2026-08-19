@@ -27,7 +27,8 @@
 
     <update id="update">
         UPDATE point_template
-        SET point_name = #{pointName},
+        SET alarm_code = #{alarmCode},
+            point_name = #{pointName},
             point_type = #{pointType},
             data_type = #{dataType},
             unit = #{unit},
