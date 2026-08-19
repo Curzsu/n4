@@ -29,10 +29,12 @@ Thumbs.db
 # Logback file logs (local dev)
 logs/
 
+backend/
+test-producer/
 材料/
 .superpowers/
 .zcode/
-#test-producer/
+zcode/
 .firecrawl/
 __pycache__/
 
