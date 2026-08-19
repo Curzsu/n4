@@ -8,9 +8,9 @@ import redis.clients.jedis.Jedis;
 
 /**
  * All Redis reads/writes of the alarm pipeline: alarm:latest, alarm:active and
- * the two pub/sub channels. Extracted verbatim from AlarmProcessFunction; key
- * names, JSON shapes (including timestamp overrides) and log messages are
- * unchanged.
+ * the three pub/sub channels (notifications, realtime, persistence). Extracted
+ * verbatim from AlarmProcessFunction; key names, JSON shapes (including
+ * timestamp overrides) and log messages are unchanged.
  */
 final class RedisStateStore {
 
@@ -21,14 +21,16 @@ final class RedisStateStore {
     private final String activeRedisKey;
     private final String notificationChannel;
     private final String realtimeChannel;
+    private final String persistenceChannel;
 
     RedisStateStore(ObjectMapper objectMapper, String latestRedisKey, String activeRedisKey,
-                    String notificationChannel, String realtimeChannel) {
+                    String notificationChannel, String realtimeChannel, String persistenceChannel) {
         this.objectMapper = objectMapper;
         this.latestRedisKey = latestRedisKey;
         this.activeRedisKey = activeRedisKey;
         this.notificationChannel = notificationChannel;
         this.realtimeChannel = realtimeChannel;
+        this.persistenceChannel = persistenceChannel;
     }
 
     void writeLatestState(Jedis jedis, PointAlarmState state) {
@@ -58,20 +60,35 @@ final class RedisStateStore {
 
     /**
      * Publish to the realtime channel (TDengine persistence).
-     * The timestamp is forced to the current data tick's timestamp
-     * (point.getTimestamp()), so each lifecycle event (start/continue/end/escalation)
-     * is recorded at the moment it was observed - regardless of whether the state
-     * object is the fresh current tick or a history record read back from Redis.
-     * Accepts a nullable Long to avoid NPE from auto-unboxing when a Kafka message
-     * lacks a timestamp; null falls back to the state's own timestamp.
+     * The state's own timestamp is used as the observation time. Callers that
+     * publish a history record (e.g. a recovered alarm's end record) must set
+     * the desired timestamp on the state before publishing, so the event is
+     * recorded at the moment it was observed.
      */
-    void publishRealTimeChannel(Jedis jedis, PointAlarmState state, Long dataTimestamp) {
+    void publishRealTimeChannel(Jedis jedis, PointAlarmState state) {
         try {
-            String json = serializeWithTimestamp(state, dataTimestamp);
+            String json = objectMapper.writeValueAsString(state);
             jedis.publish(realtimeChannel, json);
             log.debug("PUB-REALTIME {} stage={} -> {}", state.getMqttPath(), state.getStage(), realtimeChannel);
         } catch (Exception e) {
             log.warn("Failed to publish realtime for {}: {}", state.getMqttPath(), e.getMessage());
+        }
+    }
+
+    /**
+     * Publish a processed data frame to the persistence channel (TDengine
+     * full-detail persistence). The frame's own timestamp is kept. For history
+     * records (e.g. a recovered alarm's end record) the caller must set the
+     * desired observation timestamp on the state before publishing, so the
+     * event lands in TDengine at the same moment as its realtime counterpart.
+     */
+    void publishPersistenceChannel(Jedis jedis, PointAlarmState state) {
+        try {
+            String json = objectMapper.writeValueAsString(state);
+            jedis.publish(persistenceChannel, json);
+            log.debug("PUB-PERSIST {} stage={} -> {}", state.getMqttPath(), state.getStage(), persistenceChannel);
+        } catch (Exception e) {
+            log.warn("Failed to publish persistence for {}: {}", state.getMqttPath(), e.getMessage());
         }
     }
 

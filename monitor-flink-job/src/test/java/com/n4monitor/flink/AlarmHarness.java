@@ -39,6 +39,7 @@ final class AlarmHarness {
     static final String ACTIVE_KEY = "alarm:active";
     static final String NOTIFY_CHANNEL = "alarm:notifications";
     static final String REALTIME_CHANNEL = "alarm:realtime";
+    static final String PERSISTENCE_CHANNEL = "alarm:persist";
     static final String POINT_RULE_MAP_KEY = "alarm:point:rule";
 
     final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
@@ -80,7 +81,7 @@ final class AlarmHarness {
     AlarmProcessFunction newFunction() throws Exception {
         AlarmProcessFunction fn = new AlarmProcessFunction("localhost", 6379, null,
                 RULES_NUMERIC_KEY, RULES_ENUM_KEY, LATEST_KEY, ACTIVE_KEY,
-                NOTIFY_CHANNEL, REALTIME_CHANNEL, POINT_RULE_MAP_KEY);
+                NOTIFY_CHANNEL, REALTIME_CHANNEL, PERSISTENCE_CHANNEL, POINT_RULE_MAP_KEY);
         JedisPool pool = mock(JedisPool.class);
         when(pool.getResource()).thenReturn(jedis);
         setField(fn, "jedisPool", pool);
@@ -89,7 +90,7 @@ final class AlarmHarness {
         // Mirror the collaborator wiring that open() performs in production.
         setField(fn, "ruleEvaluator", new RuleEvaluator(mapper, RULES_NUMERIC_KEY, RULES_ENUM_KEY));
         setField(fn, "stateStore", new RedisStateStore(mapper, LATEST_KEY, ACTIVE_KEY,
-                NOTIFY_CHANNEL, REALTIME_CHANNEL));
+                NOTIFY_CHANNEL, REALTIME_CHANNEL, PERSISTENCE_CHANNEL));
         return fn;
     }
 
