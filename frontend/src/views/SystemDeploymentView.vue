@@ -62,6 +62,7 @@
               <span>Deployed Device Details - {{ deviceForm.deviceDeployName }}</span>
             </div>
             <div class="header-actions">
+              <el-button size="small" class="btn-secondary" :icon="Warning" @click="openDeviceAlarmConfig">Set Device Alarm</el-button>
               <el-button size="small" class="btn-secondary" @click="goBackToList">Back to List</el-button>
               <el-button v-if="!isEditing" size="small" class="btn-secondary" :icon="Edit" @click="startEdit">Edit Device</el-button>
               <el-button v-else size="small" class="btn-primary" :icon="Check" :loading="submitting" @click="submitUpdate">Save</el-button>
@@ -154,13 +155,6 @@
                 </el-col>
               </el-row>
             </el-form>
-
-            <!-- Device Alarm Config Button -->
-            <div class="extra-property-buttons">
-              <el-button size="small" class="btn-secondary" :icon="Warning" @click="openDeviceAlarmConfig">
-                Set Device Alarm
-              </el-button>
-            </div>
 
             <!-- Points Configuration Table -->
             <div class="point-table-section">
