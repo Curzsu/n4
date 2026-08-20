@@ -2,8 +2,8 @@
   <el-dialog
     v-model="diagramDialogVisible"
     :title="`Device Diagram - ${currentDiagramTarget?.deviceTmplName || fallbackTemplate?.deviceTmplName || fallbackForm?.deviceTmplName || 'Device Template'}`"
-    width="75%"
-    top="4vh"
+    :width="dialogWidth"
+    align-center
     append-to-body
     class="dark-dialog diagram-modal-dialog"
     destroy-on-close
@@ -16,7 +16,7 @@
             v-model="selectedDiagramFile"
             placeholder="Select diagram..."
             size="small"
-            style="width: 260px;"
+            style="width: 220px;"
             @change="handleDiagramChange"
           >
             <el-option
@@ -32,7 +32,7 @@
         </div>
 
         <div class="toolbar-right">
-          <span class="hint-text">💡 Supports mouse wheel zoom, pan, and click to view fullscreen image</span>
+          <span class="hint-text">💡 Click image to view fullscreen zoom</span>
         </div>
       </div>
 
@@ -45,7 +45,8 @@
           :preview-teleported="true"
           fit="contain"
           class="main-diagram-image"
-          @load="diagramImageLoading = false"
+          :style="imageBoxStyle"
+          @load="handleImageLoad"
           @error="handleDiagramImageError"
         >
           <template #placeholder>
@@ -84,7 +85,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted, type CSSProperties } from 'vue'
 import { PictureRounded, View, Loading } from '@element-plus/icons-vue'
 import type { DeviceTemplate } from '@/api/types'
 
@@ -115,6 +116,13 @@ const selectedDiagramFile = ref('EM770.png')
 const currentDiagramTarget = ref<DeviceTemplate | null>(null)
 const diagramImageLoading = ref(false)
 const diagramImageError = ref(false)
+const dialogWidth = ref('75%')
+
+const renderedWidth = ref<number | null>(null)
+const renderedHeight = ref<number | null>(null)
+
+let currentNaturalWidth = 0
+let currentNaturalHeight = 0
 
 function findBestMatchingImage(target: DeviceTemplate | null): string {
   if (!target) return availableImages[0].value
@@ -145,9 +153,78 @@ const currentDiagramUrl = computed(() => {
   return `/device-images/${selectedDiagramFile.value}`
 })
 
+const imageBoxStyle = computed<CSSProperties>(() => {
+  if (!renderedWidth.value || !renderedHeight.value) {
+    return {
+      maxWidth: '100%',
+      maxHeight: 'calc(80vh - 130px)',
+    }
+  }
+  return {
+    width: `${renderedWidth.value}px`,
+    height: `${renderedHeight.value}px`,
+    maxWidth: '100%',
+    maxHeight: 'calc(80vh - 130px)',
+  }
+})
+
+function updateDialogSize(naturalWidth: number, naturalHeight: number) {
+  if (!naturalWidth || !naturalHeight) return
+  currentNaturalWidth = naturalWidth
+  currentNaturalHeight = naturalHeight
+
+  const vw = window.innerWidth || document.documentElement.clientWidth || 1920
+  const vh = window.innerHeight || document.documentElement.clientHeight || 1080
+
+  const maxDialogW = Math.min(vw * 0.94, 1680)
+  const maxImageH = Math.max(200, vh * 0.78 - 140)
+  const minDialogW = 680
+
+  const aspect = naturalWidth / naturalHeight
+  let targetW = naturalWidth
+  let targetH = naturalHeight
+
+  if (targetW > maxDialogW - 32) {
+    targetW = maxDialogW - 32
+    targetH = targetW / aspect
+  }
+  if (targetH > maxImageH) {
+    targetH = maxImageH
+    targetW = targetH * aspect
+  }
+
+  renderedWidth.value = Math.round(targetW)
+  renderedHeight.value = Math.round(targetH)
+
+  const finalW = Math.round(Math.max(minDialogW, Math.min(maxDialogW, targetW + 32)))
+  dialogWidth.value = `${finalW}px`
+}
+
+function handleImageLoad(e: Event) {
+  diagramImageLoading.value = false
+  const target = e.target as HTMLImageElement
+  if (target && target.naturalWidth && target.naturalHeight) {
+    updateDialogSize(target.naturalWidth, target.naturalHeight)
+  }
+}
+
+function preloadAndMeasure(url: string) {
+  if (!url) return
+  diagramImageLoading.value = true
+  const img = new Image()
+  img.onload = () => {
+    updateDialogSize(img.naturalWidth, img.naturalHeight)
+    diagramImageLoading.value = false
+  }
+  img.onerror = () => {
+    handleDiagramImageError()
+  }
+  img.src = url
+}
+
 function handleDiagramChange() {
   diagramImageError.value = false
-  diagramImageLoading.value = true
+  preloadAndMeasure(currentDiagramUrl.value)
 }
 
 function handleDiagramImageError() {
@@ -161,11 +238,25 @@ function openImageInNewTab() {
   }
 }
 
+function handleWindowResize() {
+  if (diagramDialogVisible.value && currentNaturalWidth && currentNaturalHeight) {
+    updateDialogSize(currentNaturalWidth, currentNaturalHeight)
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('resize', handleWindowResize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleWindowResize)
+})
+
 function open(target: DeviceTemplate | null) {
   currentDiagramTarget.value = target
   selectedDiagramFile.value = findBestMatchingImage(target)
-  diagramImageLoading.value = true
   diagramImageError.value = false
+  preloadAndMeasure(currentDiagramUrl.value)
   diagramDialogVisible.value = true
 }
 
@@ -175,8 +266,11 @@ defineExpose({ open })
 <style scoped lang="scss">
 // ===== Diagram Modal Styles =====
 .diagram-modal-dialog {
+  max-width: 96vw;
+  margin: 0 auto;
+
   :deep(.el-dialog__body) {
-    padding: 12px 16px;
+    padding: 10px 14px;
     background-color: #0b1118;
   }
 }
@@ -191,28 +285,33 @@ defineExpose({ open })
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 12px;
+  padding: 6px 10px;
   background-color: rgba(30, 41, 59, 0.5);
   border: 1px solid #1e293b;
   border-radius: 4px;
+  flex-shrink: 0;
+  gap: 8px;
+  flex-wrap: wrap;
 
   .toolbar-left {
     display: flex;
     align-items: center;
     gap: 6px;
+    flex-wrap: wrap;
 
     .toolbar-label {
       font-size: 10px;
       color: #94a3b8;
+      white-space: nowrap;
     }
 
     .path-tag {
-      margin-left: 6px;
       font-size: 10px;
       height: 18px;
       line-height: 18px;
       padding: 0 6px;
       border-radius: 4px;
+      white-space: nowrap;
     }
   }
 
@@ -220,30 +319,36 @@ defineExpose({ open })
     .hint-text {
       font-size: 10px;
       color: #64748b;
+      white-space: nowrap;
     }
   }
 }
 
 .diagram-preview-box {
   width: 100%;
-  height: 60vh;
-  min-height: 400px;
-  background-color: #06090e;
-  border: 1px solid #1e293b;
-  border-radius: 6px;
-  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
+  background-color: transparent;
   position: relative;
+  line-height: 0;
 
   .main-diagram-image {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: block;
     cursor: zoom-in;
+    border: 1px solid #1e293b;
+    border-radius: 6px;
+    background-color: #06090e;
+    overflow: hidden;
+    margin: 0 auto;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+
+    :deep(.el-image__inner) {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+    }
   }
 }
 
@@ -255,6 +360,11 @@ defineExpose({ open })
   gap: 8px;
   color: #94a3b8;
   font-size: 11px;
+  min-height: 240px;
+  width: 100%;
+  background-color: #06090e;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
 
   &.error-box {
     color: #64748b;
@@ -285,10 +395,13 @@ defineExpose({ open })
   justify-content: space-between;
   align-items: center;
   width: 100%;
+  gap: 8px;
+  flex-wrap: wrap;
 
   .footer-meta {
     font-size: 10px;
     color: #94a3b8;
+    white-space: nowrap;
 
     strong {
       color: #38bdf8;
