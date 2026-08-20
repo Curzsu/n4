@@ -24,12 +24,14 @@ const chartOption = computed(() => {
   const d = trendData.value
   return {
     backgroundColor: 'transparent',
-    grid: { top: 30, right: 20, bottom: 30, left: 50 },
+    grid: { top: 24, right: 12, bottom: 22, left: 40 },
     tooltip: { trigger: 'axis' },
     legend: {
       data: [d.seriesName, d.seriesName2!],
       textStyle: { color: '#9ca3af', fontSize: 11 },
-      top: 5,
+      top: 0,
+      itemWidth: 14,
+      itemHeight: 8,
     },
     xAxis: {
       type: 'category',
@@ -70,18 +72,22 @@ const chartOption = computed(() => {
   background-color: $bg-card;
   border: 1px solid $border-card;
   border-radius: 8px;
-  padding: 12px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .chart-title {
-  font-size: 13px;
+  font-size: 12px;
   color: $text-secondary;
   font-weight: 500;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .chart-instance {
   width: 100%;
-  height: 200px;
+  flex: 1;
+  min-height: 0;
 }
 </style>

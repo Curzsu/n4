@@ -18,6 +18,9 @@ import TemperatureTrendChart from './charts/TemperatureTrendChart.vue'
 .trend-charts-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  flex: 1.4 1 0;
+  min-height: 220px;
 }
 </style>
