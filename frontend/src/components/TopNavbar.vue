@@ -79,6 +79,7 @@ const alarmBadges = [
 const navTabs = [
   'Dashboard',
   'Alarms',
+  'Event',
   'Trend',
   'Report',
   'System',
@@ -89,6 +90,9 @@ const activeTab = computed(() => {
   if (route.path === '/device-template' || route.path === '/device-deployment' || route.path === '/system-deployment' || route.path === '/alarm/config') {
     return 'System'
   }
+  if (route.path === '/event') {
+    return 'Event'
+  }
   if (route.path.startsWith('/alarm')) {
     return 'Alarms'
   }
@@ -98,6 +102,7 @@ const activeTab = computed(() => {
 const routeMap: Record<string, string> = {
   'Dashboard': '/',
   'Alarms': '/alarm',
+  'Event': '/event',
   // System opens its first second-level entry (Device Template);
   // the remaining entries are reachable via the bottom toolbar on System routes.
   'System': '/device-template',

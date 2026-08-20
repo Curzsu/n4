@@ -3,8 +3,9 @@
     <TopNavbar />
     <div class="layout-body">
       <AlarmSidebar v-if="isAlarmRoute" :default-collapsed="true" />
-      <LeftSidebar v-else-if="!isSystemDeploymentRoute" :mode="isNavRoute ? 'nav' : 'default'"
+      <LeftSidebar v-else :mode="isNavRoute ? 'nav' : 'default'"
                    :nav-tree="store.navTree" :loading="store.navLoading"
+                   :default-collapsed="!isLeftSidebarOpenByDefault"
                    @node-click="store.selectNavNode" />
 
       <div class="layout-content">
@@ -36,7 +37,7 @@
         </div>
       </div>
     </div>
-    <BottomToolbar />
+    <BottomToolbar v-if="!isEventRoute" />
   </div>
 </template>
 
@@ -63,11 +64,14 @@ const store = useDashboardStore()
 const systemPaths = ['/device-template', '/device-deployment', '/alarm/config', '/system-deployment']
 const isSystemRoute = computed(() => systemPaths.includes(route.path))
 const isAlarmRoute = computed(() => route.path.startsWith('/alarm') && !isSystemRoute.value)
+// The Event route is a standalone page with no second-level toolbar menu.
+const isEventRoute = computed(() => route.path === '/event')
 // The home page uses the new two-level navigation mode.
 const isNavRoute = computed(() => route.path === '/')
-// System Deployment provides its own nav panel, so hide the global left sidebar.
-const isSystemDeploymentRoute = computed(() =>
-  route.path === '/system-deployment' || route.path === '/device-deployment')
+// The left sidebar is collapsed (not removed) on every route except Dashboard,
+// Device Template and Device Deployment, where it opens by default.
+const isLeftSidebarOpenByDefault = computed(() =>
+  route.path === '/' || route.path === '/device-template' || route.path === '/device-deployment')
 
 const isRightCollapsed = computed({
   get: () => store.isRightCollapsed,
@@ -80,10 +84,10 @@ function toggleRightCollapse() {
   isRightCollapsed.value = !isRightCollapsed.value
 }
 
-watch(isAlarmRoute, (alarm) => {
-  if (alarm) {
-    store.isRightCollapsed = true
-  }
+// The right side panel opens by default on the Dashboard route; every other
+// route defaults it to collapsed so the content area keeps its full width.
+watch(() => route.path, (path) => {
+  store.isRightCollapsed = path !== '/'
 }, { immediate: true })
 
 // Load the two-level nav tree.
@@ -111,6 +115,9 @@ onMounted(() => {
 
 .layout-content {
   flex: 1;
+  // Allow this flex child to shrink below the intrinsic width of its content,
+  // otherwise expanding the right panel would overflow and cover the content.
+  min-width: 0;
   min-height: 0;
   overflow-y: auto;
   padding: 16px;

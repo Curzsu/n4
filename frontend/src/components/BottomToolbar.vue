@@ -30,6 +30,8 @@ const router = useRouter()
 const systemPaths = ['/device-template', '/device-deployment', '/system-deployment', '/alarm/config']
 const isSystemRoute = computed(() => systemPaths.includes(route.path))
 const isAlarmRoute = computed(() => route.path.startsWith('/alarm') && !isSystemRoute.value)
+// Event is its own top-level route with no second-level menu.
+const isEventRoute = computed(() => route.path === '/event')
 
 // Items shown on the alarm route: Active Alarms / Alarm History
 const alarmItems = computed(() => [
@@ -68,6 +70,8 @@ const defaultItems = computed(() => [
 const toolbarItems = computed(() => {
   if (isSystemRoute.value) return systemItems.value
   if (isAlarmRoute.value) return alarmItems.value
+  // Event route has no second-level menu items.
+  if (isEventRoute.value) return []
   return defaultItems.value
 })
 

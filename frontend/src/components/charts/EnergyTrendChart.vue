@@ -76,6 +76,8 @@ const chartOption = computed(() => {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  // Allow the panel (a grid item) to shrink so charts compress with the panel.
+  min-width: 0;
 }
 
 .chart-title {
@@ -89,5 +91,6 @@ const chartOption = computed(() => {
   width: 100%;
   flex: 1;
   min-height: 0;
+  min-width: 0;
 }
 </style>
