@@ -1,14 +1,11 @@
 package com.n4monitor.tdengine;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.n4monitor.alarm.dto.AlarmRecordDto;
 import com.n4monitor.alarm.model.PointAlarmState;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -19,7 +16,6 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -30,10 +26,12 @@ import java.util.concurrent.TimeUnit;
  * <p>
  * Provides two persistence paths:
  * <ol>
- *   <li>Periodic snapshot: reads latest point data from Redis (alarm:latest)
- *       and writes to TDengine supertable {@code alarm} every N seconds.
- *   <li>Real-time alarm records: writes confirmed alarm records to supertable
- *       {@code alarm_realtime} immediately when Flink publishes them.
+ *   <li>Full-detail event persistence: Flink publishes every processed point
+ *       frame to Redis channel {@code alarm:persist}; the backend listener
+ *       enqueues frames into a bounded buffer which is flushed in batches to
+ *       supertable {@code alarm_event} every second.
+ *   <li>Real-time alarm records: writes confirmed alarm lifecycle events to
+ *       supertable {@code alarm_realtime} immediately when Flink publishes them.
  * </ol>
  * <p>
  * Uses REST mode (jdbc:TAOS-RS) so no native TDengine client is required.
@@ -50,11 +48,7 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class TdengineSyncService {
 
-    @Value("${alarm.redis.latest-key}")
-    private String latestRedisKey;
-
     private final TdengineConfig tdengineConfig;
-    private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
 
     private volatile Connection connection;
@@ -62,6 +56,17 @@ public class TdengineSyncService {
 
     /** Bounded so a slow or unreachable TDengine cannot grow the queue without limit. */
     private static final int WRITE_QUEUE_CAPACITY = 1000;
+
+    /**
+     * Bounded buffer of pending full-detail frames awaiting the next batch flush.
+     * Large enough to absorb a burst between flush ticks; a full buffer drops
+     * new frames (with a warning) rather than growing without limit.
+     */
+    private static final int PERSISTENCE_BUFFER_CAPACITY = 5000;
+
+    /** Frames published by Flink to {@code alarm:persist}, pending batch flush. */
+    private final ArrayBlockingQueue<PointAlarmState> persistenceBuffer =
+            new ArrayBlockingQueue<>(PERSISTENCE_BUFFER_CAPACITY);
 
     private final ExecutorService asyncExecutor = new ThreadPoolExecutor(
             1, 1, 0L, TimeUnit.MILLISECONDS,
@@ -100,8 +105,8 @@ public class TdengineSyncService {
 
             if (!initialized) {
                 initDatabase();
-                initSupertable(tdengineConfig.getSupertable(), "Snapshot");
                 initSupertable(tdengineConfig.getRealtimeSupertable(), "Realtime");
+                initSupertable(tdengineConfig.getEventSupertable(), "Event");
                 initialized = true;
                 log.info("TDengine database and supertables initialized");
             }
@@ -130,8 +135,8 @@ public class TdengineSyncService {
 
     /**
      * Create a supertable if not exists. Both supertables share one schema:
-     * the snapshot table (latest state per point, 5s cadence) and the realtime
-     * table (one row per alarm lifecycle event) differ only by name.
+     * the realtime table (one row per alarm lifecycle event) and the event
+     * table (one row per processed point frame) differ only by name.
      * <p>
      * Schema has been slimmed to match the new Kafka message format (only
      * clientId/path/timestamp/value + resolved type). Removed columns:
@@ -147,12 +152,12 @@ public class TdengineSyncService {
                 + "point_type NCHAR(32), "
                 + "alarm_level NCHAR(32), "
                 + "alarm_severity NCHAR(32), "
-                + "alarm_message NCHAR(256), "
+                + "alarm_message NCHAR(512), "
                 + "time_delay NCHAR(32), "
                 + "deadband NCHAR(64), "
                 + "ack_by NCHAR(32), "
                 + "alarm_status NCHAR(32), "
-                + "alarm_source NCHAR(64), "
+                + "alarm_source NCHAR(256), "
                 + "alarm_location NCHAR(128), "
                 + "alarm_stage NCHAR(16), "
                 + "alarm_stage_message NCHAR(64), "
@@ -168,70 +173,62 @@ public class TdengineSyncService {
     }
 
     /**
-     * Scheduled task: sync data from Redis to TDengine periodically.
-     * Interval is configured via tdengine.sync-fixed-rate-ms.
+     * Enqueue one processed point frame for full-detail persistence.
+     * Called from {@code AlarmPersistenceListener} (Redis pub/sub {@code alarm:persist})
+     * and from {@code AlarmService} when a user acknowledges an alarm.
+     * Frames are batched and flushed every second by {@link #flushPersistenceBatch()}.
      */
-    @Scheduled(fixedRateString = "${tdengine.sync-fixed-rate-ms:5000}",
-            initialDelayString = "${tdengine.sync-initial-delay-ms:15000}")
-    public void syncData() {
-        asyncExecutor.submit(() -> {
-            try {
-                doSyncData();
-            } catch (Exception e) {
-                log.error("Failed to sync data to TDengine", e);
-            }
-        });
+    public void enqueuePersistence(PointAlarmState state) {
+        if (state == null || state.getMqttPath() == null) {
+            return;
+        }
+        if (!persistenceBuffer.offer(state)) {
+            log.warn("Persistence buffer is full (capacity {}), dropping a frame for path={}; "
+                    + "TDengine is falling behind or unreachable",
+                    PERSISTENCE_BUFFER_CAPACITY, state.getMqttPath());
+        }
     }
 
     /**
-     * Read latest data from Redis and write to TDengine snapshot supertable.
+     * Periodic flush of buffered full-detail frames into the {@code alarm_event}
+     * supertable. Runs every second; a flush with nothing buffered is a no-op
+     * (no SQL issued), so idle points cost nothing.
      */
-    private void doSyncData() {
-        if (!ensureConnected()) {
-            log.debug("TDengine not available, skipping sync cycle");
+    @Scheduled(fixedRateString = "${tdengine.event-flush-rate-ms:1000}",
+            initialDelayString = "${tdengine.event-flush-initial-delay-ms:3000}")
+    public void flushPersistenceBatch() {
+        if (persistenceBuffer.isEmpty()) {
             return;
         }
-
-        Map<Object, Object> rawData;
-        try {
-            rawData = redisTemplate.opsForHash().entries(latestRedisKey);
-        } catch (Exception e) {
-            log.warn("Failed to read from Redis key '{}': {}", latestRedisKey, e.getMessage());
+        List<PointAlarmState> batch = new ArrayList<>(PERSISTENCE_BUFFER_CAPACITY);
+        persistenceBuffer.drainTo(batch);
+        if (batch.isEmpty()) {
             return;
         }
-
-        if (rawData == null || rawData.isEmpty()) {
-            log.debug("No data in Redis key '{}'", latestRedisKey);
-            return;
-        }
-
-        log.debug("Read {} entries from Redis", rawData.size());
-
-        int successCount = 0;
-        int failCount = 0;
-
-        for (Map.Entry<Object, Object> entry : rawData.entrySet()) {
-            String path = (String) entry.getKey();
-            String json = (String) entry.getValue();
-
-            try {
-                PointAlarmState state = objectMapper.readValue(json, new TypeReference<>() {});
-                writeAlarmRow(tdengineConfig.getSupertable(), "", state);
-                successCount++;
-            } catch (SQLException e) {
-                failCount++;
-                log.error("SQL error writing path '{}': {}", path, e.getMessage());
-                closeConnection();
-                break;
-            } catch (Exception e) {
-                failCount++;
-                log.error("Failed to write data for path: {}", path, e);
+        asyncExecutor.submit(() -> {
+            if (!ensureConnected()) {
+                log.error("TDengine not available, dropping a persistence batch of {} frames",
+                        batch.size());
+                return;
             }
-        }
-
-        if (failCount > 0) {
-            log.error("TDengine snapshot sync had failures: {} succeeded, {} failed", successCount, failCount);
-        }
+            int successCount = 0;
+            int failCount = 0;
+            for (PointAlarmState state : batch) {
+                try {
+                    writeAlarmRow(tdengineConfig.getEventSupertable(), "_ev", state);
+                    successCount++;
+                } catch (SQLException e) {
+                    failCount++;
+                    log.error("SQL error writing event path '{}': {}", state.getMqttPath(), e.getMessage());
+                    closeConnection();
+                    break;
+                } catch (Exception e) {
+                    failCount++;
+                    log.error("Failed to write event for path: {}", state.getMqttPath(), e);
+                }
+            }
+            log.debug("Flushed persistence batch: {} succeeded, {} failed", successCount, failCount);
+        });
     }
 
     /**
@@ -262,7 +259,8 @@ public class TdengineSyncService {
      *
      * @param supertable     target supertable name
      * @param subtableSuffix appended to the sanitized path to build the
-     *                       per-point subtable name ("" for snapshot, "_rt" for realtime)
+     *                       per-point subtable name ("_rt" for realtime,
+     *                       "_ev" for full-detail events)
      */
     private void writeAlarmRow(String supertable, String subtableSuffix, PointAlarmState state) throws SQLException {
         String path = state.getMqttPath();

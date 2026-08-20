@@ -43,6 +43,7 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
     private final String activeRedisKey;
     private final String notificationChannel;
     private final String realtimeChannel;
+    private final String persistenceChannel;
     private final String pointRuleMapKey;
 
     private transient JedisPool jedisPool;
@@ -69,7 +70,7 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
                                 String rulesNumericKey, String rulesEnumKey,
                                 String latestRedisKey, String activeRedisKey,
                                 String notificationChannel, String realtimeChannel,
-                                String pointRuleMapKey) {
+                                String persistenceChannel, String pointRuleMapKey) {
         this.redisHost = redisHost;
         this.redisPort = redisPort;
         this.redisPassword = redisPassword;
@@ -79,6 +80,7 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
         this.activeRedisKey = activeRedisKey;
         this.notificationChannel = notificationChannel;
         this.realtimeChannel = realtimeChannel;
+        this.persistenceChannel = persistenceChannel;
         this.pointRuleMapKey = pointRuleMapKey;
     }
 
@@ -98,12 +100,18 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
         poolConfig.setTestOnBorrow(true);
         poolConfig.setTestWhileIdle(true);
 
+        // Normalize an empty password to null: Jedis 7.x treats any non-null
+        // password (including "") as credentials and sends AUTH, which fails
+        // against a passwordless Redis with "ERR Client sent AUTH, but no
+        // password is set". Spring resolves ${REDIS_PASSWORD:} to "" when the
+        // variable is unset, so this guard is required for passwordless setups.
+        String effectivePassword = (redisPassword == null || redisPassword.isEmpty()) ? null : redisPassword;
         jedisPool = new JedisPool(poolConfig, redisHost, redisPort,
-                REDIS_TIMEOUT_MS, redisPassword);
+                REDIS_TIMEOUT_MS, effectivePassword);
         objectMapper = new ObjectMapper().findAndRegisterModules();
         ruleEvaluator = new RuleEvaluator(objectMapper, rulesNumericKey, rulesEnumKey);
         stateStore = new RedisStateStore(objectMapper, latestRedisKey, activeRedisKey,
-                notificationChannel, realtimeChannel);
+                notificationChannel, realtimeChannel, persistenceChannel);
 
         // Per-key pending-alarm state for delay confirmation. Keyed by the
         // process function's key (path). One pending record per point at most.
@@ -116,6 +124,7 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
         log.info("Latest state Redis key: {}", latestRedisKey);
         log.info("Active alarm Redis key: {}", activeRedisKey);
         log.info("Point rule map key: {}", pointRuleMapKey);
+        log.info("Persistence channel: {}", persistenceChannel);
         log.info("Redis timeout: {}ms", REDIS_TIMEOUT_MS);
     }
 
@@ -157,7 +166,6 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
         // carries the resolved type instead of the (now absent) message type field.
         point.setType(type.isEmpty() ? null : type);
 
-        String pointName = PointMetaParser.extractPointName(path);
         String ts = ConsoleFormatter.formatTimestamp(point.getTimestamp());
 
         // 2. Filter string type - no alarm rules
@@ -165,7 +173,8 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
             // Still write latest state for TDengine sync
             PointAlarmState normalState = buildState(point, null, null, null, null, null);
             stateStore.writeLatestState(jedis, normalState);
-            return ConsoleFormatter.stringSkipped(ts, pointName, point.getValue());
+            stateStore.publishPersistenceChannel(jedis, normalState);
+            return ConsoleFormatter.stringSkipped(ts, path, point.getValue());
         }
 
         // 3. Empty alarm_code = no alarm rule = skip alarm evaluation (no _00 fallback).
@@ -173,7 +182,8 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
             // No alarm_code configured for this point: skip alarm evaluation, write normal state.
             PointAlarmState normalState = buildState(point, null, null, null, null, null);
             stateStore.writeLatestState(jedis, normalState);
-            return ConsoleFormatter.noAlarmCode(ts, pointName, point.getValue(), type);
+            stateStore.publishPersistenceChannel(jedis, normalState);
+            return ConsoleFormatter.noAlarmCode(ts, path, point.getValue(), type);
         }
 
         // 4. Look up rule from Redis based on type
@@ -187,7 +197,8 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
                 // Unknown type or null type
                 PointAlarmState normalState = buildState(point, null, null, null, null, null);
                 stateStore.writeLatestState(jedis, normalState);
-                return ConsoleFormatter.unknownType(ts, pointName, point.getValue(), type);
+                stateStore.publishPersistenceChannel(jedis, normalState);
+                return ConsoleFormatter.unknownType(ts, path, point.getValue(), type);
             }
         }
 
@@ -195,7 +206,8 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
             // No rule found for this point
             PointAlarmState normalState = buildState(point, null, null, null, null, null);
             stateStore.writeLatestState(jedis, normalState);
-            return ConsoleFormatter.noRuleFound(ts, pointName, point.getValue(), type);
+            stateStore.publishPersistenceChannel(jedis, normalState);
+            return ConsoleFormatter.noRuleFound(ts, path, point.getValue(), type);
         }
 
         // Unknown enum value: no configured rule matches this value. Skip
@@ -206,7 +218,8 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
         if (triggered.skipped()) {
             PointAlarmState latestState = buildState(point, null, null, null, null, null);
             stateStore.writeLatestState(jedis, latestState);
-            return ConsoleFormatter.unknownEnumSkipped(ts, pointName, point.getValue());
+            stateStore.publishPersistenceChannel(jedis, latestState);
+            return ConsoleFormatter.unknownEnumSkipped(ts, path, point.getValue());
         }
 
         boolean isAlarm = triggered.isAlarm();
@@ -264,8 +277,9 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
                 // latest stays normal (no level) while still pending.
                 PointAlarmState latestState = buildState(current, null, null, null, null, null);
                 stateStore.writeLatestState(jedis, latestState);
+                stateStore.publishPersistenceChannel(jedis, latestState);
                 long elapsedMs = (point.getTimestamp() != null ? point.getTimestamp() : 0L) - pending.firstEventTime;
-                return ConsoleFormatter.pendingElapsed(ts, pointName, point.getValue(),
+                return ConsoleFormatter.pendingElapsed(ts, path, point.getValue(),
                         level, Math.max(0, elapsedMs / 1000));
             } else if (isAlarm) {
                 // Different alarm level: abandon the old pending alarm and
@@ -275,7 +289,8 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
                 registerPendingDelay(ctx, current, timeDelay);
                 PointAlarmState latestState = buildState(current, null, null, null, null, null);
                 stateStore.writeLatestState(jedis, latestState);
-                return ConsoleFormatter.pendingReset(ts, pointName, point.getValue(), level,
+                stateStore.publishPersistenceChannel(jedis, latestState);
+                return ConsoleFormatter.pendingReset(ts, path, point.getValue(), level,
                         pending.state.getLevel(), timeDelay != null ? timeDelay : 0);
             } else {
                 // Value returned to normal during the delay window: cancel
@@ -283,7 +298,8 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
                 ctx.timerService().deleteProcessingTimeTimer(pending.timerTarget);
                 pendingState.clear();
                 stateStore.writeLatestState(jedis, current);
-                return ConsoleFormatter.pendingCancelled(ts, pointName, point.getValue(),
+                stateStore.publishPersistenceChannel(jedis, current);
+                return ConsoleFormatter.pendingCancelled(ts, path, point.getValue(),
                         pending.state.getLevel());
             }
         }
@@ -297,13 +313,13 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
                 // of firing immediately; onTimer() confirms the alarm once
                 // the value has stayed above threshold for timeDelay seconds.
                 if (timeDelay != null && timeDelay > 0) {
-                    return enterPending(ctx, jedis, current, timeDelay, ts, pointName, out);
+                    return enterPending(ctx, jedis, current, timeDelay, ts, path, out);
                 }
                 // No delay: fire immediately.
                 markAlarmStart(current, "Start", current.getTimestamp());
                 stateStore.writeActiveState(jedis, current);
                 stateStore.publishNotificationChannel(jedis, current);
-                stateStore.publishRealTimeChannel(jedis, current, current.getTimestamp());
+                stateStore.publishRealTimeChannel(jedis, current);
             }
             // else: still normal, nothing to do in alarm:active
         } else if (AlarmStage.END.equals(history.getStage())) {
@@ -312,13 +328,13 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
                 // Re-alarmed after recovery: new start, drop the frozen record.
                 // Same delay rule as a fresh start.
                 if (timeDelay != null && timeDelay > 0) {
-                    return enterPending(ctx, jedis, current, timeDelay, ts, pointName, out);
+                    return enterPending(ctx, jedis, current, timeDelay, ts, path, out);
                 }
                 // New alarm cycle begins: reset the start time to this tick
                 markAlarmStart(current, "Start", current.getTimestamp());
                 stateStore.writeActiveState(jedis, current);
                 stateStore.publishNotificationChannel(jedis, current);
-                stateStore.publishRealTimeChannel(jedis, current, current.getTimestamp());
+                stateStore.publishRealTimeChannel(jedis, current);
             }
             // else: still normal after recovery -> idempotent skip (keep frozen record as-is)
         } else {
@@ -338,13 +354,17 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
                     history.setStage(AlarmStage.END);
                     history.setStageMessage("End - " + history.getLevel() + " to " + current.getLevel());
                     history.setDuration(String.valueOf(intervalSeconds));
-                    stateStore.publishRealTimeChannel(jedis, history, current.getTimestamp());
+                    // Stamp the end record with the current frame's observation time so
+                    // both realtime and persistence channels carry the same timestamp.
+                    history.setTimestamp(current.getTimestamp());
+                    stateStore.publishRealTimeChannel(jedis, history);
+                    stateStore.publishPersistenceChannel(jedis, history);
 
                     // Escalation starts a new alarm phase: reset start time to this tick
                     markAlarmStart(current, "Start - " + history.getLevel() + " to " + current.getLevel(),
                             current.getTimestamp());
                     stateStore.publishNotificationChannel(jedis, current);
-                    stateStore.publishRealTimeChannel(jedis, current, current.getTimestamp());
+                    stateStore.publishRealTimeChannel(jedis, current);
                 }
                 stateStore.writeActiveState(jedis, current);
             } else {
@@ -357,31 +377,38 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
                     history.setStage(AlarmStage.END);
                     history.setStageMessage("End");
                     history.setDuration(String.valueOf(intervalSeconds));
+                    // Stamp the end record with the current frame's observation time.
+                    history.setTimestamp(current.getTimestamp());
                     stateStore.publishNotificationChannel(jedis, history);
-                    stateStore.publishRealTimeChannel(jedis, history, current.getTimestamp());
+                    stateStore.publishRealTimeChannel(jedis, history);
+                    stateStore.publishPersistenceChannel(jedis, history);
                 } else {
                     // Not yet acknowledged -> freeze the alarm record with final duration
                     history.setStage(AlarmStage.END);
                     history.setStageMessage("End");
                     history.setDuration(String.valueOf(intervalSeconds));
+                    // Stamp the end record with the current frame's observation time.
+                    history.setTimestamp(current.getTimestamp());
                     stateStore.writeActiveState(jedis, history);
                     // Notify with the alarm's historical start time (current carries the recovered value
                     // but should report when the alarm began).
                     stateStore.publishNotificationChannel(jedis, history);
-                    stateStore.publishRealTimeChannel(jedis, history, current.getTimestamp());
+                    stateStore.publishRealTimeChannel(jedis, history);
+                    stateStore.publishPersistenceChannel(jedis, history);
                 }
             }
         }
 
         // 7. Always write the real-time value to alarm:latest
         stateStore.writeLatestState(jedis, current);
+        stateStore.publishPersistenceChannel(jedis, current);
 
         // 8. Console output
         if (isAlarm) {
-            return ConsoleFormatter.alarm(ts, severity, current.getStage(), pointName,
+            return ConsoleFormatter.alarm(ts, severity, current.getStage(), path,
                     point.getValue(), level, alarmMessage);
         }
-        return ConsoleFormatter.normal(ts, pointName, point.getValue());
+        return ConsoleFormatter.normal(ts, path, point.getValue());
 
         } finally {
             jedis.close();
@@ -402,7 +429,7 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
      * Returns the console log line for this message.
      */
     private String enterPending(Context ctx, Jedis jedis, PointAlarmState current,
-                                int timeDelay, String ts, String pointName, Collector<String> out) throws Exception {
+                                int timeDelay, String ts, String path, Collector<String> out) throws Exception {
         // The confirmation window starts from the data's own timestamp (first
         // threshold crossing), not from processing time. Because the producer
         // stamps messages with wall-clock time at send, event time ~= processing
@@ -416,9 +443,10 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
         // and charts show the current reading without a phantom alarm.
         PointAlarmState latestState = buildState(current, null, null, null, null, null);
         stateStore.writeLatestState(jedis, latestState);
+        stateStore.publishPersistenceChannel(jedis, latestState);
 
         long remainingMs = pending.timerTarget - ctx.timerService().currentProcessingTime();
-        return ConsoleFormatter.pendingDelay(ts, pointName, current.getValue(), current.getLevel(),
+        return ConsoleFormatter.pendingDelay(ts, path, current.getValue(), current.getLevel(),
                 timeDelay, remainingMs / 1000.0);
     }
 
@@ -491,16 +519,15 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
             state.setTimestamp(confirmProcTime);
             stateStore.writeActiveState(jedis, state);
             stateStore.publishNotificationChannel(jedis, state);
-            stateStore.publishRealTimeChannel(jedis, state, confirmProcTime);
+            stateStore.publishRealTimeChannel(jedis, state);
             stateStore.writeLatestState(jedis, state);
         }
 
         pendingState.clear();
 
         String ts = ConsoleFormatter.formatTimestamp(confirmProcTime);
-        String pointName = PointMetaParser.extractPointName(state.getMqttPath());
         out.collect(ConsoleFormatter.delayConfirmed(ts, state.getSeverity(), state.getStage(),
-                pointName, state.getValue(), state.getLevel()));
+                state.getMqttPath(), state.getValue(), state.getLevel()));
     }
 
     // ── State construction ──────────────────────────────────────────────────

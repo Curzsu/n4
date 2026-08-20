@@ -56,6 +56,7 @@ public class AlarmProcessingJob {
     private static final String DEFAULT_ACTIVE_KEY = "alarm:active";
     private static final String DEFAULT_NOTIFICATIONS_CHANNEL = "alarm:notifications";
     private static final String DEFAULT_REALTIME_CHANNEL = "alarm:realtime";
+    private static final String DEFAULT_PERSISTENCE_CHANNEL = "alarm:persist";
     private static final String DEFAULT_POINT_RULE_MAP_KEY = "alarm:point:rule";
     private static final int DEFAULT_PARALLELISM = 1;
 
@@ -94,6 +95,7 @@ public class AlarmProcessingJob {
                 params.get("active-key", DEFAULT_ACTIVE_KEY),
                 params.get("notification-channel", DEFAULT_NOTIFICATIONS_CHANNEL),
                 params.get("realtime-channel", DEFAULT_REALTIME_CHANNEL),
+                params.get("persistence-channel", DEFAULT_PERSISTENCE_CHANNEL),
                 params.get("point-rule-map-key", DEFAULT_POINT_RULE_MAP_KEY),
                 parallelism);
     }
@@ -114,7 +116,7 @@ public class AlarmProcessingJob {
                            String rulesNumericKey, String rulesEnumKey,
                            String latestRedisKey, String activeRedisKey,
                            String notificationChannel, String realtimeChannel,
-                           String pointRuleMapKey, int parallelism) throws Exception {
+                           String persistenceChannel, String pointRuleMapKey, int parallelism) throws Exception {
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(parallelism);
@@ -155,7 +157,7 @@ public class AlarmProcessingJob {
                 redisPassword,
                         rulesNumericKey, rulesEnumKey,
                         latestRedisKey, activeRedisKey, notificationChannel, realtimeChannel,
-                        pointRuleMapKey));
+                        persistenceChannel, pointRuleMapKey));
 
         alarmStream.print();
 

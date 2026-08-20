@@ -182,10 +182,15 @@ public class AlarmService {
                 ackedJsons.add(activeJson);
 
                 // Persist the ack event to TDengine with the ack moment as the timestamp.
+                // Write to alarm_realtime (alarm lifecycle history) immediately, and
+                // enqueue the ack into the same persistence buffer as every processed
+                // frame, so it is batched into alarm_event (full-detail history) too.
                 try {
                     PointAlarmState ackedState = objectMapper.readValue(activeJson, PointAlarmState.class);
                     ackedState.setTimestamp(ackTimestamp);
                     tdengineSyncService.writeRealtimeAlarm(ackedState);
+                    // Write to alarm_event (full-detail history)
+                    tdengineSyncService.enqueuePersistence(ackedState);
                 } catch (Exception te) {
                     log.warn("Failed to persist acked alarm to TDengine for key: {}", key, te);
                 }

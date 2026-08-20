@@ -27,15 +27,9 @@ public class TdengineConfig {
     /** Database name */
     private String database;
 
-    /** Supertable name for periodic latest-state snapshots */
-    private String supertable;
-
     /** Supertable name for real-time alarm records */
     private String realtimeSupertable;
 
-    /** Fixed rate interval (ms) for periodic sync from Redis to TDengine */
-    private long syncFixedRateMs;
-
-    /** Initial delay (ms) before the first periodic sync */
-    private long syncInitialDelayMs;
+    /** Supertable name for full-detail point event persistence (every processed frame) */
+    private String eventSupertable;
 }

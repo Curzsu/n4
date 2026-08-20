@@ -112,11 +112,12 @@ services:
       standalone-job
       --job-classname com.n4monitor.flink.AlarmProcessingJob
       --kafka-broker ${KAFKA_BOOTSTRAP_SERVERS}
-      --kafka-topic obix-mqtt-points
+      --kafka-topic mqtt-push-kafka
       --group-id n4-flink-alarm-processor-prod
       --redis-host ${REDIS_HOST}
       --redis-port ${REDIS_PORT}
       --redis-password ${REDIS_PASSWORD}
+      --persistence-channel alarm:persist
       --parallelism 4
     environment:
       TZ: Asia/Shanghai
