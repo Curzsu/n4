@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.n4monitor.entity.AlarmRuleEnumEntity;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -83,5 +85,30 @@ class PersistenceChannelTest {
         assertThat(frame.get("timestamp").asLong()).isEqualTo(TS);
         assertThat(frame.get("mqttPath").asText()).isEqualTo(PATH);
         assertThat(frame.get("value").asText()).isEqualTo("50");
+    }
+
+    /**
+     * Frames inside the delay-confirmation window (fresh entry, same-level
+     * refresh, level-change reset) must keep the matched rule's timeDelay
+     * and deadband, while still showing no phantom alarm level.
+     */
+    @Test
+    void pendingFramesKeepRuleMetadata() throws Exception {
+        h.seedMeta(PATH, "numeric", "RULE1");
+        h.seedNumericRule("RULE1", h.numericRule("2", 30));
+        AlarmProcessFunction fn = h.newFunction();
+        // 1st frame (High) enters the pending window; 2nd frame refreshes the
+        // same level; 3rd frame (High-High) resets the delay at the new level.
+        h.process(fn, h.point(PATH, "85", TS));
+        h.process(fn, h.point(PATH, "85", TS + 1000));
+        h.process(fn, h.point(PATH, "95", TS + 2000));
+        assertThat(h.consoleOutput()).contains("pending");
+        List<JsonNode> frames = h.publishedOn(AlarmHarness.PERSISTENCE_CHANNEL);
+        assertThat(frames).hasSize(3);
+        for (JsonNode frame : frames) {
+            assertThat(frame.get("timeDelay").asInt()).isEqualTo(30);
+            assertThat(frame.get("deadband").asText()).isEqualTo("2");
+            assertThat(frame.hasNonNull("level")).isFalse();
+        }
     }
 }
