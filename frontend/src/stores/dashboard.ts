@@ -28,10 +28,25 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const devicesLoading = ref(false)
   const currentNavNode = ref<NavTreeNode | null>(null)
 
+  function findNavNodeById(nodes: NavTreeNode[], id: number): NavTreeNode | null {
+    for (const n of nodes) {
+      if (n.nodeId === id) return n
+      if (n.children) {
+        const found = findNavNodeById(n.children, id)
+        if (found) return found
+      }
+    }
+    return null
+  }
+
   async function loadNavTree() {
     navLoading.value = true
     try {
       navTree.value = await dashboardNavApi.getNavTree()
+      if (currentNavNode.value) {
+        const refreshed = findNavNodeById(navTree.value, currentNavNode.value.nodeId)
+        currentNavNode.value = refreshed
+      }
     } catch (e) {
       console.error('Failed to load navigation tree', e)
     } finally {

@@ -13,6 +13,7 @@ public class NavNode {
     private Integer maxLevel;
     private String icon;
     private Integer sortOrder;
+    private String mqttServerAddresses;
     private Boolean isDeleted;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;

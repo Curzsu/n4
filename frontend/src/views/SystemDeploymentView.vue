@@ -1,56 +1,5 @@
 <template>
   <div class="system-deployment-view">
-    <!-- Left: Navigation Tree Panel -->
-    <aside class="nav-tree-panel" v-loading="treeLoading">
-      <header class="panel-header">
-        <div class="panel-title">
-          <el-icon><Operation /></el-icon>
-          <span>Navigation</span>
-        </div>
-        <el-button type="primary" size="small" :icon="Plus" class="btn-primary" @click="openCreateDialog(null)">
-          Add Root
-        </el-button>
-      </header>
-
-      <div class="tree-body">
-        <el-tree
-          :data="treeData"
-          :props="treeProps"
-          node-key="nodeId"
-          default-expand-all
-          highlight-current
-          @node-click="handleNodeClick"
-          class="deploy-tree"
-        >
-          <template #default="{ data }">
-            <div class="tree-node-row">
-              <span :class="['tree-node-label', `level-${data.nodeLevel}`]">
-                <el-icon class="node-icon" :class="{ 'real-data-icon': data.hasRealData }" v-if="getNodeIcon(data)">
-                  <component :is="getNodeIcon(data)" />
-                </el-icon>
-                <span class="label-text">{{ data.nodeName }}</span>
-                <span v-if="isLeafNode(data) && data.deviceCount != null" class="count-badge">
-                  {{ data.deviceCount }}
-                </span>
-              </span>
-              <span class="node-actions" @click.stop>
-                <el-tooltip content="Add Child Node" placement="top" v-if="canAddChild(data)">
-                  <el-button link size="small" :icon="CirclePlus" @click="openCreateDialog(data)" />
-                </el-tooltip>
-                <el-tooltip content="Edit" placement="top">
-                  <el-button link size="small" :icon="EditPen" @click="openEditDialog(data)" />
-                </el-tooltip>
-                <el-tooltip content="Delete" placement="top">
-                  <el-button link size="small" :icon="Delete" class="del-btn" @click="handleDeleteNode(data)" />
-                </el-tooltip>
-              </span>
-            </div>
-          </template>
-        </el-tree>
-        <el-empty v-if="!treeData.length" description="No navigation nodes" :image-size="60" />
-      </div>
-    </aside>
-
     <!-- Right: Content Area -->
     <section class="detail-panel" v-loading="devicesLoading">
       <template v-if="selectedNode">
@@ -63,10 +12,9 @@
             </div>
             <div class="header-actions">
               <el-button size="small" class="btn-secondary" :icon="Warning" @click="openDeviceAlarmConfig">Set Device Alarm</el-button>
-              <el-button size="small" class="btn-secondary" @click="goBackToList">Back to List</el-button>
-              <el-button v-if="!isEditing" size="small" class="btn-secondary" :icon="Edit" @click="startEdit">Edit Device</el-button>
-              <el-button v-else size="small" class="btn-primary" :icon="Check" :loading="submitting" @click="submitUpdate">Save</el-button>
+              <el-button size="small" class="btn-secondary" :icon="Edit" @click="openEditDeviceDialog">Edit Device</el-button>
               <el-button size="small" class="btn-danger" :icon="Delete" @click="deleteDeviceFromDetail">Delete Device</el-button>
+              <el-button size="small" class="btn-secondary btn-back" @click="goBackToList">Back to List</el-button>
             </div>
           </header>
 
@@ -74,12 +22,10 @@
             <!-- Device Properties Form -->
             <el-form
               :model="deviceForm"
-              :rules="detailRules"
-              ref="detailFormRef"
               label-width="110px"
               label-position="right"
               class="custom-form-compact"
-              :disabled="!isEditing"
+              disabled
             >
               <el-row :gutter="16">
                 <el-col :span="12">
@@ -94,7 +40,7 @@
                 </el-col>
               </el-row>
               <el-row :gutter="16">
-                <el-col :span="8">
+                <el-col :span="12">
                   <el-form-item label="Template">
                     <el-select v-model="deviceForm.deviceTmplId" placeholder="Select template" style="width: 100%">
                       <el-option
@@ -106,44 +52,9 @@
                     </el-select>
                   </el-form-item>
                 </el-col>
-                <el-col :span="8">
+                <el-col :span="12">
                   <el-form-item label="Device Type">
                     <el-input :value="deviceForm.deviceType || '-'" disabled />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="8">
-                  <el-form-item label="Node">
-                    <el-select v-model="deviceForm.navNodeId" placeholder="Select node" style="width: 100%">
-                      <el-option
-                        v-for="n in nodeOptions"
-                        :key="n.nodeId"
-                        :label="n.nodeName"
-                        :value="n.nodeId"
-                      />
-                    </el-select>
-                  </el-form-item>
-                </el-col>
-              </el-row>
-              <el-row :gutter="16">
-                <el-col :span="8">
-                  <el-form-item label="IP Address">
-                    <el-input v-model="deviceForm.ipAddress" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="8">
-                  <el-form-item label="MAC Address" prop="macAddress">
-                    <el-input v-model="deviceForm.macAddress" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="8">
-                  <el-form-item label="Install Date">
-                    <el-date-picker
-                      v-model="deviceForm.installDate"
-                      type="date"
-                      format="YYYY-MM-DD"
-                      value-format="YYYY-MM-DD"
-                      style="width: 100%"
-                    />
                   </el-form-item>
                 </el-col>
               </el-row>
@@ -174,23 +85,34 @@
                 :header-cell-style="headerCellStyle"
                 :cell-style="cellStyle"
               >
-                <el-table-column prop="pointName" label="Point Name" min-width="180" show-overflow-tooltip :resizable="false" />
-                <el-table-column prop="dataType" label="Data Type" width="110" :resizable="false" />
-                <el-table-column prop="unit" label="Unit" width="90" :resizable="false" />
-                <el-table-column prop="register" label="Register Address" min-width="150" :resizable="false">
+                <el-table-column prop="pointName" label="Point Name" min-width="180" align="center" header-align="center" show-overflow-tooltip :resizable="false" />
+                <el-table-column prop="dataType" label="Data Type" width="110" align="center" header-align="center" :resizable="false" />
+                <el-table-column prop="unit" label="Unit" width="90" align="center" header-align="center" :resizable="false" />
+                <el-table-column prop="register" label="Register Address" min-width="150" align="center" header-align="center" :resizable="false">
                   <template #default="{ row }">
-                    <el-input
-                      v-if="isEditing"
-                      v-model="row.register"
-                      size="small"
-                      placeholder="Enter register"
-                    />
-                    <code v-else class="addr-code">{{ row.register || 'N/A' }}</code>
+                    <code class="addr-code">{{ row.register || 'N/A' }}</code>
                   </template>
                 </el-table-column>
-                <el-table-column label="Actions" width="120" fixed="right" :resizable="false">
+                <el-table-column label="Alarm Rule" min-width="160" align="center" header-align="center" :resizable="false">
                   <template #default="{ row }">
-                    <el-button size="small" type="primary" link :icon="Warning" @click="openPointAlarmConfig(row)">Alarm Rule</el-button>
+                    <div class="alarm-rule-cell">
+                      <span
+                        v-if="row.alarmCode"
+                        class="alarm-code-tag"
+                        title="Click to configure alarm rule"
+                        @click="openPointAlarmConfig(row)"
+                      >
+                        {{ row.alarmCode }}
+                      </span>
+                      <span
+                        v-else
+                        class="alarm-none-tag"
+                        title="Click to configure alarm rule"
+                        @click="openPointAlarmConfig(row)"
+                      >
+                        Unconfigured
+                      </span>
+                    </div>
                   </template>
                 </el-table-column>
               </el-table>
@@ -206,30 +128,24 @@
                 <component :is="getNodeIcon(selectedNode)" />
               </el-icon>
               <span>{{ selectedNode.nodeName }}</span>
-              <el-tag size="small" :type="selectedNode.nodeLevel === 1 ? 'info' : 'success'" effect="dark">
-                Level {{ selectedNode.nodeLevel }} Group
-              </el-tag>
             </div>
             <div class="header-actions">
-              <el-button size="small" class="btn-secondary" :icon="EditPen" @click="openEditDialog(selectedNode)">Edit</el-button>
-              <el-button size="small" class="btn-danger" :icon="Delete" @click="handleDeleteNode(selectedNode)">Delete</el-button>
+              <el-button size="small" class="btn-primary" :icon="Plus" v-if="canAddChild(selectedNode)" @click="navNodeDialogRef?.openCreate(selectedNode)">Add Child</el-button>
+              <el-button size="small" class="btn-secondary" :icon="EditPen" @click="navNodeDialogRef?.openEdit(selectedNode)">Edit</el-button>
+              <el-button size="small" class="btn-danger" :icon="Delete" @click="navNodeDialogRef?.confirmDelete(selectedNode)">Delete</el-button>
             </div>
           </header>
 
           <div class="detail-body">
             <!-- Node Info Card -->
             <div class="info-card">
-              <div class="info-row">
-                <span class="info-label">Node ID</span>
-                <span class="info-value">{{ selectedNode.nodeId }}</span>
-              </div>
-              <div class="info-row">
-                <span class="info-label">Sort Order</span>
-                <span class="info-value">{{ selectedNode.sortOrder }}</span>
-              </div>
-              <div class="info-row" v-if="selectedNode.nodeLevel === 1">
+              <div class="info-row" v-if="selectedNode.nodeLevel === 1 && selectedNode.icon">
                 <span class="info-label">Icon</span>
-                <span class="info-value">{{ selectedNode.icon || 'Default' }}</span>
+                <span class="info-value">{{ selectedNode.icon }}</span>
+              </div>
+              <div class="info-row" v-else>
+                <span class="info-label">System Node</span>
+                <span class="info-value">{{ selectedNode.nodeName }}</span>
               </div>
             </div>
 
@@ -289,25 +205,29 @@
                 :cell-style="cellStyle"
                 @selection-change="handleDeviceSelectionChange"
               >
-                <el-table-column v-if="isBatchManaging" type="selection" width="30" :resizable="false" />
-                <el-table-column prop="deviceDeployId" label="ID" width="55" :resizable="false" />
-                <el-table-column prop="deviceDeployName" label="Device Name" min-width="180" show-overflow-tooltip :resizable="false">
+                <el-table-column v-if="isBatchManaging" type="selection" width="30" align="center" header-align="center" :resizable="false" />
+                <el-table-column prop="deviceDeployId" label="ID" width="55" align="center" header-align="center" :resizable="false" />
+                <el-table-column prop="deviceDeployName" label="Device Name" min-width="180" align="center" header-align="center" show-overflow-tooltip :resizable="false">
                   <template #default="{ row }">
                     <el-link type="primary" class="device-link" @click="viewDeviceDetail(row as DeviceDeployment)">
                       {{ row.deviceDeployName }}
                     </el-link>
                   </template>
                 </el-table-column>
-                <el-table-column prop="deviceAlias" label="Device Alias" min-width="140" show-overflow-tooltip :resizable="false" />
-                <el-table-column prop="deviceType" label="Device Type" width="110" show-overflow-tooltip :resizable="false" />
-                <el-table-column prop="manufacturer" label="Manufacturer" width="120" show-overflow-tooltip :resizable="false" />
-                <el-table-column label="Status" width="90" :resizable="false">
+                <el-table-column prop="deviceAlias" label="Device Alias" min-width="140" align="center" header-align="center" show-overflow-tooltip :resizable="false">
+                  <template #default="{ row }">
+                    <span>{{ row.deviceAlias || '-' }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="deviceType" label="Device Type" width="110" align="center" header-align="center" show-overflow-tooltip :resizable="false" />
+                <el-table-column prop="manufacturer" label="Manufacturer" width="120" align="center" header-align="center" show-overflow-tooltip :resizable="false" />
+                <el-table-column label="Status" width="90" align="center" header-align="center" :resizable="false">
                   <template #default="{ row }">
                     <span class="status-dot" :class="getStatusClass(row.status)"></span>
                     <span class="status-text">{{ getStatusText(row.status) }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column label="Actions" width="160" fixed="right" :resizable="false">
+                <el-table-column label="Actions" width="160" align="center" header-align="center" fixed="right" :resizable="false">
                   <template #default="{ row }">
                     <el-button type="primary" link size="small" @click="viewDeviceDetail(row as DeviceDeployment)">Edit</el-button>
                     <el-button type="primary" link size="small" @click="handleUnmount(row as DeviceDeployment)">Unmount</el-button>
@@ -324,11 +244,16 @@
             <div v-else class="device-section">
               <div class="section-header">
                 <h3>Child Groups <span class="section-count">({{ selectedNode.children?.length || 0 }})</span></h3>
+                <div class="header-actions" v-if="canAddChild(selectedNode)">
+                  <el-button size="small" class="btn-primary" :icon="Plus" @click="navNodeDialogRef?.openCreate(selectedNode)">
+                    Add Child Group
+                  </el-button>
+                </div>
               </div>
               <el-table :data="selectedNode.children || []" class="custom-table" border size="small" :header-cell-style="headerCellStyle" :cell-style="cellStyle">
-                <el-table-column prop="nodeName" label="Group Name" min-width="200" :resizable="false" />
-                <el-table-column prop="deviceCount" label="Devices" width="100" :resizable="false" />
-                <el-table-column prop="sortOrder" label="Sort Order" width="100" :resizable="false" />
+                <el-table-column prop="nodeName" label="Group Name" min-width="200" align="center" header-align="center" :resizable="false" />
+                <el-table-column prop="deviceCount" label="Devices" width="100" align="center" header-align="center" :resizable="false" />
+                <el-table-column prop="sortOrder" label="Sort Order" width="100" align="center" header-align="center" :resizable="false" />
                 <template #empty>
                   <span class="empty-text">No child groups under this node</span>
                 </template>
@@ -338,57 +263,17 @@
         </template>
       </template>
 
-      <el-empty v-else description="Please select a navigation node from the left tree" :image-size="100" class="select-prompt" />
+      <div v-else class="empty-selection-container">
+        <el-empty description="Please select a navigation node from the left tree" :image-size="100" class="select-prompt">
+          <el-button type="primary" class="btn-primary" :icon="Plus" @click="navNodeDialogRef?.openCreate(null)">
+            Add Root Node
+          </el-button>
+        </el-empty>
+      </div>
     </section>
 
-    <!-- ===== Dialog: Create/Edit Node ===== -->
-    <el-dialog
-      v-model="nodeDialogVisible"
-      :title="nodeDialogMode === 'create' ? 'Add Navigation Node' : 'Edit Navigation Node'"
-      width="480px"
-      append-to-body
-      class="dark-dialog"
-    >
-      <el-form :model="nodeForm" :rules="nodeRules" ref="nodeFormRef" label-width="100px">
-        <el-form-item label="Node Name" prop="nodeName">
-          <el-input v-model="nodeForm.nodeName" placeholder="e.g. Electrical / MV System" maxlength="50" show-word-limit />
-        </el-form-item>
-        <el-form-item label="Parent Node" v-if="showParentSelect">
-          <el-cascader
-            v-model="nodeForm.parentId"
-            :options="parentCascaderOptions"
-            :props="parentCascaderProps"
-            placeholder="Select parent node"
-            :clearable="false"
-            popper-class="dark-cascader-dropdown"
-            style="width: 100%"
-          />
-          <div class="form-tip">Select an eligible group as the target parent</div>
-        </el-form-item>
-        <el-form-item label="Icon" v-if="nodeForm.parentId == null">
-          <el-select v-model="nodeForm.icon" placeholder="Select icon (Root node only)" clearable style="width: 100%">
-            <el-option
-              v-for="opt in iconOptions"
-              :key="opt.name"
-              :label="opt.name"
-              :value="opt.name"
-            >
-              <span style="display: flex; align-items: center; gap: 8px;">
-                <el-icon><component :is="opt.comp" /></el-icon>
-                <span>{{ opt.name }}</span>
-              </span>
-            </el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="Sort Order" prop="sortOrder">
-          <el-input-number v-model="nodeForm.sortOrder" :min="0" :max="9999" style="width: 100%" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button class="btn-secondary" @click="nodeDialogVisible = false">Cancel</el-button>
-        <el-button type="primary" class="btn-primary" @click="submitNodeForm" :loading="nodeSubmitting">Confirm</el-button>
-      </template>
-    </el-dialog>
+    <!-- Nav Node Dialog for Edit/Delete actions -->
+    <NavNodeDialog ref="navNodeDialogRef" />
 
     <!-- ===== Dialog: Mount Existing Device ===== -->
     <el-dialog
@@ -496,24 +381,88 @@
         <el-button class="btn-primary" size="small" type="primary" :loading="deploySubmitting" @click="submitDeploy">Deploy & Generate Points</el-button>
       </template>
     </el-dialog>
+
+    <!-- ===== Dialog: Edit Deployed Device ===== -->
+    <el-dialog
+      v-model="editDeviceDialogVisible"
+      title="Edit Deployed Device"
+      width="520px"
+      append-to-body
+      class="dark-dialog"
+    >
+      <el-form
+        :model="editDeviceForm"
+        :rules="editDeviceRules"
+        ref="editDeviceFormRef"
+        label-width="120px"
+        label-position="right"
+        size="small"
+        class="custom-form"
+      >
+        <el-form-item label="Device Name" prop="deviceDeployName">
+          <el-input v-model="editDeviceForm.deviceDeployName" placeholder="Enter device name" />
+        </el-form-item>
+
+        <el-form-item label="Device Alias">
+          <el-input v-model="editDeviceForm.deviceAlias" placeholder="Enter device alias" />
+        </el-form-item>
+
+        <el-form-item label="Device Template" prop="deviceTmplId">
+          <el-select
+            v-model="editDeviceForm.deviceTmplId"
+            placeholder="Select device template"
+            style="width: 100%"
+            @change="handleEditDialogTemplateChange"
+          >
+            <el-option
+              v-for="t in store.allTemplates"
+              :key="t.deviceTmplId"
+              :label="`${t.deviceTmplName} (${t.deviceType})`"
+              :value="t.deviceTmplId!"
+            />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="Device Type">
+          <el-input :value="editDeviceForm.deviceType || '-'" disabled />
+        </el-form-item>
+
+        <el-form-item label="N4 Topic">
+          <el-input :value="editDeviceForm.n4Address" disabled />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button class="btn-secondary" size="small" @click="editDeviceDialogVisible = false">Cancel</el-button>
+        <el-button
+          type="primary"
+          size="small"
+          class="btn-primary"
+          @click="submitEditDevice"
+          :loading="editDeviceSubmitting"
+        >
+          Save
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, type CSSProperties } from 'vue'
+import { computed, nextTick, onMounted, ref, watch, type CSSProperties } from 'vue'
 import {
-  Plus, CirclePlus, EditPen, Delete, Operation,
+  Plus, EditPen, Delete,
   Location, Picture, OfficeBuilding, Grid, Lightning, Warning,
   Cpu, Monitor, Box,
   FolderOpened,
   DataLine,
-  Connection, Edit, Check, List, Search, Link,
+  Connection, Edit, List, Search, Link,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { dashboardNavApi } from '@/api/dashboardNav'
 import { deploymentApi } from '@/api/deployment'
 import { useDashboardStore } from '@/stores/dashboard'
 import type { NavTreeNode, DeviceDeployItem, DeviceDeployment, PointDeploymentItem } from '@/api/types'
+import NavNodeDialog from '@/views/device-deploy/dialogs/NavNodeDialog.vue'
 
 const store = useDashboardStore()
 
@@ -523,7 +472,7 @@ const headerCellStyle: CSSProperties = {
   fontSize: '10px',
   fontWeight: '600',
   borderBottom: '1px solid #2d3748',
-  textAlign: 'left',
+  textAlign: 'center',
 }
 
 const cellStyle: CSSProperties = {
@@ -531,7 +480,7 @@ const cellStyle: CSSProperties = {
   color: '#e5e7eb',
   fontSize: '10px',
   borderBottom: '1px solid #1f2937',
-  textAlign: 'left',
+  textAlign: 'center',
 }
 
 // =====================================================================
@@ -540,14 +489,8 @@ const cellStyle: CSSProperties = {
 /** 'list' = List/overview view, 'detail' = Device detail view */
 const viewMode = ref<'list' | 'detail'>('list')
 
-// =====================================================================
-//  Navigation Tree
-// =====================================================================
-const treeData = ref<NavTreeNode[]>([])
-const treeLoading = ref(false)
-const treeProps = { children: 'children', label: 'nodeName' }
-
-const selectedNode = ref<NavTreeNode | null>(null)
+const navNodeDialogRef = ref<InstanceType<typeof NavNodeDialog>>()
+const selectedNode = computed(() => store.currentNavNode)
 const devicesLoading = ref(false)
 
 function isLeafNode(node: NavTreeNode): boolean {
@@ -559,68 +502,14 @@ function canAddChild(node: NavTreeNode): boolean {
   return node.nodeLevel < maxLevel
 }
 
-const parentCascaderProps = {
-  value: 'nodeId',
-  label: 'nodeName',
-  children: 'children',
-  checkStrictly: false,
-  emitPath: false,
-}
-
-async function loadTree() {
-  treeLoading.value = true
-  try {
-    treeData.value = await dashboardNavApi.getNavTree()
-    if (selectedNode.value) {
-      const refreshed = findNodeById(treeData.value, selectedNode.value.nodeId)
-      selectedNode.value = refreshed
-      if (refreshed && isLeafNode(refreshed)) {
-        await loadNodeDevices(refreshed.nodeId)
-      } else {
-        currentDevices.value = []
-      }
-    }
-  } catch (e: any) {
-    ElMessage.error(e.message || 'Failed to load navigation tree')
-  } finally {
-    treeLoading.value = false
-  }
-}
-
-function findNodeById(nodes: NavTreeNode[], id: number): NavTreeNode | null {
-  for (const n of nodes) {
-    if (n.nodeId === id) return n
-    if (n.children) {
-      const found = findNodeById(n.children, id)
-      if (found) return found
-    }
-  }
-  return null
-}
-
-async function handleNodeClick(data: NavTreeNode) {
-  selectedNode.value = data
+watch(selectedNode, async (newNode) => {
   viewMode.value = 'list'
-  isEditing.value = false
-  if (isLeafNode(data)) {
-    await loadNodeDevices(data.nodeId)
+  if (newNode && isLeafNode(newNode)) {
+    await loadNodeDevices(newNode.nodeId)
   } else {
     currentDevices.value = []
   }
-}
-
-// Flat node options for select dropdown
-const nodeOptions = computed(() => {
-  const out: { nodeId: number; nodeName: string }[] = []
-  const walk = (nodes: NavTreeNode[], prefix: string) => {
-    for (const n of nodes) {
-      out.push({ nodeId: n.nodeId, nodeName: prefix ? `${prefix}/${n.nodeName}` : n.nodeName })
-      if (n.children) walk(n.children, prefix ? `${prefix}/${n.nodeName}` : n.nodeName)
-    }
-  }
-  walk(treeData.value, '')
-  return out
-})
+}, { immediate: true })
 
 // =====================================================================
 //  Icon Mapping
@@ -629,18 +518,6 @@ const iconMap: Record<string, any> = {
   Location, Picture, OfficeBuilding, Grid, Lightning, Warning, EditPen,
   Cpu, Monitor, Box,
 }
-const iconOptions = [
-  { name: 'Location', comp: Location },
-  { name: 'Picture', comp: Picture },
-  { name: 'OfficeBuilding', comp: OfficeBuilding },
-  { name: 'Grid', comp: Grid },
-  { name: 'Lightning', comp: Lightning },
-  { name: 'Warning', comp: Warning },
-  { name: 'EditPen', comp: EditPen },
-  { name: 'Cpu', comp: Cpu },
-  { name: 'Monitor', comp: Monitor },
-  { name: 'Box', comp: Box },
-]
 function getNodeIcon(node: NavTreeNode) {
   if (node.hasRealData) return DataLine
   if (node.nodeLevel > 1) return null
@@ -650,178 +527,10 @@ function getNodeIcon(node: NavTreeNode) {
 }
 
 // =====================================================================
-//  Node CRUD Dialog
-// =====================================================================
-const nodeDialogVisible = ref(false)
-const nodeDialogMode = ref<'create' | 'edit'>('create')
-const nodeSubmitting = ref(false)
-const nodeFormRef = ref<FormInstance>()
-const editingNodeId = ref<number | null>(null)
-const nodeForm = ref({
-  nodeName: '',
-  parentId: null as number | null,
-  icon: null as string | null,
-  sortOrder: 0,
-})
-const nodeRules = {
-  nodeName: [{ required: true, message: 'Please enter node name', trigger: 'blur' }],
-}
-const targetParentLevel = ref<number>(0)
-const showParentSelect = computed(() => targetParentLevel.value > 0)
-
-const parentCascaderOptions = computed(() => {
-  const targetLevel = targetParentLevel.value
-  if (targetLevel === 0) return []
-
-  const buildTree = (nodes: NavTreeNode[]): any[] => {
-    const res: any[] = []
-    for (const n of nodes) {
-      if (n.nodeLevel > targetLevel) continue
-
-      if (n.nodeLevel === targetLevel) {
-        const maxL = n.maxLevel ?? 4
-        if (n.nodeLevel >= maxL) continue
-        
-        res.push({
-          nodeId: n.nodeId,
-          nodeName: n.nodeName,
-          nodeLevel: n.nodeLevel,
-        })
-      } else {
-        let validChildren: any[] = []
-        if (n.children && n.children.length > 0) {
-          validChildren = buildTree(n.children)
-        }
-        if (validChildren.length > 0) {
-          res.push({
-            nodeId: n.nodeId,
-            nodeName: n.nodeName,
-            nodeLevel: n.nodeLevel,
-            children: validChildren,
-          })
-        }
-      }
-    }
-    return res
-  }
-
-  return buildTree(treeData.value)
-})
-
-function openCreateDialog(parent: NavTreeNode | null) {
-  nodeDialogMode.value = 'create'
-  editingNodeId.value = null
-  targetParentLevel.value = parent ? parent.nodeLevel : 0
-  
-  nodeForm.value = {
-    nodeName: '',
-    parentId: parent ? parent.nodeId : null,
-    icon: parent ? null : 'OfficeBuilding',
-    sortOrder: 0,
-  }
-  nodeDialogVisible.value = true
-}
-
-function openEditDialog(node: NavTreeNode) {
-  nodeDialogMode.value = 'edit'
-  editingNodeId.value = node.nodeId
-  targetParentLevel.value = node.nodeLevel - 1
-  
-  nodeForm.value = {
-    nodeName: node.nodeName,
-    parentId: node.nodeLevel === 1 ? null : (findParentId(treeData.value, node.nodeId) ?? null),
-    icon: node.icon ?? null,
-    sortOrder: node.sortOrder,
-  }
-  nodeDialogVisible.value = true
-}
-
-function findParentId(nodes: NavTreeNode[], childId: number): number | null {
-  for (const n of nodes) {
-    if (n.children) {
-      if (n.children.some(c => c.nodeId === childId)) return n.nodeId
-      const found = findParentId(n.children, childId)
-      if (found) return found
-    }
-  }
-  return null
-}
-
-async function submitNodeForm() {
-  if (!nodeFormRef.value) return
-  await nodeFormRef.value.validate(async (valid) => {
-    if (!valid) return
-    nodeSubmitting.value = true
-    try {
-      if (nodeDialogMode.value === 'create') {
-        await dashboardNavApi.createNode({
-          nodeName: nodeForm.value.nodeName,
-          parentId: nodeForm.value.parentId,
-          icon: nodeForm.value.parentId == null ? nodeForm.value.icon : null,
-          sortOrder: nodeForm.value.sortOrder,
-        })
-        ElMessage.success('Node created successfully')
-      } else {
-        await dashboardNavApi.updateNode(editingNodeId.value!, {
-          nodeName: nodeForm.value.nodeName,
-          parentId: nodeForm.value.parentId,
-          icon: nodeForm.value.parentId == null ? nodeForm.value.icon : null,
-          sortOrder: nodeForm.value.sortOrder,
-        })
-        ElMessage.success('Node updated successfully')
-      }
-      nodeDialogVisible.value = false
-      await loadTree()
-    } catch (e: any) {
-      ElMessage.error(e.message || 'Operation failed')
-    } finally {
-      nodeSubmitting.value = false
-    }
-  })
-}
-
-// =====================================================================
-//  Node Delete
-// =====================================================================
-async function handleDeleteNode(node: NavTreeNode) {
-  try {
-    const impact = await dashboardNavApi.getDeleteImpact(node.nodeId)
-    const msg = !isLeafNode(node)
-      ? `This will delete this node along with its ${impact.childCount} sub-nodes, and unbind ${impact.deviceCount} devices.`
-      : `This will delete this node, and unbind ${impact.deviceCount} devices.`
-    await ElMessageBox.confirm(
-      `${msg}\nNode deletion cannot be undone. Do you want to proceed?`,
-      'Delete Confirmation',
-      {
-        confirmButtonText: 'Delete',
-        cancelButtonText: 'Cancel',
-        type: 'warning',
-        confirmButtonClass: 'el-button--danger',
-      },
-    )
-  } catch {
-    return
-  }
-  try {
-    await dashboardNavApi.deleteNode(node.nodeId)
-    ElMessage.success('Deleted successfully')
-    if (selectedNode.value?.nodeId === node.nodeId) {
-      selectedNode.value = null
-      currentDevices.value = []
-      viewMode.value = 'list'
-    }
-    await loadTree()
-  } catch (e: any) {
-    ElMessage.error(e.message || 'Failed to delete node')
-  }
-}
-
-// =====================================================================
 //  Device List
 // =====================================================================
 const currentDevices = ref<DeviceDeployment[]>([])
 const searchQuery = ref('')
-const submitting = ref(false)
 
 async function loadNodeDevices(nodeId: number) {
   devicesLoading.value = true
@@ -863,15 +572,17 @@ function exitBatchManage() {
 }
 
 // =====================================================================
-//  Device Detail / Edit
+//  Device Detail / Edit Dialog
 // =====================================================================
 const deviceForm = ref<any>({})
 const devicePoints = ref<PointDeploymentItem[]>([])
-const isEditing = ref(false)
-const detailFormRef = ref<FormInstance>()
-const detailRules = ref<FormRules>({
+const editDeviceDialogVisible = ref(false)
+const editDeviceSubmitting = ref(false)
+const editDeviceForm = ref<any>({})
+const editDeviceFormRef = ref<FormInstance>()
+const editDeviceRules = ref<FormRules>({
   deviceDeployName: [{ required: true, message: 'Please enter device name', trigger: 'blur' }],
-  macAddress: [{ validator: validateMacAddress, trigger: 'blur' }]
+  deviceTmplId: [{ required: true, message: 'Please select device template', trigger: 'change' }]
 })
 
 async function viewDeviceDetail(row: DeviceDeployment) {
@@ -881,7 +592,6 @@ async function viewDeviceDetail(row: DeviceDeployment) {
     deviceForm.value = { ...detail }
     devicePoints.value = await deploymentApi.getPoints(row.deviceDeployId!)
     viewMode.value = 'detail'
-    isEditing.value = false
   } catch (e: any) {
     ElMessage.error(e.message || 'Failed to load device details')
   } finally {
@@ -891,62 +601,79 @@ async function viewDeviceDetail(row: DeviceDeployment) {
 
 function goBackToList() {
   viewMode.value = 'list'
-  isEditing.value = false
   if (selectedNode.value && isLeafNode(selectedNode.value)) {
     loadNodeDevices(selectedNode.value.nodeId)
   }
 }
 
-function startEdit() {
-  isEditing.value = true
-}
-
-function validateMacAddress(_rule: any, value: any, callback: any) {
-  if (value && !/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/.test(value)) {
-    callback(new Error('Invalid MAC address format (e.g. 00:1A:2B:3C:4D:5E)'))
-    return
+function openEditDeviceDialog() {
+  editDeviceForm.value = {
+    deviceDeployId: deviceForm.value.deviceDeployId,
+    deviceDeployName: deviceForm.value.deviceDeployName,
+    deviceAlias: deviceForm.value.deviceAlias,
+    deviceTmplId: deviceForm.value.deviceTmplId,
+    deviceType: deviceForm.value.deviceType,
+    n4Address: deviceForm.value.n4Address,
+    navNodeId: deviceForm.value.navNodeId,
+    alarmCode: deviceForm.value.alarmCode,
+    status: deviceForm.value.status,
+    ipAddress: deviceForm.value.ipAddress,
+    macAddress: deviceForm.value.macAddress,
+    installDate: deviceForm.value.installDate,
+    warrantyExpire: deviceForm.value.warrantyExpire,
+    location: deviceForm.value.location,
+    department: deviceForm.value.department,
+    responsiblePerson: deviceForm.value.responsiblePerson,
+    contactPhone: deviceForm.value.contactPhone
   }
-  callback()
+  editDeviceDialogVisible.value = true
 }
 
-async function submitUpdate() {
-  if (!deviceForm.value.deviceDeployId) {
+function handleEditDialogTemplateChange(tmplId: number) {
+  const tmpl = store.allTemplates.find(t => t.deviceTmplId === tmplId)
+  if (tmpl) {
+    editDeviceForm.value.deviceType = tmpl.deviceType
+  }
+}
+
+async function submitEditDevice() {
+  if (!editDeviceForm.value.deviceDeployId) {
     ElMessage.error('Cannot save: Missing device ID')
     return
   }
-  if (!detailFormRef.value) return
+  if (!editDeviceFormRef.value) return
   try {
-    await detailFormRef.value.validate()
+    await editDeviceFormRef.value.validate()
   } catch {
     return
   }
   try {
-    submitting.value = true
+    editDeviceSubmitting.value = true
     const payload = {
-      deviceTmplId: deviceForm.value.deviceTmplId,
-      navNodeId: deviceForm.value.navNodeId,
-      deviceDeployName: deviceForm.value.deviceDeployName,
-      deviceAlias: deviceForm.value.deviceAlias,
-      alarmCode: deviceForm.value.alarmCode,
-      ipAddress: deviceForm.value.ipAddress,
-      macAddress: deviceForm.value.macAddress,
-      installDate: deviceForm.value.installDate,
-      warrantyExpire: deviceForm.value.warrantyExpire,
-      location: deviceForm.value.location,
-      department: deviceForm.value.department,
-      responsiblePerson: deviceForm.value.responsiblePerson,
-      contactPhone: deviceForm.value.contactPhone,
-      status: deviceForm.value.status
+      deviceTmplId: editDeviceForm.value.deviceTmplId,
+      navNodeId: editDeviceForm.value.navNodeId,
+      deviceDeployName: editDeviceForm.value.deviceDeployName,
+      deviceAlias: editDeviceForm.value.deviceAlias,
+      alarmCode: editDeviceForm.value.alarmCode,
+      ipAddress: editDeviceForm.value.ipAddress,
+      macAddress: editDeviceForm.value.macAddress,
+      installDate: editDeviceForm.value.installDate,
+      warrantyExpire: editDeviceForm.value.warrantyExpire,
+      location: editDeviceForm.value.location,
+      department: editDeviceForm.value.department,
+      responsiblePerson: editDeviceForm.value.responsiblePerson,
+      contactPhone: editDeviceForm.value.contactPhone,
+      status: editDeviceForm.value.status
     }
-    await deploymentApi.update(deviceForm.value.deviceDeployId, payload)
+    await deploymentApi.update(editDeviceForm.value.deviceDeployId, payload)
     await store.refreshAfterMutation()
     ElMessage.success('Device updated successfully')
-    isEditing.value = false
-    await viewDeviceDetail(deviceForm.value)
+    editDeviceDialogVisible.value = false
+    await viewDeviceDetail(editDeviceForm.value)
   } catch (err: any) {
     ElMessage.error(err.message || 'Update failed')
   } finally {
-    submitting.value = false
+    editDeviceSubmitting.value = false
   }
 }
 
@@ -1019,7 +746,6 @@ function batchDeleteDevices() {
 }
 
 async function refreshAfterChange() {
-  await loadTree()
   await store.refreshAfterMutation()
   if (selectedNode.value && isLeafNode(selectedNode.value)) {
     await loadNodeDevices(selectedNode.value.nodeId)
@@ -1040,6 +766,14 @@ const deployForm = ref({
   macAddress: '',
   installDate: ''
 })
+function validateMacAddress(_rule: any, value: any, callback: any) {
+  if (value && !/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/.test(value)) {
+    callback(new Error('Invalid MAC address format (e.g. 00:1A:2B:3C:4D:5E)'))
+    return
+  }
+  callback()
+}
+
 const deployRules = ref<FormRules>({
   deviceTmplId: [{ required: true, message: 'Please select device template', trigger: 'change' }],
   deviceDeployName: [{ required: true, message: 'Please enter device name', trigger: 'blur' }],
@@ -1195,9 +929,14 @@ function openPointAlarmConfig(row: any) {
 //  Initialization
 // =====================================================================
 onMounted(async () => {
-  await loadTree()
+  if (!store.navTree.length) {
+    await store.loadNavTree()
+  }
   if (!store.allTemplates.length) {
     await store.loadTemplates()
+  }
+  if (selectedNode.value && isLeafNode(selectedNode.value)) {
+    await loadNodeDevices(selectedNode.value.nodeId)
   }
 })
 </script>
@@ -1218,17 +957,18 @@ $bg-dark: #0b1119;
 
 .system-deployment-view {
   display: flex;
-  gap: 12px;
   height: 100%;
   min-height: 0;
+  width: 100%;
 }
 
-// ===== Left Tree Panel =====
-.nav-tree-panel {
-  width: 280px;
-  flex-shrink: 0;
-  background-color: #111827;
-  border: 1px solid #1f2937;
+// ===== Right Panel =====
+.detail-panel {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  background-color: $bg-card;
+  border: 1px solid $border-color;
   border-radius: 6px;
   display: flex;
   flex-direction: column;
@@ -1271,119 +1011,12 @@ $bg-dark: #0b1119;
   }
 }
 
-.tree-body {
+.empty-selection-container {
   flex: 1;
-  overflow-y: auto;
-  padding: 6px;
-}
-
-.deploy-tree {
-  background: transparent !important;
-
-  :deep(.el-tree-node__content) {
-    height: 22px !important;
-    border-radius: 4px;
-    margin: 1px 0;
-    padding: 0 4px !important;
-
-    &:hover {
-      background-color: #1a2332 !important;
-    }
-  }
-
-  :deep(.el-tree-node.is-current > .el-tree-node__content) {
-    background-color: rgba(16, 185, 129, 0.16) !important;
-    color: #34d399 !important;
-    font-weight: 500;
-  }
-}
-
-.tree-node-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding-right: 4px;
-  overflow: hidden;
-}
-
-.tree-node-label {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 10px;
-  overflow: hidden;
-  flex: 1;
-
-  .node-icon {
-    font-size: 12px;
-    color: $text-secondary;
-    &.real-data-icon {
-      color: $accent-green;
-    }
-  }
-
-  .label-text {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 10px;
-  }
-
-  &.level-1 {
-    color: #64b5f6;
-    font-weight: 600;
-  }
-  &.level-2 {
-    color: $text-primary;
-    font-weight: 500;
-  }
-  &.level-3 {
-    color: $text-primary;
-    font-weight: 400;
-  }
-}
-
-.count-badge {
-  font-size: 9px;
-  color: $accent-green;
-  background-color: rgba($accent-green, 0.12);
-  padding: 0 4px;
-  border-radius: 6px;
-  flex-shrink: 0;
-  line-height: 14px;
-}
-
-.node-actions {
-  display: none;
-  gap: 2px;
-  flex-shrink: 0;
-
-  :deep(.el-button) {
-    height: 18px !important;
-    padding: 0 2px !important;
-    font-size: 10px !important;
-  }
-}
-
-.tree-node-row:hover .node-actions {
-  display: flex;
-}
-
-.del-btn {
-  color: $accent-red !important;
-}
-
-// ===== Right Panel =====
-.detail-panel {
-  flex: 1;
-  min-width: 0;
-  background-color: $bg-card;
-  border: 1px solid $border-color;
-  border-radius: 6px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  justify-content: center;
+  height: 100%;
 }
 
 .detail-body {
@@ -1447,7 +1080,7 @@ $bg-dark: #0b1119;
 
 .header-actions {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   align-items: center;
 }
 
@@ -1622,8 +1255,66 @@ $bg-dark: #0b1119;
     font-size: 10px !important;
     display: flex;
     align-items: center;
-    justify-content: flex-start;
-    text-align: left !important;
+    justify-content: center;
+    text-align: center !important;
+  }
+}
+
+.btn-back {
+  margin-left: 20px !important;
+}
+
+.alarm-rule-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.alarm-code-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  height: 16px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 16px;
+  border: none !important;
+  background-color: rgba($accent-red, 0.22) !important;
+  color: #fca5a5 !important;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+
+  &:hover {
+    background-color: rgba($accent-red, 0.35) !important;
+    color: #ffffff !important;
+    transform: translateY(-0.5px);
+  }
+}
+
+.alarm-none-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  height: 16px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 16px;
+  border: none !important;
+  background-color: rgba(100, 116, 139, 0.14) !important;
+  color: #94a3b8 !important;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+
+  &:hover {
+    background-color: rgba($accent-blue, 0.20) !important;
+    color: #93c5fd !important;
+    transform: translateY(-0.5px);
   }
 }
 
@@ -1726,13 +1417,31 @@ $bg-dark: #0b1119;
 }
 
 .custom-form {
+  :deep(.el-form-item) {
+    margin-bottom: 8px;
+  }
   :deep(.el-form-item__label) {
     color: $text-secondary;
     font-weight: 500;
-    font-size: 10px;
+    font-size: 10px !important;
+    height: 22px !important;
+    line-height: 22px !important;
   }
-  :deep(.el-input__wrapper) {
+  :deep(.el-input__wrapper),
+  :deep(.el-select__wrapper),
+  :deep(.el-date-editor.el-input__wrapper) {
     background-color: $bg-dark !important;
+    height: 22px !important;
+    min-height: 22px !important;
+    line-height: 22px !important;
+    font-size: 10px !important;
+  }
+  :deep(.el-input__inner),
+  :deep(.el-select__selected-item),
+  :deep(.el-select__placeholder) {
+    font-size: 10px !important;
+    height: 22px !important;
+    line-height: 22px !important;
   }
 }
 

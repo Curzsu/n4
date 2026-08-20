@@ -71,7 +71,7 @@ const isNavRoute = computed(() => route.path === '/')
 // The left sidebar is collapsed (not removed) on every route except Dashboard,
 // Device Template and Device Deployment, where it opens by default.
 const isLeftSidebarOpenByDefault = computed(() =>
-  route.path === '/' || route.path === '/device-template' || route.path === '/device-deployment')
+  route.path === '/' || route.path === '/device-template' || route.path === '/device-deployment' || route.path === '/system-deployment')
 
 const isRightCollapsed = computed({
   get: () => store.isRightCollapsed,

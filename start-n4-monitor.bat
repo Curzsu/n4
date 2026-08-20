@@ -41,7 +41,7 @@ where npm.cmd >nul 2>&1 || (
   exit /b 1
 )
 
-echo Starting N4 Monitor backend on port 8089...
+echo Starting N4 Monitor backend on port 8088...
 rem Run Spring Boot from the monitor-backend module directory where the plugin is declared.
 start "N4 Monitor Backend" cmd.exe /k "cd /d ""%BACKEND%"" && mvn.cmd spring-boot:run"
 

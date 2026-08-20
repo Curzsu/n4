@@ -136,7 +136,7 @@ html, body, #app {
     color: $text-muted !important;
   }
 
-  // 内层容器透明
+  // Inner containers transparent
   .el-table__inner-wrapper,
   .el-table__header-wrapper,
   .el-table__body-wrapper {
@@ -146,26 +146,67 @@ html, body, #app {
 
 // Dark dialog styling
 .dark-dialog {
-  --el-dialog-bg-color: #111b27 !important; // $bg-card matching template view
+  --el-dialog-bg-color: #111b27 !important;
   --el-dialog-title-font-color: #f8fafc !important;
-  --el-dialog-content-font-size: 14px !important;
+  --el-dialog-content-font-size: 11px !important;
   
-  border: 1px solid #1e293b !important; // $border-color
+  border: 1px solid #1e293b !important;
   border-radius: 8px !important;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.6) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7), 0 8px 10px -6px rgba(0, 0, 0, 0.7) !important;
   
   .el-dialog__title {
     color: #f8fafc !important;
+    font-size: 13px !important;
     font-weight: 600;
   }
   
   .el-dialog__body {
     color: #cbd5e1 !important;
+    font-size: 11px !important;
   }
   
+  .el-form-item {
+    margin-bottom: 10px;
+  }
+
   .el-form-item__label {
-    color: #cbd5e1 !important;
+    color: #94a3b8 !important;
     font-weight: 500;
+    font-size: 10px !important;
+    height: 24px !important;
+    line-height: 24px !important;
+  }
+  
+  // Inputs and selects inside dark dialog
+  .el-input__wrapper,
+  .el-select__wrapper,
+  .el-date-editor.el-input__wrapper {
+    background-color: #0b1119 !important;
+    border: 1px solid #1e293b !important;
+    box-shadow: none !important;
+    color: #cbd5e1 !important;
+    height: 24px !important;
+    min-height: 24px !important;
+    line-height: 24px !important;
+    font-size: 10px !important;
+    padding: 0 8px !important;
+
+    &.is-focus {
+      border-color: #38bdf8 !important;
+    }
+  }
+
+  .el-input__inner,
+  .el-select__selected-item,
+  .el-select__placeholder {
+    color: #cbd5e1 !important;
+    font-size: 10px !important;
+    height: 24px !important;
+    line-height: 24px !important;
+  }
+
+  .el-select__placeholder {
+    color: #64748b !important;
   }
   
   // Custom button overrides within dark dialog
@@ -173,6 +214,10 @@ html, body, #app {
     background-color: transparent !important;
     border: 1px solid #1e293b !important;
     color: #cbd5e1 !important;
+    font-size: 11px !important;
+    height: 24px !important;
+    line-height: 24px !important;
+    padding: 0 12px !important;
     
     &:hover {
       background-color: #1e293b !important;
@@ -195,22 +240,6 @@ html, body, #app {
         cursor: not-allowed;
       }
     }
-  }
-
-  // Select dropdown styling
-  .el-select__wrapper {
-    background-color: #0b1119 !important; // $bg-dark
-    border: 1px solid #1e293b !important;
-    box-shadow: none !important;
-    color: #cbd5e1 !important;
-  }
-
-  .el-select__placeholder {
-    color: #64748b !important;
-  }
-
-  .el-select__selected-item {
-    color: #cbd5e1 !important;
   }
   
   // Input Number decrement/increment buttons styling
@@ -237,13 +266,198 @@ html, body, #app {
   }
 }
 
+// =====================================================================
+// Global Dropdown / Select / Cascader / DatePicker Popper Dark Compact Styling
+// =====================================================================
+.el-select__popper,
+.el-popper.is-light,
+.el-popper {
+  background-color: #111b27 !important;
+  border: 1px solid #1e293b !important;
+  border-radius: 6px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7), 0 8px 10px -6px rgba(0, 0, 0, 0.7) !important;
+  color: #cbd5e1 !important;
+
+  .el-popper__arrow::before {
+    background-color: #111b27 !important;
+    border: 1px solid #1e293b !important;
+  }
+}
+
+.el-select-dropdown {
+  background-color: #111b27 !important;
+  border: 1px solid #1e293b !important;
+  border-radius: 6px !important;
+  padding: 4px 0 !important;
+}
+
+.el-select-dropdown__wrap {
+  max-height: 260px;
+}
+
+.el-select-dropdown__list {
+  padding: 2px 0 !important;
+}
+
+.el-select-dropdown__item {
+  color: #cbd5e1 !important;
+  font-size: 10px !important;
+  height: 24px !important;
+  line-height: 24px !important;
+  padding: 0 10px !important;
+  background-color: transparent !important;
+  transition: all 0.15s ease;
+
+  &:hover,
+  &.is-hovering {
+    background-color: #1e293b !important;
+    color: #f8fafc !important;
+  }
+
+  &.is-selected {
+    color: #38bdf8 !important;
+    font-weight: 600 !important;
+    background-color: rgba(56, 189, 248, 0.14) !important;
+  }
+
+  &.is-disabled {
+    color: #475569 !important;
+    background-color: transparent !important;
+  }
+}
+
+.el-select-dropdown__empty {
+  font-size: 10px !important;
+  color: #64748b !important;
+  padding: 8px 0 !important;
+}
+
+// Global Date Picker Poppers
+.el-picker-panel,
+.el-date-picker {
+  background-color: #111b27 !important;
+  border: 1px solid #1e293b !important;
+  color: #cbd5e1 !important;
+  font-size: 11px !important;
+
+  .el-date-picker__header {
+    margin: 8px 12px 4px !important;
+    color: #cbd5e1 !important;
+
+    .el-date-picker__header-label {
+      font-size: 11px !important;
+      color: #f8fafc !important;
+      font-weight: 600 !important;
+
+      &:hover {
+        color: #38bdf8 !important;
+      }
+    }
+
+    button {
+      color: #94a3b8 !important;
+      &:hover {
+        color: #38bdf8 !important;
+      }
+    }
+  }
+
+  .el-picker-panel__content {
+    margin: 6px 10px 10px !important;
+  }
+
+  .el-date-table th {
+    color: #64748b !important;
+    font-size: 10px !important;
+    border-bottom: 1px solid #1e293b !important;
+    padding: 4px 0 !important;
+  }
+
+  .el-date-table td {
+    padding: 2px 0 !important;
+
+    .el-date-table-cell {
+      height: 24px !important;
+      padding: 0 !important;
+
+      .el-date-table-cell__text {
+        width: 22px !important;
+        height: 22px !important;
+        line-height: 22px !important;
+        font-size: 10px !important;
+        color: #cbd5e1 !important;
+        border-radius: 4px !important;
+      }
+    }
+
+    &.today .el-date-table-cell__text {
+      color: #38bdf8 !important;
+      font-weight: 600 !important;
+    }
+
+    &.current:not(.disabled) .el-date-table-cell__text {
+      background-color: #38bdf8 !important;
+      color: #0b1118 !important;
+      font-weight: 600 !important;
+    }
+
+    &.available:hover .el-date-table-cell__text {
+      background-color: #1e293b !important;
+      color: #f8fafc !important;
+    }
+
+    &.prev-month .el-date-table-cell__text,
+    &.next-month .el-date-table-cell__text {
+      color: #475569 !important;
+    }
+  }
+
+  .el-picker-panel__footer {
+    background-color: #0d131d !important;
+    border-top: 1px solid #1e293b !important;
+    padding: 4px 10px !important;
+
+    .el-button {
+      font-size: 10px !important;
+      height: 22px !important;
+      padding: 0 8px !important;
+    }
+  }
+}
+
+// Global Dropdown Menu (el-dropdown)
+.el-dropdown__popper {
+  background-color: #111b27 !important;
+  border: 1px solid #1e293b !important;
+}
+
+.el-dropdown-menu {
+  background-color: #111b27 !important;
+  border: 1px solid #1e293b !important;
+  padding: 4px 0 !important;
+}
+
+.el-dropdown-menu__item {
+  color: #cbd5e1 !important;
+  font-size: 10px !important;
+  height: 24px !important;
+  line-height: 24px !important;
+  padding: 0 10px !important;
+
+  &:hover,
+  &:focus {
+    background-color: #1e293b !important;
+    color: #f8fafc !important;
+  }
+}
+
 // Cascader dark theme styling
 .dark-cascader-dropdown,
 .el-cascader__dropdown,
 .el-cascader-panel {
   background-color: #111b27 !important;
   border: 1px solid #1e293b !important;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.6) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7) !important;
   color: #cbd5e1 !important;
 }
 
@@ -255,11 +469,16 @@ html, body, #app {
 
 .el-cascader-menu__list {
   background-color: #111b27 !important;
+  padding: 2px 0 !important;
 }
 
 .el-cascader-node {
   color: #cbd5e1 !important;
   background-color: transparent !important;
+  font-size: 10px !important;
+  height: 24px !important;
+  line-height: 24px !important;
+  padding: 0 10px !important;
 
   &:hover,
   &:focus {
@@ -269,9 +488,9 @@ html, body, #app {
 
   &.is-active,
   &.in-active-path {
-    color: #3b82f6 !important;
+    color: #38bdf8 !important;
     font-weight: 600 !important;
-    background-color: rgba(59, 130, 246, 0.15) !important;
+    background-color: rgba(56, 189, 248, 0.14) !important;
   }
 
   &.is-disabled {
@@ -281,6 +500,7 @@ html, body, #app {
 
   .el-cascader-node__label {
     color: inherit !important;
+    font-size: 10px !important;
   }
 
   .el-cascader-node__postfix {

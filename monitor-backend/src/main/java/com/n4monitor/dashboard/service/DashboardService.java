@@ -4,9 +4,6 @@ import com.n4monitor.alarm.service.AlarmService;
 import com.n4monitor.alarm.dto.AlarmItemDto;
 import com.n4monitor.alarm.dto.AlarmSummaryDto;
 import com.n4monitor.dashboard.dto.*;
-import com.n4monitor.device.mapper.DeviceMapper;
-import com.n4monitor.device.mapper.MonitorPointMapper;
-import com.n4monitor.product.mapper.ProductMapper;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -15,18 +12,9 @@ import java.util.List;
 @Service
 public class DashboardService {
 
-    private final DeviceMapper deviceMapper;
-    private final MonitorPointMapper monitorPointMapper;
-    private final ProductMapper productMapper;
     private final AlarmService alarmService;
 
-    public DashboardService(DeviceMapper deviceMapper,
-                            MonitorPointMapper monitorPointMapper,
-                            ProductMapper productMapper,
-                            AlarmService alarmService) {
-        this.deviceMapper = deviceMapper;
-        this.monitorPointMapper = monitorPointMapper;
-        this.productMapper = productMapper;
+    public DashboardService(AlarmService alarmService) {
         this.alarmService = alarmService;
     }
 

@@ -21,17 +21,19 @@
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="deviceTmplId">
-        INSERT INTO device_template (device_tmpl_name, device_type, model, manufacturer, manu_date)
-        VALUES (#{deviceTmplName}, #{deviceType}, #{model}, #{manufacturer}, #{manuDate})
+        INSERT INTO device_template (device_tmpl_name, n4_name, device_type, model, purpose, manufacturer, manu_date)
+        VALUES (#{deviceTmplName}, #{n4Name}, #{deviceType}, #{model}, #{purpose}, #{manufacturer}, #{manuDate})
     </insert>
 
     <update id="update">
         UPDATE device_template
         SET device_tmpl_name = #{deviceTmplName},
-            device_type = #{deviceType},
-            model = #{model},
-            manufacturer = #{manufacturer},
-            manu_date = #{manuDate}
+            n4_name          = #{n4Name},
+            device_type      = #{deviceType},
+            model            = #{model},
+            purpose          = #{purpose},
+            manufacturer     = #{manufacturer},
+            manu_date        = #{manuDate}
         WHERE device_tmpl_id = #{deviceTmplId}
     </update>
 

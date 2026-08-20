@@ -31,11 +31,11 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:8089',
+        target: `http://localhost:${process.env.VITE_BACKEND_PORT || '8088'}`,
         changeOrigin: true,
       },
       '/ws': {
-        target: 'ws://localhost:8089',
+        target: `ws://localhost:${process.env.VITE_BACKEND_PORT || '8088'}`,
         ws: true,
         changeOrigin: true,
       },

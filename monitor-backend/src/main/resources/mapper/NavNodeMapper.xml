@@ -5,8 +5,8 @@
 
     <select id="findAll" resultType="com.n4monitor.dashboard.entity.NavNode">
         SELECT node_id, parent_id, node_name, node_level, node_type, max_level, icon, sort_order,
-               is_deleted, create_time, update_time
-        FROM nav_node
+               mqtt_server_addresses, is_deleted, create_time, update_time
+        FROM system_deployment
         WHERE is_deleted = 0
         ORDER BY sort_order, node_id
     </select>
@@ -51,42 +51,43 @@
         WHERE dd.is_deleted = 0 AND dd.device_deploy_id = #{deviceDeployId}
     </select>
 
-    <!-- ===== System Deployment 页写操作 ===== -->
+    <!-- ===== System Deployment Write Operations ===== -->
 
     <select id="findByNodeId" resultType="com.n4monitor.dashboard.entity.NavNode">
         SELECT node_id, parent_id, node_name, node_level, node_type, max_level, icon, sort_order,
-               is_deleted, create_time, update_time
-        FROM nav_node
+               mqtt_server_addresses, is_deleted, create_time, update_time
+        FROM system_deployment
         WHERE node_id = #{nodeId}
     </select>
 
     <select id="findChildren" resultType="com.n4monitor.dashboard.entity.NavNode">
         SELECT node_id, parent_id, node_name, node_level, node_type, max_level, icon, sort_order,
-               is_deleted, create_time, update_time
-        FROM nav_node
+               mqtt_server_addresses, is_deleted, create_time, update_time
+        FROM system_deployment
         WHERE parent_id = #{parentId} AND is_deleted = 0
         ORDER BY sort_order, node_id
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="nodeId">
-        INSERT INTO nav_node (node_name, parent_id, node_level, node_type, max_level, icon, sort_order)
-        VALUES (#{nodeName}, #{parentId}, #{nodeLevel}, #{nodeType}, #{maxLevel}, #{icon}, #{sortOrder})
+        INSERT INTO system_deployment (node_name, parent_id, node_level, node_type, max_level, icon, sort_order, mqtt_server_addresses)
+        VALUES (#{nodeName}, #{parentId}, #{nodeLevel}, #{nodeType}, #{maxLevel}, #{icon}, #{sortOrder}, #{mqttServerAddresses})
     </insert>
 
     <update id="update">
-        UPDATE nav_node
-        SET node_name   = #{nodeName},
-            parent_id   = #{parentId},
-            node_level  = #{nodeLevel},
-            max_level   = #{maxLevel},
-            icon        = #{icon},
-            sort_order  = #{sortOrder},
-            update_time = NOW()
+        UPDATE system_deployment
+        SET node_name              = #{nodeName},
+            parent_id              = #{parentId},
+            node_level             = #{nodeLevel},
+            max_level              = #{maxLevel},
+            icon                   = #{icon},
+            sort_order             = #{sortOrder},
+            mqtt_server_addresses  = #{mqttServerAddresses},
+            update_time            = NOW()
         WHERE node_id = #{nodeId}
     </update>
 
     <update id="logicalDelete">
-        UPDATE nav_node
+        UPDATE system_deployment
         SET is_deleted = 1, update_time = NOW()
         WHERE node_id = #{nodeId}
     </update>
