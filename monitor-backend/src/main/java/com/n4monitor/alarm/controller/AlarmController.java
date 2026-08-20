@@ -33,6 +33,11 @@ public class AlarmController {
         return ApiResponse.success(alarmService.getClearedAlarms());
     }
 
+    @GetMapping("/events")
+    public ApiResponse<List<AlarmRecordDto>> getAlarmEvents() {
+        return ApiResponse.success(alarmService.getAlarmEvents());
+    }
+
     @GetMapping("/summary")
     public ApiResponse<AlarmSummaryDto> getAlarmSummary() {
         return ApiResponse.success(alarmService.getAlarmSummary());

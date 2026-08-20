@@ -5,6 +5,7 @@ import lombok.Data;
 @Data
 public class AlarmRecordDto {
     private String time;        // "2024-05-30 10:21:13"
+    private String value;       // point value as text
     private String level;       // alarm threshold level
     private String severity;    // "Critical" | "Major" | "Minor" | "Warning"
     private String source;      // "CHWS" | "UPS-A" | ...

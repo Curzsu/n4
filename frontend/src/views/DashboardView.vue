@@ -1,5 +1,9 @@
 <template>
-  <div class="dashboard-view" v-loading="store.loading">
+  <div
+    class="dashboard-view"
+    :class="{ 'dashboard-view--overview': !store.currentNavNode }"
+    v-loading="store.loading"
+  >
     <!-- Unselected navigation node: render dashboard overview -->
     <template v-if="!store.currentNavNode">
       <KpiCardsRow />
@@ -79,7 +83,13 @@ onMounted(() => {
 .dashboard-view {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
   min-height: 100%;
+}
+
+// Overview mode fits the whole dashboard into the viewport without scrolling:
+// children share the available height via flex instead of using fixed sizes.
+.dashboard-view--overview {
+  height: 100%;
 }
 </style>

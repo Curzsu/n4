@@ -104,15 +104,25 @@ const props = defineProps<{
   mode?: 'default' | 'nav'
   navTree?: NavTreeNode[]
   loading?: boolean
+  // Collapse state when this sidebar first mounts or the route changes.
+  // Kept as a prop so MainLayout can drive per-route default collapse state
+  // (collapsed elsewhere, open on Dashboard / Device Template / Device Deployment).
+  defaultCollapsed?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'node-click', node: NavTreeNode): void
 }>()
 
-const isCollapsed = ref(false)
+const isCollapsed = ref(props.defaultCollapsed ?? false)
 const searchText = ref('')
 const treeRef = ref<InstanceType<typeof ElTree>>()
+
+// Reset to the route's default collapse state whenever it changes, so
+// navigating between routes never leaves the sidebar in a stale state.
+watch(() => props.defaultCollapsed, (val) => {
+  isCollapsed.value = val ?? false
+})
 
 const treeProps = {
   children: 'children',

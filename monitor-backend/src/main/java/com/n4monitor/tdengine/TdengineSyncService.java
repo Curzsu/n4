@@ -381,6 +381,64 @@ public class TdengineSyncService {
     }
 
     /**
+     * Query all full-detail records from the alarm_event supertable.
+     * Uses the same query shape as {@link #queryClearedAlarms()} but targets the
+     * event table (one row per processed point frame) instead of alarm_realtime.
+     * Returns the most recent 200 records, newest first.
+     */
+    public List<AlarmRecordDto> queryAlarmEvents() {
+        List<AlarmRecordDto> result = new ArrayList<>();
+
+        String sql = "SELECT data_timestamp, point_value, alarm_level, alarm_severity, alarm_source, " +
+                "alarm_message, alarm_location, alarm_status, ack_by, alarm_duration, " +
+                "alarm_stage, alarm_stage_message, alarm_start_time, path FROM " + tdengineConfig.getEventSupertable() + " " +
+                "ORDER BY data_timestamp DESC, ts DESC LIMIT 200";
+
+        try (Connection readConn = openReadConnection();
+             Statement stmt = readConn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                AlarmRecordDto dto = new AlarmRecordDto();
+                Timestamp dataTs = rs.getTimestamp("data_timestamp");
+                if (dataTs != null) {
+                    dto.setTime(LocalDateTime.ofInstant(
+                            Instant.ofEpochMilli(dataTs.getTime()), ZoneId.systemDefault())
+                            .format(TD_TIME_FORMAT));
+                } else {
+                    dto.setTime("-");
+                }
+                dto.setLevel(rs.getString("alarm_level"));
+                dto.setSeverity(rs.getString("alarm_severity"));
+                dto.setValue(rs.getString("point_value"));
+                dto.setSource(rs.getString("alarm_source"));
+                dto.setMessage(rs.getString("alarm_message"));
+                dto.setLocation(rs.getString("alarm_location"));
+                dto.setStatus(rs.getString("alarm_status"));
+                dto.setAckBy(rs.getString("ack_by"));
+                dto.setDuration(rs.getString("alarm_duration"));
+                dto.setStage(rs.getString("alarm_stage"));
+                dto.setStageMessage(rs.getString("alarm_stage_message"));
+                Timestamp startTs = rs.getTimestamp("alarm_start_time");
+                if (startTs != null) {
+                    dto.setAlarmStartTime(LocalDateTime.ofInstant(
+                            Instant.ofEpochMilli(startTs.getTime()), ZoneId.systemDefault())
+                            .format(TD_TIME_FORMAT));
+                } else {
+                    dto.setAlarmStartTime("-");
+                }
+                dto.setPath(rs.getString("path"));
+                result.add(dto);
+            }
+        } catch (SQLException e) {
+            log.error("Failed to query alarm events from TDengine", e);
+            closeConnection();
+        }
+
+        log.info("Queried {} alarm event records from TDengine", result.size());
+        return result;
+    }
+
+    /**
      * Open a short-lived connection for read-only queries. Reads never share
      * the writer's long-lived connection: JDBC connections are not thread-safe
      * and the writer thread owns its connection exclusively.

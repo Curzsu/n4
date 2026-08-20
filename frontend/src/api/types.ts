@@ -124,6 +124,7 @@ export interface MonitorPoint {
 export interface AlarmRecord {
   id: string
   time: string
+  value?: string
   severity: string
   source: string
   message: string
