@@ -7,9 +7,9 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.n4monitor.fuxa.FuxaProperties;
 import com.n4monitor.fuxa.dto.FuxaBindingDto;
 import com.n4monitor.fuxa.dto.FuxaDiscoveryRequest;
-import com.n4monitor.device.entity.Device;
+import com.n4monitor.deployment.entity.DeviceDeployment;
+import com.n4monitor.deployment.mapper.DeviceDeploymentMapper;
 import com.n4monitor.fuxa.entity.FuxaDeviceBinding;
-import com.n4monitor.device.mapper.DeviceMapper;
 import com.n4monitor.fuxa.repository.FuxaBindingRepository;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -26,6 +26,7 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.List;
 
 @Service
 public class FuxaBindingService {
@@ -35,19 +36,19 @@ public class FuxaBindingService {
 
     private final FuxaProperties properties;
     private final FuxaBindingRepository repository;
-    private final DeviceMapper deviceMapper;
+    private final DeviceDeploymentMapper deviceDeploymentMapper;
     private final ObjectMapper objectMapper;
     private final RestClient fuxaClient;
 
     public FuxaBindingService(
         FuxaProperties properties,
         FuxaBindingRepository repository,
-        DeviceMapper deviceMapper,
+        DeviceDeploymentMapper deviceDeploymentMapper,
         ObjectMapper objectMapper
     ) {
         this.properties = properties;
         this.repository = repository;
-        this.deviceMapper = deviceMapper;
+        this.deviceDeploymentMapper = deviceDeploymentMapper;
         this.objectMapper = objectMapper;
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Duration.ofSeconds(5));
@@ -65,7 +66,7 @@ public class FuxaBindingService {
             throw new IllegalStateException("FUXA provisioning is disabled");
         }
 
-        Device device = resolveDevice(request);
+        DeviceDeployment device = resolveDevice(request);
         String modelCode = hasText(request.getModelCode()) ? request.getModelCode().trim() : "SPM32";
         String mqttDeviceId = request.getMqttDeviceId().trim();
         String fuxaDeviceId = stableId("d_n4_", modelCode + ":" + mqttDeviceId);
@@ -74,8 +75,8 @@ public class FuxaBindingService {
         FuxaDeviceBinding binding = repository.findByMqttDeviceId(mqttDeviceId)
             .orElseGet(FuxaDeviceBinding::new);
         binding.setMqttDeviceId(mqttDeviceId);
-        binding.setDeviceId(device != null ? device.getDeviceId() : request.getDeviceId());
-        binding.setDeviceCode(device != null ? device.getDeviceCode() : request.getDeviceCode());
+        binding.setDeviceId(device != null ? device.getDeviceDeployId() : request.getDeviceId());
+        binding.setDeviceCode(device != null ? (device.getDeviceAlias() != null ? device.getDeviceAlias() : device.getDeviceDeployName()) : request.getDeviceCode());
         binding.setModelCode(modelCode);
         binding.setFuxaDeviceId(fuxaDeviceId);
         binding.setFuxaDeviceName(fuxaDeviceName);
@@ -167,18 +168,19 @@ public class FuxaBindingService {
         );
     }
 
-    private Device resolveDevice(FuxaDiscoveryRequest request) {
+    private DeviceDeployment resolveDevice(FuxaDiscoveryRequest request) {
         if (request.getDeviceId() != null) {
-            return deviceMapper.findByDeviceId(request.getDeviceId());
-        }
-        if (hasText(request.getDeviceCode())) {
-            Device byCode = deviceMapper.findByDeviceCode(request.getDeviceCode().trim());
-            if (byCode != null) {
-                return byCode;
-            }
+            return deviceDeploymentMapper.findByDeviceDeployId(request.getDeviceId());
         }
         if (hasText(request.getMqttDeviceId())) {
-            return deviceMapper.findByDeviceName(request.getMqttDeviceId().trim());
+            String target = request.getMqttDeviceId().trim();
+            List<DeviceDeployment> all = deviceDeploymentMapper.findAll();
+            return all.stream()
+                .filter(d -> target.equalsIgnoreCase(d.getDeviceDeployName())
+                          || (d.getDeviceAlias() != null && target.equalsIgnoreCase(d.getDeviceAlias()))
+                          || (d.getN4Address() != null && target.equalsIgnoreCase(d.getN4Address())))
+                .findFirst()
+                .orElse(null);
         }
         return null;
     }

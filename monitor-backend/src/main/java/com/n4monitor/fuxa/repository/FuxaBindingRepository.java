@@ -19,23 +19,7 @@ public class FuxaBindingRepository implements InitializingBean {
 
     @Override
     public void afterPropertiesSet() {
-        jdbcTemplate.execute("""
-            CREATE TABLE IF NOT EXISTS fuxa_device_binding (
-                mqtt_device_id VARCHAR(160) PRIMARY KEY,
-                device_id BIGINT NULL,
-                device_code VARCHAR(160) NULL,
-                model_code VARCHAR(80) NOT NULL,
-                fuxa_device_id VARCHAR(160) NOT NULL,
-                fuxa_device_name VARCHAR(200) NOT NULL,
-                view_name VARCHAR(200) NOT NULL,
-                provision_status VARCHAR(32) NOT NULL,
-                last_error VARCHAR(1000) NULL,
-                create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                INDEX idx_fuxa_binding_device_id (device_id),
-                INDEX idx_fuxa_binding_device_code (device_code)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-            """);
+        // Table creation moved to explicit migration scripts if needed
     }
 
     public Optional<FuxaDeviceBinding> findByDeviceId(Long deviceId) {

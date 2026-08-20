@@ -234,8 +234,10 @@ export interface Product {
 export interface DeviceTemplate {
   deviceTmplId?: number
   deviceTmplName: string
+  n4Name?: string
   deviceType: string
   model?: string
+  purpose?: string
   manufacturer?: string
   manuDate?: string
   functionalArea?: string
@@ -269,6 +271,7 @@ export interface NavTreeNode {
   nodeLevel: number
   icon?: string
   sortOrder: number
+  mqttServerAddresses?: string
   /** Maximum level allowed for root node (2/3/...), inherited by children */
   maxLevel?: number
   /** Number of devices in leaf group; null for non-leaf */
@@ -349,5 +352,6 @@ export interface NavNodeForm {
   parentId: number | null
   icon: string | null
   sortOrder: number
+  mqttServerAddresses?: string
 }
 

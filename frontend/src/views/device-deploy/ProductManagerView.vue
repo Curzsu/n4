@@ -8,7 +8,9 @@
             <el-icon class="title-icon"><Plus /></el-icon>
             <span>Add Device Template</span>
           </div>
-          <el-button size="small" class="btn-secondary" @click="cancelCreate">Back to List</el-button>
+          <div class="action-buttons">
+            <el-button size="small" class="btn-secondary btn-back" @click="cancelCreate">Back to List</el-button>
+          </div>
         </div>
         <div class="detail-body">
           <el-form 
@@ -105,15 +107,21 @@
               :cell-style="cellStyle"
               @selection-change="handleSelectionChange"
             >
-              <el-table-column type="selection" width="30" v-if="isPointBatchManaging" :resizable="false" />
-              <el-table-column prop="pointName" label="Point Name" min-width="180" show-overflow-tooltip :resizable="false" />
-              <el-table-column prop="dataType" label="Data Type" width="110" :resizable="false" />
-              <el-table-column prop="unit" label="Unit" width="90" :resizable="false" />
-              <el-table-column prop="displayPrecision" label="Precision" width="90" :resizable="false" />
-              <el-table-column label="Actions" width="120" fixed="right" :resizable="false">
+              <el-table-column type="selection" width="30" v-if="isPointBatchManaging" align="center" header-align="center" :resizable="false" />
+              <el-table-column prop="pointName" label="Point Name" min-width="180" align="center" header-align="center" show-overflow-tooltip :resizable="false" />
+              <el-table-column prop="dataType" label="Data Type" width="110" align="center" header-align="center" :resizable="false" />
+              <el-table-column prop="unit" label="Unit" width="90" align="center" header-align="center" :resizable="false" />
+              <el-table-column prop="displayPrecision" label="Precision" width="90" align="center" header-align="center" :resizable="false" />
+              <el-table-column label="Alarm Rule" min-width="180" align="center" header-align="center" :resizable="false">
                 <template #default="{ row }">
-                  <el-button size="small" type="primary" link :icon="Edit" @click="openEditPointDialog(row)">Edit</el-button>
-                  <el-button size="small" type="danger" link :icon="Delete" @click="deletePoint(row)">Delete</el-button>
+                  <div class="alarm-rule-cell">
+                    <span v-if="row.alarmCode" class="alarm-code-tag">{{ row.alarmCode }}</span>
+                    <span v-else class="alarm-none-tag">Unconfigured</span>
+                    <div class="alarm-btn-group">
+                      <el-button size="small" type="primary" link :icon="Edit" @click="openEditPointDialog(row)">Edit</el-button>
+                      <el-button size="small" type="danger" link :icon="Delete" @click="deletePoint(row)">Delete</el-button>
+                    </div>
+                  </div>
                 </template>
               </el-table-column>
             </el-table>
@@ -132,7 +140,6 @@
             <el-button size="small" class="btn-secondary" :icon="Odometer" @click="openConfigPanel">
               Set Faceplate Panel
             </el-button>
-            <el-button size="small" class="btn-secondary" @click="goBackToList">Back to List</el-button>
             <el-button v-if="!isEditing" size="small" class="btn-secondary" :icon="Edit" @click="startEdit">Edit Template</el-button>
             <el-button v-else size="small" class="btn-primary" :icon="Check" :loading="submitting" @click="submitUpdate">Save</el-button>
             <el-button 
@@ -143,6 +150,7 @@
             >
               Delete Template
             </el-button>
+            <el-button size="small" class="btn-secondary btn-back" @click="goBackToList">Back to List</el-button>
           </div>
         </div>
 
@@ -246,36 +254,36 @@
               :cell-style="cellStyle"
               @selection-change="handleSelectionChange"
             >
-              <el-table-column type="selection" width="30" v-if="isPointBatchManaging" :resizable="false" />
-              <el-table-column prop="pointTmplId" label="ID" width="55" :resizable="false" />
-              <el-table-column prop="pointName" label="Point Name" min-width="180" show-overflow-tooltip :resizable="false" />
-              <el-table-column prop="dataType" label="Data Type" width="110" :resizable="false" />
-              <el-table-column prop="unit" label="Unit" width="90" :resizable="false" />
-              <el-table-column prop="displayPrecision" label="Precision" width="90" :resizable="false" />
-              <el-table-column label="Alarm Rule" min-width="160" :resizable="false">
+              <el-table-column type="selection" width="30" v-if="isPointBatchManaging" align="center" header-align="center" :resizable="false" />
+              <el-table-column prop="pointTmplId" label="ID" width="55" align="center" header-align="center" :resizable="false" />
+              <el-table-column prop="pointName" label="Point Name" min-width="180" align="center" header-align="center" show-overflow-tooltip :resizable="false" />
+              <el-table-column prop="dataType" label="Data Type" width="110" align="center" header-align="center" :resizable="false" />
+              <el-table-column prop="unit" label="Unit" width="90" align="center" header-align="center" :resizable="false" />
+              <el-table-column prop="displayPrecision" label="Precision" width="90" align="center" header-align="center" :resizable="false" />
+              <el-table-column label="Alarm Rule" min-width="220" align="center" header-align="center" :resizable="false">
                 <template #default="{ row }">
-                  <span
-                    v-if="row.alarmCode"
-                    class="alarm-code-tag"
-                    title="Click to configure alarm rule"
-                    @click="openPointAlarmConfig(row)"
-                  >
-                    {{ row.alarmCode }}
-                  </span>
-                  <span
-                    v-else
-                    class="alarm-none-tag"
-                    title="Click to configure alarm rule"
-                    @click="openPointAlarmConfig(row)"
-                  >
-                    Unconfigured
-                  </span>
-                </template>
-              </el-table-column>
-              <el-table-column label="Actions" width="120" fixed="right" :resizable="false">
-                <template #default="{ row }">
-                  <el-button size="small" type="primary" link :icon="Edit" @click="openAlarmRuleEditModal(row)">Edit</el-button>
-                  <el-button size="small" type="danger" link :icon="Delete" @click="deletePoint(row)">Delete</el-button>
+                  <div class="alarm-rule-cell">
+                    <span
+                      v-if="row.alarmCode"
+                      class="alarm-code-tag"
+                      title="Click to configure alarm rule"
+                      @click="openPointAlarmConfig(row)"
+                    >
+                      {{ row.alarmCode }}
+                    </span>
+                    <span
+                      v-else
+                      class="alarm-none-tag"
+                      title="Click to configure alarm rule"
+                      @click="openPointAlarmConfig(row)"
+                    >
+                      Unconfigured
+                    </span>
+                    <div class="alarm-btn-group">
+                      <el-button size="small" type="primary" link :icon="Edit" @click="openAlarmRuleEditModal(row)">Edit</el-button>
+                      <el-button size="small" type="danger" link :icon="Delete" @click="deletePoint(row)">Delete</el-button>
+                    </div>
+                  </div>
                 </template>
               </el-table-column>
             </el-table>
@@ -356,27 +364,27 @@
             :cell-style="cellStyle"
             @selection-change="handleTemplateSelectionChange"
           >
-            <el-table-column v-if="isTemplateBatchManaging" type="selection" width="30" :resizable="false" />
-            <el-table-column prop="deviceTmplId" label="ID" width="55" :resizable="false" />
-            <el-table-column prop="deviceTmplName" label="Template Name" min-width="180" show-overflow-tooltip :resizable="false" />
-            <el-table-column prop="deviceType" label="Type" width="110" show-overflow-tooltip :resizable="false" />
-            <el-table-column label="Model / Specs" min-width="130" show-overflow-tooltip :resizable="false">
+            <el-table-column v-if="isTemplateBatchManaging" type="selection" width="30" align="center" header-align="center" :resizable="false" />
+            <el-table-column prop="deviceTmplId" label="ID" width="55" align="center" header-align="center" :resizable="false" />
+            <el-table-column prop="deviceTmplName" label="Template Name" min-width="180" align="center" header-align="center" show-overflow-tooltip :resizable="false" />
+            <el-table-column prop="deviceType" label="Type" width="110" align="center" header-align="center" show-overflow-tooltip :resizable="false" />
+            <el-table-column label="Model / Specs" min-width="130" align="center" header-align="center" show-overflow-tooltip :resizable="false">
               <template #default="{ row }">
                 <span>{{ row.model || '—' }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="Manufacturer" min-width="140" show-overflow-tooltip :resizable="false">
+            <el-table-column label="Manufacturer" min-width="140" align="center" header-align="center" show-overflow-tooltip :resizable="false">
               <template #default="{ row }">
                 <span>{{ row.manufacturer || '—' }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="Manufacture Date" width="110" :resizable="false">
+            <el-table-column label="Manufacture Date" width="110" align="center" header-align="center" :resizable="false">
               <template #default="{ row }">
                 <span>{{ row.manuDate || '—' }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="pointCount" label="Points" width="70" :resizable="false" />
-            <el-table-column label="Actions" width="160" fixed="right" :resizable="false">
+            <el-table-column prop="pointCount" label="Points" width="70" align="center" header-align="center" :resizable="false" />
+            <el-table-column label="Actions" width="160" align="center" header-align="center" fixed="right" :resizable="false">
               <template #default="{ row }">
                 <el-button 
                   type="success" 
@@ -530,7 +538,7 @@ const headerCellStyle: CSSProperties = {
   fontSize: '10px',
   fontWeight: '600',
   borderBottom: '1px solid #2d3748',
-  textAlign: 'left',
+  textAlign: 'center',
 }
 
 const cellStyle: CSSProperties = {
@@ -538,7 +546,7 @@ const cellStyle: CSSProperties = {
   color: '#e5e7eb',
   fontSize: '10px',
   borderBottom: '1px solid #1f2937',
-  textAlign: 'left',
+  textAlign: 'center',
 }
 
 const loading = ref(false)
@@ -1458,7 +1466,7 @@ $bg-dark: #0b1119;
 .action-buttons {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .extra-property-buttons {
@@ -1561,8 +1569,28 @@ $bg-dark: #0b1119;
     font-size: 10px !important;
     display: flex;
     align-items: center;
-    justify-content: flex-start;
-    text-align: left !important;
+    justify-content: center;
+    text-align: center !important;
+  }
+}
+
+.btn-back {
+  margin-left: 20px !important;
+}
+
+.alarm-rule-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 0 4px;
+
+  .alarm-btn-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
   }
 }
 
