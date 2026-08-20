@@ -20,8 +20,8 @@
         v-loading="loading"
       >
         <el-table-column prop="time" label="Time" width="160" show-overflow-tooltip />
-        <el-table-column prop="value" label="Value" width="100" show-overflow-tooltip />
-        <el-table-column prop="stageMessage" label="Stage" width="150" show-overflow-tooltip>
+        <el-table-column prop="value" label="Value" width="120" show-overflow-tooltip />
+        <el-table-column prop="stageMessage" label="Stage" width="80" show-overflow-tooltip>
           <template #default="{ row }">
             <span v-if="row.stageMessage" class="stagemessage-text">{{ row.stageMessage }}</span>
           </template>
