@@ -61,6 +61,9 @@ public class FlinkJobRunner implements CommandLineRunner {
     @Value("${alarm.redis.realtime-channel}")
     private String realtimeChannel;
 
+    @Value("${alarm.redis.persistence-channel}")
+    private String persistenceChannel;
+
     @Value("${alarm.redis.point-rule-map-key:alarm:point:rule}")
     private String pointRuleMapKey;
 
@@ -82,6 +85,7 @@ public class FlinkJobRunner implements CommandLineRunner {
                 log.info("  Active key: {}", activeRedisKey);
                 log.info("  Notification channel: {}", notificationChannel);
                 log.info("  Realtime channel: {}", realtimeChannel);
+                log.info("  Persistence channel: {}", persistenceChannel);
                 log.info("  Point rule map key: {}", pointRuleMapKey);
                 log.info("  Parallelism: {}", parallelism);
 
@@ -90,7 +94,7 @@ public class FlinkJobRunner implements CommandLineRunner {
                         rulesNumericKey, rulesEnumKey,
                         latestRedisKey, activeRedisKey,
                         notificationChannel, realtimeChannel,
-                        pointRuleMapKey, parallelism);
+                        persistenceChannel, pointRuleMapKey, parallelism);
             } catch (InterruptedException e) {
                 log.info("Flink job thread interrupted, stopping...");
                 Thread.currentThread().interrupt();

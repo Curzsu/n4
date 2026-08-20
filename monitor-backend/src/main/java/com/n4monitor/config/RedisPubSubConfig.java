@@ -1,6 +1,7 @@
 package com.n4monitor.config;
 
 import com.n4monitor.alarm.listener.AlarmNotificationListener;
+import com.n4monitor.alarm.listener.AlarmPersistenceListener;
 import com.n4monitor.alarm.listener.AlarmRealtimeListener;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
@@ -28,16 +29,18 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
- * Redis Pub/Sub configuration for alarm notifications and realtime persistence.
+ * Redis Pub/Sub configuration for alarm notifications, realtime persistence and
+ * full-detail event persistence.
  * <p>
  * Bridges Flink alarm processing with:
  * <ol>
  *   <li>WebSocket broadcasting ({@code alarm:notifications})
  *   <li>Real-time TDengine persistence ({@code alarm:realtime})
+ *   <li>Full-detail TDengine persistence ({@code alarm:persist})
  * </ol>
  * <p>
- * Channel names are configurable via {@code alarm.redis.notification-channel}
- * and {@code alarm.redis.realtime-channel}.
+ * Channel names are configurable via {@code alarm.redis.notification-channel},
+ * {@code alarm.redis.realtime-channel} and {@code alarm.redis.persistence-channel}.
  * <p>
  * Resilience: the subscription connection (Lettuce) is kept alive by the
  * TCP-keepalive settings in {@link RedisLettuceCustomizer}. As a fallback
@@ -58,8 +61,12 @@ public class RedisPubSubConfig {
     @Value("${alarm.redis.realtime-channel}")
     private String alarmRealtimeChannel;
 
+    @Value("${alarm.redis.persistence-channel}")
+    private String alarmPersistenceChannel;
+
     private final AlarmNotificationListener alarmNotificationListener;
     private final AlarmRealtimeListener alarmRealtimeListener;
+    private final AlarmPersistenceListener alarmPersistenceListener;
     private final StringRedisTemplate redisTemplate;
     private final RedisConnectionFactory connectionFactory;
 
@@ -73,20 +80,23 @@ public class RedisPubSubConfig {
                 new ChannelTopic(alarmNotificationChannel));
         container.addMessageListener(alarmRealtimeListener,
                 new ChannelTopic(alarmRealtimeChannel));
+        container.addMessageListener(alarmPersistenceListener,
+                new ChannelTopic(alarmPersistenceChannel));
         return container;
     }
 
     @PostConstruct
     public void logConfig() {
-        log.info("Redis Pub/Sub configured: notification-channel='{}', realtime-channel='{}'",
-                alarmNotificationChannel, alarmRealtimeChannel);
+        log.info("Redis Pub/Sub configured: notification-channel='{}', realtime-channel='{}', "
+                        + "persistence-channel='{}'",
+                alarmNotificationChannel, alarmRealtimeChannel, alarmPersistenceChannel);
     }
 
     @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady() {
         boolean running = container != null && container.isRunning();
-        log.info("Pub/Sub listener container running={}, subscribed channels: [{}], [{}]",
-                running, alarmNotificationChannel, alarmRealtimeChannel);
+        log.info("Pub/Sub listener container running={}, subscribed channels: [{}], [{}], [{}]",
+                running, alarmNotificationChannel, alarmRealtimeChannel, alarmPersistenceChannel);
     }
 
     /**
@@ -125,17 +135,22 @@ public class RedisPubSubConfig {
                         new CommandArgs<>(ByteArrayCodec.INSTANCE)
                                 .add("NUMSUB")
                                 .add(alarmNotificationChannel.getBytes(StandardCharsets.UTF_8))
-                                .add(alarmRealtimeChannel.getBytes(StandardCharsets.UTF_8)));
+                                .add(alarmRealtimeChannel.getBytes(StandardCharsets.UTF_8))
+                                .add(alarmPersistenceChannel.getBytes(StandardCharsets.UTF_8)));
             });
             @SuppressWarnings("unchecked")
             List<Object> numsubResult = (List<Object>) raw;
 
             long notifCount = extractNumsub(numsubResult, alarmNotificationChannel);
             long realtimeCount = extractNumsub(numsubResult, alarmRealtimeChannel);
+            long persistenceCount = extractNumsub(numsubResult, alarmPersistenceChannel);
 
-            if (notifCount == 0 || realtimeCount == 0) {
-                log.warn("Subscription health check failed: numsub {}={}, {}={} - restarting listener container",
-                        alarmNotificationChannel, notifCount, alarmRealtimeChannel, realtimeCount);
+            if (notifCount == 0 || realtimeCount == 0 || persistenceCount == 0) {
+                log.warn("Subscription health check failed: numsub {}={}, {}={}, {}={} - "
+                                + "restarting listener container",
+                        alarmNotificationChannel, notifCount,
+                        alarmRealtimeChannel, realtimeCount,
+                        alarmPersistenceChannel, persistenceCount);
                 restartContainer();
             }
         } catch (Exception e) {
@@ -171,8 +186,8 @@ public class RedisPubSubConfig {
         }
         try {
             container.start();
-            log.info("Listener container restarted, re-subscribed to channels: [{}], [{}]",
-                    alarmNotificationChannel, alarmRealtimeChannel);
+            log.info("Listener container restarted, re-subscribed to channels: [{}], [{}], [{}]",
+                    alarmNotificationChannel, alarmRealtimeChannel, alarmPersistenceChannel);
         } catch (Exception e) {
             log.error("Failed to restart listener container: {}", e.getMessage(), e);
         }

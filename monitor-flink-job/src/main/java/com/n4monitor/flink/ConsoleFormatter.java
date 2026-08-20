@@ -36,68 +36,68 @@ final class ConsoleFormatter {
         };
     }
 
-    static String stringSkipped(String ts, String pointName, String value) {
+    static String stringSkipped(String ts, String path, String value) {
         return String.format("\033[90m[%s] [%8s] %-40s | value=%s | string type, skipped\033[0m",
-                ts, "STRING", pointName, value);
+                ts, "STRING", path, value);
     }
 
-    static String noAlarmCode(String ts, String pointName, String value, String type) {
+    static String noAlarmCode(String ts, String path, String value, String type) {
         return String.format("[%s] [%8s] %-40s | value=%s | no alarm_code, point=%s, type=%s",
-                ts, "NORULE", pointName, value, pointName, type);
+                ts, "NORULE", path, value, path, type);
     }
 
-    static String unknownType(String ts, String pointName, String value, String type) {
+    static String unknownType(String ts, String path, String value, String type) {
         return String.format("[%s] [%8s] %-40s | value=%s | unknown type: %s",
-                ts, "UNKNOWN", pointName, value, type);
+                ts, "UNKNOWN", path, value, type);
     }
 
-    static String noRuleFound(String ts, String pointName, String value, String type) {
+    static String noRuleFound(String ts, String path, String value, String type) {
         return String.format("[%s] [%8s] %-40s | value=%s | no rule found, point=%s, type=%s",
-                ts, "NORULE", pointName, value, pointName, type);
+                ts, "NORULE", path, value, path, type);
     }
 
-    static String unknownEnumSkipped(String ts, String pointName, String value) {
+    static String unknownEnumSkipped(String ts, String path, String value) {
         return String.format("[%s] [%8s] %-40s | value=%s | unknown enum value, skipped",
-                ts, "SKIP", pointName, value);
+                ts, "SKIP", path, value);
     }
 
-    static String pendingElapsed(String ts, String pointName, String value,
+    static String pendingElapsed(String ts, String path, String value,
                                  String level, long elapsedSeconds) {
         return String.format("\033[96m[%s] [%8s] %-40s | value=%s | pending %s, %ds elapsed\033[0m",
-                ts, "PENDING", pointName, value, level, elapsedSeconds);
+                ts, "PENDING", path, value, level, elapsedSeconds);
     }
 
-    static String pendingReset(String ts, String pointName, String value, String level,
+    static String pendingReset(String ts, String path, String value, String level,
                                String previousLevel, int delaySeconds) {
         return String.format("\033[96m[%s] [%8s] %-40s | value=%s | pending %s (reset from %s), %ds delay\033[0m",
-                ts, "PENDING", pointName, value, level, previousLevel, delaySeconds);
+                ts, "PENDING", path, value, level, previousLevel, delaySeconds);
     }
 
-    static String pendingCancelled(String ts, String pointName, String value, String level) {
+    static String pendingCancelled(String ts, String path, String value, String level) {
         return String.format("\033[92m[%s] [%8s] %-40s | value=%s | pending %s cancelled (normal)\033[0m",
-                ts, "CANCEL", pointName, value, level);
+                ts, "CANCEL", path, value, level);
     }
 
-    static String pendingDelay(String ts, String pointName, String value, String level,
+    static String pendingDelay(String ts, String path, String value, String level,
                                int delaySeconds, double remainingSeconds) {
         return String.format("\033[96m[%s] [%8s] %-40s | value=%s | pending %s, %ds delay (%.1fs left)\033[0m",
-                ts, "PENDING", pointName, value, level, delaySeconds, remainingSeconds);
+                ts, "PENDING", path, value, level, delaySeconds, remainingSeconds);
     }
 
-    static String alarm(String ts, String severity, String stage, String pointName,
+    static String alarm(String ts, String severity, String stage, String path,
                         String value, String level, String message) {
         return String.format("%s[%s] [%8s] [%-8s] %-40s | value=%s | level=%s | %s\033[0m",
-                severityColor(severity), ts, severity, stage, pointName, value, level, message);
+                severityColor(severity), ts, severity, stage, path, value, level, message);
     }
 
-    static String normal(String ts, String pointName, String value) {
+    static String normal(String ts, String path, String value) {
         return String.format("\033[92m[%s] [%8s] %-40s | value=%s | normal\033[0m",
-                ts, "NORMAL", pointName, value);
+                ts, "NORMAL", path, value);
     }
 
-    static String delayConfirmed(String ts, String severity, String stage, String pointName,
+    static String delayConfirmed(String ts, String severity, String stage, String path,
                                  String value, String level) {
         return String.format("%s[%s] [%8s] [%-8s] %-40s | value=%s | level=%s | delay confirmed, ALARM\033[0m",
-                severityColor(severity), ts, severity, stage, pointName, value, level);
+                severityColor(severity), ts, severity, stage, path, value, level);
     }
 }

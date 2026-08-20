@@ -99,7 +99,7 @@ Boolean 类型点位复用本表（`true`/`false` 作为字符串枚举值匹配
 
 ### 2.4 `alarm:latest`（最新值）
 
-来源：`monitor-flink-job` `RedisStateStore.writeLatestState`（写入），`monitor-backend` `TdengineSyncService`（周期快照读取）、`AlarmService`（图表读取）
+来源：`monitor-flink-job` `RedisStateStore.writeLatestState`（写入），`monitor-backend` `AlarmService.updateLatestOnAck`（ack 确认覆盖读取）
 
 | 项目 | 说明 |
 |---|---|
@@ -173,12 +173,13 @@ Boolean 类型点位复用本表（`true`/`false` 作为字符串枚举值匹配
 | 根目录 `.env`（模板 `.env.example`） | 环境相关地址与口令；Spring Boot 与 docker compose 共同读取 |
 | `monitor-backend .../alarm/service/AlarmRuleSyncService.java` | MySQL 规则表 → Redis 三个 hash 的同步 |
 | `monitor-flink-job .../flink/AlarmProcessFunction.java` 及协作者 | 作业侧全部 Redis 读写（经 `RuleEvaluator` / `RedisStateStore`） |
-| `monitor-backend .../tdengine/TdengineSyncService.java` | `alarm:latest` → TDengine 快照、REST 连接管理 |
-| `monitor-backend .../config/RedisPubSubConfig.java` | 两个 Pub/Sub 通道的监听注册 |
+| `monitor-backend .../tdengine/TdengineSyncService.java` | TDengine REST 连接管理、`alarm_event` 批量写入、`alarm_realtime` 实时写入 |
+| `monitor-backend .../config/RedisPubSubConfig.java` | 三个 Pub/Sub 通道（notifications / realtime / persist）的监听注册 |
 
 ## 4. 核验方式
 
-Redis 契约（2.1–2.7）由 `monitor-flink-job` 的 44 个特征测试
+Redis 契约（2.1–2.7）由 `monitor-flink-job` 的 50 个特征测试
 （`NumericRuleEvaluationTest`、`EnumRuleEvaluationTest`、`AlarmLifecycleTest`、
-`PendingAlarmDelayTest`、`SkipPathsTest`）钉死：`mvn -pl monitor-flink-job test`。
+`PendingAlarmDelayTest`、`SkipPathsTest`、`PersistenceChannelTest`）钉死：
+`mvn -pl monitor-flink-job test`。
 表结构变更时以 `n4_monitor_schema_latest.sql` 为准并同步更新本文档。
