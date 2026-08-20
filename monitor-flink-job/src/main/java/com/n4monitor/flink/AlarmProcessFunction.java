@@ -275,7 +275,8 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
                 pending.state.setTimestamp(point.getTimestamp());
                 pendingState.update(pending);
                 // latest stays normal (no level) while still pending.
-                PointAlarmState latestState = buildState(current, null, null, null, null, null);
+                PointAlarmState latestState = buildState(current, null, null, null,
+                        current.getTimeDelay(), current.getDeadband());
                 stateStore.writeLatestState(jedis, latestState);
                 stateStore.publishPersistenceChannel(jedis, latestState);
                 long elapsedMs = (point.getTimestamp() != null ? point.getTimestamp() : 0L) - pending.firstEventTime;
@@ -287,7 +288,8 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
                 // reaching a different threshold resets the timer).
                 ctx.timerService().deleteProcessingTimeTimer(pending.timerTarget);
                 registerPendingDelay(ctx, current, timeDelay);
-                PointAlarmState latestState = buildState(current, null, null, null, null, null);
+                PointAlarmState latestState = buildState(current, null, null, null,
+                        current.getTimeDelay(), current.getDeadband());
                 stateStore.writeLatestState(jedis, latestState);
                 stateStore.publishPersistenceChannel(jedis, latestState);
                 return ConsoleFormatter.pendingReset(ts, path, point.getValue(), level,
@@ -438,10 +440,12 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
         PendingAlarm pending = registerPendingDelay(ctx, current, timeDelay);
 
         // While pending, alarm:latest must reflect a NORMAL state: the alarm
-        // has not been confirmed, so level/severity/message are empty. Only
-        // the live value/path/type/timestamp are written so TDengine snapshots
-        // and charts show the current reading without a phantom alarm.
-        PointAlarmState latestState = buildState(current, null, null, null, null, null);
+        // has not been confirmed, so level/severity/message are empty. The
+        // live value/path/type/timestamp are written along with the rule
+        // metadata (timeDelay/deadband) so persistence rows keep the rule
+        // fields while charts show the current reading without a phantom alarm.
+        PointAlarmState latestState = buildState(current, null, null, null,
+                current.getTimeDelay(), current.getDeadband());
         stateStore.writeLatestState(jedis, latestState);
         stateStore.publishPersistenceChannel(jedis, latestState);
 
@@ -477,7 +481,8 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
      * Processing-time timer callback: a pending alarm's delay window has
      * elapsed with no normal value (and no level change) observed, so the
      * alarm is now confirmed. Promote the pending state into alarm:active
-     * and publish the start notification + TDengine realtime record.
+     * and publish the start notification, the TDengine realtime record and
+     * the full-detail persistence row.
      * <p>
      * Uses processing time (wall clock) rather than event time so the alarm
      * still fires when no further data arrives during the delay window -
@@ -509,17 +514,19 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
             // Confirm the alarm: mark as a fresh start and persist to active.
             markAlarmStart(state, "Start", confirmProcTime);
             // Force the state's own timestamp to the confirmation moment too,
-            // so all four writes share one consistent timestamp:
+            // so all five writes share one consistent timestamp:
             //   writeActiveState      -> getAlarmStartTime()        = confirmProcTime
             //   publishNotification   -> getAlarmStartTime()        = confirmProcTime
-            //   publishRealTime       -> passed dataTimestamp       = confirmProcTime
+            //   publishRealTime       -> state.getTimestamp()       = confirmProcTime (set here)
+            //   publishPersistence    -> state.getTimestamp()       = confirmProcTime (set here)
             //   writeLatestState      -> state.getTimestamp()       = confirmProcTime (set here)
             // Without this, writeLatestState would carry the last pending tick's
-            // event time, disagreeing with the other three.
+            // event time, disagreeing with the others.
             state.setTimestamp(confirmProcTime);
             stateStore.writeActiveState(jedis, state);
             stateStore.publishNotificationChannel(jedis, state);
             stateStore.publishRealTimeChannel(jedis, state);
+            stateStore.publishPersistenceChannel(jedis, state);
             stateStore.writeLatestState(jedis, state);
         }
 

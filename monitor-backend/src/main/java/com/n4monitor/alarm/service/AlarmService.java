@@ -77,6 +77,15 @@ public class AlarmService {
     }
 
     /**
+     * Get all full-detail alarm event records from the alarm_event supertable
+     * (newest first). Reads the same record shape as alarm_realtime, but from
+     * the per-frame event table.
+     */
+    public List<AlarmRecordDto> getAlarmEvents() {
+        return tdengineSyncService.queryAlarmEvents();
+    }
+
+    /**
      * Acknowledge alarms by updating their status and ackBy in Redis.
      * <p>
      * Timestamp rules:

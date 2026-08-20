@@ -63,14 +63,18 @@ function goToMvpA1() {
   background-color: $bg-card;
   border: 1px solid $border-card;
   border-radius: 8px;
-  margin-bottom: 16px;
-  padding: 16px;
+  padding: 8px;
   position: relative;
+  display: flex;
+  overflow: hidden;
+  flex: 1 1 0;
+  min-height: 140px;
 }
 
 .building-image {
   width: 100%;
-  height: 300px;
+  height: 100%;
+  min-height: 0;
   object-fit: cover;
   border-radius: 4px;
   cursor: pointer;
@@ -82,8 +86,8 @@ function goToMvpA1() {
 
 .building-overlay-info {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: 16px;
+  right: 16px;
   display: flex;
   gap: 12px;
   font-size: 13px;

@@ -115,7 +115,7 @@ class PendingAlarmDelayTest {
         assertThat(active.getDuration()).isEqualTo("0");
         // alarmStartTime is the confirmation instant (timer target), not E1.
         assertThat(active.getAlarmStartTime()).isEqualTo(target);
-        // All four writes share the confirmation timestamp.
+        // All writes share the confirmation timestamp.
         assertThat(active.getTimestamp()).isEqualTo(target);
         assertThat(h.latestOf(PATH).getTimestamp()).isEqualTo(target);
         assertThat(h.latestOf(PATH).getLevel()).isEqualTo("High");
@@ -127,6 +127,13 @@ class PendingAlarmDelayTest {
         var realtime = h.publishedOn(AlarmHarness.REALTIME_CHANNEL);
         assertThat(realtime).hasSize(1);
         assertThat(realtime.get(0).path("timestamp").asLong()).isEqualTo(target);
+        // The pending-entry frame plus this confirmed start frame both reach
+        // the full-detail persistence channel (alarm_event).
+        var persistence = h.publishedOn(AlarmHarness.PERSISTENCE_CHANNEL);
+        assertThat(persistence).hasSize(2);
+        assertThat(persistence.get(1).path("timestamp").asLong()).isEqualTo(target);
+        assertThat(persistence.get(1).path("level").asText()).isEqualTo("High");
+        assertThat(persistence.get(1).path("stage").asText()).isEqualTo("start");
 
         assertThat(h.pendingState.value()).isNull();
         assertThat(h.consoleOutput()).contains("delay confirmed, ALARM");
