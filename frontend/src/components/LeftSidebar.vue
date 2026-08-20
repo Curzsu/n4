@@ -6,7 +6,7 @@
         <el-icon><Location /></el-icon>
         <span v-if="!isCollapsed" class="site-title">Device Navigation</span>
       </div>
-      
+
       <div v-if="!isCollapsed" class="header-actions">
         <el-input
           v-model="searchText"
@@ -45,12 +45,12 @@
                 v-if="data.type === 'device'" 
                 :class="['status-dot', getStatusClass(data.status)]"
               ></span>
-              
+
               <!-- Node Icon based on type -->
               <el-icon class="node-icon" :class="{ 'real-data-icon': data.hasRealData }" v-if="getNodeIcon(data)">
                 <component :is="getNodeIcon(data)" />
               </el-icon>
-              
+
               <span class="label-text" :title="data.label">{{ data.label }}</span>
             </span>
 
@@ -94,7 +94,7 @@ import {
 import type { TreeNodeData } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { useDashboardStore } from '@/stores/dashboard'
-import type { DeviceTreeNode, NavTreeNode, UiTreeNode } from '@/api/types'
+import type { NavTreeNode, UiTreeNode } from '@/api/types'
 import type ElTree from 'element-plus/es/components/tree/index'
 
 const route = useRoute()
@@ -105,8 +105,6 @@ const props = defineProps<{
   navTree?: NavTreeNode[]
   loading?: boolean
   // Collapse state when this sidebar first mounts or the route changes.
-  // Kept as a prop so MainLayout can drive per-route default collapse state
-  // (collapsed elsewhere, open on Dashboard / Device Template / Device Deployment).
   defaultCollapsed?: boolean
 }>()
 
@@ -118,8 +116,7 @@ const isCollapsed = ref(props.defaultCollapsed ?? false)
 const searchText = ref('')
 const treeRef = ref<InstanceType<typeof ElTree>>()
 
-// Reset to the route's default collapse state whenever it changes, so
-// navigating between routes never leaves the sidebar in a stale state.
+// Reset to the route's default collapse state whenever it changes.
 watch(() => props.defaultCollapsed, (val) => {
   isCollapsed.value = val ?? false
 })
@@ -129,22 +126,24 @@ const treeProps = {
   label: 'label',
 }
 
-/**
- * Option A: Pure 100% Real Database Tree
- * Renders devices, systems, and product templates fetched directly from the MySQL database.
- */
+const isNavBasedRoute = computed(() =>
+  props.mode === 'nav' || route.path === '/device-deployment' || route.path === '/system-deployment'
+)
+
 const visibleTreeData = computed(() => {
-  if (props.mode === 'nav') {
-    // Virtual root node for global data overview
-    const overviewNode = {
-      id: 'overview',
-      label: 'Data Overview',
-      type: 'site',
-      status: 1,
-      raw: null,
-      children: []
+  if (isNavBasedRoute.value) {
+    if (route.path === '/') {
+      const overviewNode: UiTreeNode = {
+        id: 'overview',
+        label: 'Data Overview',
+        type: 'site',
+        status: 1,
+        raw: null,
+        children: []
+      }
+      return [overviewNode, ...(props.navTree || store.navTree || []).map(n => toTreeNode(n))]
     }
-    return [overviewNode, ...(props.navTree || []).map(n => toTreeNode(n))]
+    return (props.navTree || store.navTree || []).map(n => toTreeNode(n))
   }
   if (route.path === '/device-template') {
     return [
@@ -165,7 +164,6 @@ const visibleTreeData = computed(() => {
     ]
   }
 
-  // Pure 100% Real Device Tree from MySQL DB via backend API
   return store.deviceTree
 })
 
@@ -204,7 +202,7 @@ function getNodeIcon(data: UiTreeNode) {
 }
 
 function handleNodeClick(data: UiTreeNode) {
-  if (props.mode === 'nav') {
+  if (isNavBasedRoute.value) {
     // Clicking "Data Overview" virtual node: reset selection to return to home overview
     if (data.id === 'overview') {
       store.currentNavNode = null
@@ -213,11 +211,18 @@ function handleNodeClick(data: UiTreeNode) {
     }
     if (data.raw) {
       emit('node-click', data.raw)
+      store.currentNavNode = data.raw
       return
     }
   }
   store.selectedNode = data
 }
+
+watch(() => store.currentNavNode, (node) => {
+  if (isNavBasedRoute.value && node && treeRef.value) {
+    treeRef.value.setCurrentKey(node.nodeId)
+  }
+})
 
 function toggleCollapse() {
   isCollapsed.value = !isCollapsed.value
@@ -236,7 +241,7 @@ function getStatusClass(status: number): string {
 function filterNode(value: string, data: TreeNodeData): boolean {
   if (!value) return true
   const query = value.toLowerCase()
-  const node = data as DeviceTreeNode
+  const node = data as UiTreeNode
   const labelMatch = node.label ? node.label.toLowerCase().includes(query) : false
   const codeMatch = node.deviceCode ? node.deviceCode.toLowerCase().includes(query) : false
   return labelMatch || codeMatch

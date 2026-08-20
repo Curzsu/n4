@@ -1,56 +1,5 @@
 <template>
   <div class="system-deployment-view">
-    <!-- Left: Navigation Tree Panel -->
-    <aside class="nav-tree-panel" v-loading="treeLoading">
-      <header class="panel-header">
-        <div class="panel-title">
-          <el-icon><Operation /></el-icon>
-          <span>Navigation</span>
-        </div>
-        <el-button type="primary" size="small" :icon="Plus" class="btn-primary" @click="openCreateDialog(null)">
-          Add Root
-        </el-button>
-      </header>
-
-      <div class="tree-body">
-        <el-tree
-          :data="treeData"
-          :props="treeProps"
-          node-key="nodeId"
-          default-expand-all
-          highlight-current
-          @node-click="handleNodeClick"
-          class="deploy-tree"
-        >
-          <template #default="{ data }">
-            <div class="tree-node-row">
-              <span :class="['tree-node-label', `level-${data.nodeLevel}`]">
-                <el-icon class="node-icon" :class="{ 'real-data-icon': data.hasRealData }" v-if="getNodeIcon(data)">
-                  <component :is="getNodeIcon(data)" />
-                </el-icon>
-                <span class="label-text">{{ data.nodeName }}</span>
-                <span v-if="isLeafNode(data) && data.deviceCount != null" class="count-badge">
-                  {{ data.deviceCount }}
-                </span>
-              </span>
-              <span class="node-actions" @click.stop>
-                <el-tooltip content="Add Child Node" placement="top" v-if="canAddChild(data)">
-                  <el-button link size="small" :icon="CirclePlus" @click="openCreateDialog(data)" />
-                </el-tooltip>
-                <el-tooltip content="Edit" placement="top">
-                  <el-button link size="small" :icon="EditPen" @click="openEditDialog(data)" />
-                </el-tooltip>
-                <el-tooltip content="Delete" placement="top">
-                  <el-button link size="small" :icon="Delete" class="del-btn" @click="handleDeleteNode(data)" />
-                </el-tooltip>
-              </span>
-            </div>
-          </template>
-        </el-tree>
-        <el-empty v-if="!treeData.length" description="No navigation nodes" :image-size="60" />
-      </div>
-    </aside>
-
     <!-- Right: Content Area -->
     <section class="detail-panel" v-loading="devicesLoading">
       <template v-if="selectedNode">
@@ -181,8 +130,9 @@
               <span>{{ selectedNode.nodeName }}</span>
             </div>
             <div class="header-actions">
-              <el-button size="small" class="btn-secondary" :icon="EditPen" @click="openEditDialog(selectedNode)">Edit</el-button>
-              <el-button size="small" class="btn-danger" :icon="Delete" @click="handleDeleteNode(selectedNode)">Delete</el-button>
+              <el-button size="small" class="btn-primary" :icon="Plus" v-if="canAddChild(selectedNode)" @click="navNodeDialogRef?.openCreate(selectedNode)">Add Child</el-button>
+              <el-button size="small" class="btn-secondary" :icon="EditPen" @click="navNodeDialogRef?.openEdit(selectedNode)">Edit</el-button>
+              <el-button size="small" class="btn-danger" :icon="Delete" @click="navNodeDialogRef?.confirmDelete(selectedNode)">Delete</el-button>
             </div>
           </header>
 
@@ -264,7 +214,11 @@
                     </el-link>
                   </template>
                 </el-table-column>
-                <el-table-column prop="deviceAlias" label="Device Alias" min-width="140" align="center" header-align="center" show-overflow-tooltip :resizable="false" />
+                <el-table-column prop="deviceAlias" label="Device Alias" min-width="140" align="center" header-align="center" show-overflow-tooltip :resizable="false">
+                  <template #default="{ row }">
+                    <span>{{ row.deviceAlias || '-' }}</span>
+                  </template>
+                </el-table-column>
                 <el-table-column prop="deviceType" label="Device Type" width="110" align="center" header-align="center" show-overflow-tooltip :resizable="false" />
                 <el-table-column prop="manufacturer" label="Manufacturer" width="120" align="center" header-align="center" show-overflow-tooltip :resizable="false" />
                 <el-table-column label="Status" width="90" align="center" header-align="center" :resizable="false">
@@ -290,6 +244,11 @@
             <div v-else class="device-section">
               <div class="section-header">
                 <h3>Child Groups <span class="section-count">({{ selectedNode.children?.length || 0 }})</span></h3>
+                <div class="header-actions" v-if="canAddChild(selectedNode)">
+                  <el-button size="small" class="btn-primary" :icon="Plus" @click="navNodeDialogRef?.openCreate(selectedNode)">
+                    Add Child Group
+                  </el-button>
+                </div>
               </div>
               <el-table :data="selectedNode.children || []" class="custom-table" border size="small" :header-cell-style="headerCellStyle" :cell-style="cellStyle">
                 <el-table-column prop="nodeName" label="Group Name" min-width="200" align="center" header-align="center" :resizable="false" />
@@ -304,57 +263,17 @@
         </template>
       </template>
 
-      <el-empty v-else description="Please select a navigation node from the left tree" :image-size="100" class="select-prompt" />
+      <div v-else class="empty-selection-container">
+        <el-empty description="Please select a navigation node from the left tree" :image-size="100" class="select-prompt">
+          <el-button type="primary" class="btn-primary" :icon="Plus" @click="navNodeDialogRef?.openCreate(null)">
+            Add Root Node
+          </el-button>
+        </el-empty>
+      </div>
     </section>
 
-    <!-- ===== Dialog: Create/Edit Node ===== -->
-    <el-dialog
-      v-model="nodeDialogVisible"
-      :title="nodeDialogMode === 'create' ? 'Add Navigation Node' : 'Edit Navigation Node'"
-      width="480px"
-      append-to-body
-      class="dark-dialog"
-    >
-      <el-form :model="nodeForm" :rules="nodeRules" ref="nodeFormRef" label-width="100px">
-        <el-form-item label="Node Name" prop="nodeName">
-          <el-input v-model="nodeForm.nodeName" placeholder="e.g. Electrical / MV System" maxlength="50" show-word-limit />
-        </el-form-item>
-        <el-form-item label="Parent Node" v-if="showParentSelect">
-          <el-cascader
-            v-model="nodeForm.parentId"
-            :options="parentCascaderOptions"
-            :props="parentCascaderProps"
-            placeholder="Select parent node"
-            :clearable="false"
-            popper-class="dark-cascader-dropdown"
-            style="width: 100%"
-          />
-          <div class="form-tip">Select an eligible group as the target parent</div>
-        </el-form-item>
-        <el-form-item label="Icon" v-if="nodeForm.parentId == null">
-          <el-select v-model="nodeForm.icon" placeholder="Select icon (Root node only)" clearable style="width: 100%">
-            <el-option
-              v-for="opt in iconOptions"
-              :key="opt.name"
-              :label="opt.name"
-              :value="opt.name"
-            >
-              <span style="display: flex; align-items: center; gap: 8px;">
-                <el-icon><component :is="opt.comp" /></el-icon>
-                <span>{{ opt.name }}</span>
-              </span>
-            </el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="Sort Order" prop="sortOrder">
-          <el-input-number v-model="nodeForm.sortOrder" :min="0" :max="9999" style="width: 100%" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button class="btn-secondary" @click="nodeDialogVisible = false">Cancel</el-button>
-        <el-button type="primary" class="btn-primary" @click="submitNodeForm" :loading="nodeSubmitting">Confirm</el-button>
-      </template>
-    </el-dialog>
+    <!-- Nav Node Dialog for Edit/Delete actions -->
+    <NavNodeDialog ref="navNodeDialogRef" />
 
     <!-- ===== Dialog: Mount Existing Device ===== -->
     <el-dialog
@@ -529,9 +448,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, type CSSProperties } from 'vue'
+import { computed, nextTick, onMounted, ref, watch, type CSSProperties } from 'vue'
 import {
-  Plus, CirclePlus, EditPen, Delete, Operation,
+  Plus, EditPen, Delete,
   Location, Picture, OfficeBuilding, Grid, Lightning, Warning,
   Cpu, Monitor, Box,
   FolderOpened,
@@ -543,6 +462,7 @@ import { dashboardNavApi } from '@/api/dashboardNav'
 import { deploymentApi } from '@/api/deployment'
 import { useDashboardStore } from '@/stores/dashboard'
 import type { NavTreeNode, DeviceDeployItem, DeviceDeployment, PointDeploymentItem } from '@/api/types'
+import NavNodeDialog from '@/views/device-deploy/dialogs/NavNodeDialog.vue'
 
 const store = useDashboardStore()
 
@@ -569,14 +489,8 @@ const cellStyle: CSSProperties = {
 /** 'list' = List/overview view, 'detail' = Device detail view */
 const viewMode = ref<'list' | 'detail'>('list')
 
-// =====================================================================
-//  Navigation Tree
-// =====================================================================
-const treeData = ref<NavTreeNode[]>([])
-const treeLoading = ref(false)
-const treeProps = { children: 'children', label: 'nodeName' }
-
-const selectedNode = ref<NavTreeNode | null>(null)
+const navNodeDialogRef = ref<InstanceType<typeof NavNodeDialog>>()
+const selectedNode = computed(() => store.currentNavNode)
 const devicesLoading = ref(false)
 
 function isLeafNode(node: NavTreeNode): boolean {
@@ -588,54 +502,14 @@ function canAddChild(node: NavTreeNode): boolean {
   return node.nodeLevel < maxLevel
 }
 
-const parentCascaderProps = {
-  value: 'nodeId',
-  label: 'nodeName',
-  children: 'children',
-  checkStrictly: false,
-  emitPath: false,
-}
-
-async function loadTree() {
-  treeLoading.value = true
-  try {
-    treeData.value = await dashboardNavApi.getNavTree()
-    if (selectedNode.value) {
-      const refreshed = findNodeById(treeData.value, selectedNode.value.nodeId)
-      selectedNode.value = refreshed
-      if (refreshed && isLeafNode(refreshed)) {
-        await loadNodeDevices(refreshed.nodeId)
-      } else {
-        currentDevices.value = []
-      }
-    }
-  } catch (e: any) {
-    ElMessage.error(e.message || 'Failed to load navigation tree')
-  } finally {
-    treeLoading.value = false
-  }
-}
-
-function findNodeById(nodes: NavTreeNode[], id: number): NavTreeNode | null {
-  for (const n of nodes) {
-    if (n.nodeId === id) return n
-    if (n.children) {
-      const found = findNodeById(n.children, id)
-      if (found) return found
-    }
-  }
-  return null
-}
-
-async function handleNodeClick(data: NavTreeNode) {
-  selectedNode.value = data
+watch(selectedNode, async (newNode) => {
   viewMode.value = 'list'
-  if (isLeafNode(data)) {
-    await loadNodeDevices(data.nodeId)
+  if (newNode && isLeafNode(newNode)) {
+    await loadNodeDevices(newNode.nodeId)
   } else {
     currentDevices.value = []
   }
-}
+}, { immediate: true })
 
 // =====================================================================
 //  Icon Mapping
@@ -644,191 +518,12 @@ const iconMap: Record<string, any> = {
   Location, Picture, OfficeBuilding, Grid, Lightning, Warning, EditPen,
   Cpu, Monitor, Box,
 }
-const iconOptions = [
-  { name: 'Location', comp: Location },
-  { name: 'Picture', comp: Picture },
-  { name: 'OfficeBuilding', comp: OfficeBuilding },
-  { name: 'Grid', comp: Grid },
-  { name: 'Lightning', comp: Lightning },
-  { name: 'Warning', comp: Warning },
-  { name: 'EditPen', comp: EditPen },
-  { name: 'Cpu', comp: Cpu },
-  { name: 'Monitor', comp: Monitor },
-  { name: 'Box', comp: Box },
-]
 function getNodeIcon(node: NavTreeNode) {
   if (node.hasRealData) return DataLine
   if (node.nodeLevel > 1) return null
   const iconName = node.icon
   if (!iconName) return FolderOpened
   return iconMap[iconName] || FolderOpened
-}
-
-// =====================================================================
-//  Node CRUD Dialog
-// =====================================================================
-const nodeDialogVisible = ref(false)
-const nodeDialogMode = ref<'create' | 'edit'>('create')
-const nodeSubmitting = ref(false)
-const nodeFormRef = ref<FormInstance>()
-const editingNodeId = ref<number | null>(null)
-const nodeForm = ref({
-  nodeName: '',
-  parentId: null as number | null,
-  icon: null as string | null,
-  sortOrder: 0,
-})
-const nodeRules = {
-  nodeName: [{ required: true, message: 'Please enter node name', trigger: 'blur' }],
-}
-const targetParentLevel = ref<number>(0)
-const showParentSelect = computed(() => targetParentLevel.value > 0)
-
-const parentCascaderOptions = computed(() => {
-  const targetLevel = targetParentLevel.value
-  if (targetLevel === 0) return []
-
-  const buildTree = (nodes: NavTreeNode[]): any[] => {
-    const res: any[] = []
-    for (const n of nodes) {
-      if (n.nodeLevel > targetLevel) continue
-
-      if (n.nodeLevel === targetLevel) {
-        const maxL = n.maxLevel ?? 4
-        if (n.nodeLevel >= maxL) continue
-        
-        res.push({
-          nodeId: n.nodeId,
-          nodeName: n.nodeName,
-          nodeLevel: n.nodeLevel,
-        })
-      } else {
-        let validChildren: any[] = []
-        if (n.children && n.children.length > 0) {
-          validChildren = buildTree(n.children)
-        }
-        if (validChildren.length > 0) {
-          res.push({
-            nodeId: n.nodeId,
-            nodeName: n.nodeName,
-            nodeLevel: n.nodeLevel,
-            children: validChildren,
-          })
-        }
-      }
-    }
-    return res
-  }
-
-  return buildTree(treeData.value)
-})
-
-function openCreateDialog(parent: NavTreeNode | null) {
-  nodeDialogMode.value = 'create'
-  editingNodeId.value = null
-  targetParentLevel.value = parent ? parent.nodeLevel : 0
-  
-  nodeForm.value = {
-    nodeName: '',
-    parentId: parent ? parent.nodeId : null,
-    icon: parent ? null : 'OfficeBuilding',
-    sortOrder: 0,
-  }
-  nodeDialogVisible.value = true
-}
-
-function openEditDialog(node: NavTreeNode) {
-  nodeDialogMode.value = 'edit'
-  editingNodeId.value = node.nodeId
-  targetParentLevel.value = node.nodeLevel - 1
-  
-  nodeForm.value = {
-    nodeName: node.nodeName,
-    parentId: node.nodeLevel === 1 ? null : (findParentId(treeData.value, node.nodeId) ?? null),
-    icon: node.icon ?? null,
-    sortOrder: node.sortOrder,
-  }
-  nodeDialogVisible.value = true
-}
-
-function findParentId(nodes: NavTreeNode[], childId: number): number | null {
-  for (const n of nodes) {
-    if (n.children) {
-      if (n.children.some(c => c.nodeId === childId)) return n.nodeId
-      const found = findParentId(n.children, childId)
-      if (found) return found
-    }
-  }
-  return null
-}
-
-async function submitNodeForm() {
-  if (!nodeFormRef.value) return
-  await nodeFormRef.value.validate(async (valid) => {
-    if (!valid) return
-    nodeSubmitting.value = true
-    try {
-      if (nodeDialogMode.value === 'create') {
-        await dashboardNavApi.createNode({
-          nodeName: nodeForm.value.nodeName,
-          parentId: nodeForm.value.parentId,
-          icon: nodeForm.value.parentId == null ? nodeForm.value.icon : null,
-          sortOrder: nodeForm.value.sortOrder,
-        })
-        ElMessage.success('Node created successfully')
-      } else {
-        await dashboardNavApi.updateNode(editingNodeId.value!, {
-          nodeName: nodeForm.value.nodeName,
-          parentId: nodeForm.value.parentId,
-          icon: nodeForm.value.parentId == null ? nodeForm.value.icon : null,
-          sortOrder: nodeForm.value.sortOrder,
-        })
-        ElMessage.success('Node updated successfully')
-      }
-      nodeDialogVisible.value = false
-      await loadTree()
-    } catch (e: any) {
-      ElMessage.error(e.message || 'Operation failed')
-    } finally {
-      nodeSubmitting.value = false
-    }
-  })
-}
-
-// =====================================================================
-//  Node Delete
-// =====================================================================
-async function handleDeleteNode(node: NavTreeNode) {
-  try {
-    const impact = await dashboardNavApi.getDeleteImpact(node.nodeId)
-    const msg = !isLeafNode(node)
-      ? `This will delete this node along with its ${impact.childCount} sub-nodes, and unbind ${impact.deviceCount} devices.`
-      : `This will delete this node, and unbind ${impact.deviceCount} devices.`
-    await ElMessageBox.confirm(
-      `${msg}\nNode deletion cannot be undone. Do you want to proceed?`,
-      'Delete Confirmation',
-      {
-        confirmButtonText: 'Delete',
-        cancelButtonText: 'Cancel',
-        type: 'warning',
-        confirmButtonClass: 'el-button--danger',
-      },
-    )
-  } catch {
-    return
-  }
-  try {
-    await dashboardNavApi.deleteNode(node.nodeId)
-    ElMessage.success('Deleted successfully')
-    if (selectedNode.value?.nodeId === node.nodeId) {
-      selectedNode.value = null
-      currentDevices.value = []
-      viewMode.value = 'list'
-    }
-    await loadTree()
-  } catch (e: any) {
-    ElMessage.error(e.message || 'Failed to delete node')
-  }
 }
 
 // =====================================================================
@@ -1051,7 +746,6 @@ function batchDeleteDevices() {
 }
 
 async function refreshAfterChange() {
-  await loadTree()
   await store.refreshAfterMutation()
   if (selectedNode.value && isLeafNode(selectedNode.value)) {
     await loadNodeDevices(selectedNode.value.nodeId)
@@ -1235,9 +929,14 @@ function openPointAlarmConfig(row: any) {
 //  Initialization
 // =====================================================================
 onMounted(async () => {
-  await loadTree()
+  if (!store.navTree.length) {
+    await store.loadNavTree()
+  }
   if (!store.allTemplates.length) {
     await store.loadTemplates()
+  }
+  if (selectedNode.value && isLeafNode(selectedNode.value)) {
+    await loadNodeDevices(selectedNode.value.nodeId)
   }
 })
 </script>
@@ -1258,17 +957,18 @@ $bg-dark: #0b1119;
 
 .system-deployment-view {
   display: flex;
-  gap: 12px;
   height: 100%;
   min-height: 0;
+  width: 100%;
 }
 
-// ===== Left Tree Panel =====
-.nav-tree-panel {
-  width: 280px;
-  flex-shrink: 0;
-  background-color: #111827;
-  border: 1px solid #1f2937;
+// ===== Right Panel =====
+.detail-panel {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  background-color: $bg-card;
+  border: 1px solid $border-color;
   border-radius: 6px;
   display: flex;
   flex-direction: column;
@@ -1311,119 +1011,12 @@ $bg-dark: #0b1119;
   }
 }
 
-.tree-body {
+.empty-selection-container {
   flex: 1;
-  overflow-y: auto;
-  padding: 6px;
-}
-
-.deploy-tree {
-  background: transparent !important;
-
-  :deep(.el-tree-node__content) {
-    height: 22px !important;
-    border-radius: 4px;
-    margin: 1px 0;
-    padding: 0 4px !important;
-
-    &:hover {
-      background-color: #1a2332 !important;
-    }
-  }
-
-  :deep(.el-tree-node.is-current > .el-tree-node__content) {
-    background-color: rgba(16, 185, 129, 0.16) !important;
-    color: #34d399 !important;
-    font-weight: 500;
-  }
-}
-
-.tree-node-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding-right: 4px;
-  overflow: hidden;
-}
-
-.tree-node-label {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 10px;
-  overflow: hidden;
-  flex: 1;
-
-  .node-icon {
-    font-size: 12px;
-    color: $text-secondary;
-    &.real-data-icon {
-      color: $accent-green;
-    }
-  }
-
-  .label-text {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 10px;
-  }
-
-  &.level-1 {
-    color: #64b5f6;
-    font-weight: 600;
-  }
-  &.level-2 {
-    color: $text-primary;
-    font-weight: 500;
-  }
-  &.level-3 {
-    color: $text-primary;
-    font-weight: 400;
-  }
-}
-
-.count-badge {
-  font-size: 9px;
-  color: $accent-green;
-  background-color: rgba($accent-green, 0.12);
-  padding: 0 4px;
-  border-radius: 6px;
-  flex-shrink: 0;
-  line-height: 14px;
-}
-
-.node-actions {
-  display: none;
-  gap: 2px;
-  flex-shrink: 0;
-
-  :deep(.el-button) {
-    height: 18px !important;
-    padding: 0 2px !important;
-    font-size: 10px !important;
-  }
-}
-
-.tree-node-row:hover .node-actions {
-  display: flex;
-}
-
-.del-btn {
-  color: $accent-red !important;
-}
-
-// ===== Right Panel =====
-.detail-panel {
-  flex: 1;
-  min-width: 0;
-  background-color: $bg-card;
-  border: 1px solid $border-color;
-  border-radius: 6px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  justify-content: center;
+  height: 100%;
 }
 
 .detail-body {
