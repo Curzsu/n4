@@ -492,6 +492,11 @@ const viewMode = ref<'list' | 'detail'>('list')
 const navNodeDialogRef = ref<InstanceType<typeof NavNodeDialog>>()
 const selectedNode = computed(() => store.currentNavNode)
 const devicesLoading = ref(false)
+// Declared before the selectedNode watcher below: the watcher runs with
+// { immediate: true } during setup, so it must not touch a variable that is
+// still in the temporal dead zone (TDZ) or it throws
+// "Cannot access 'currentDevices' before initialization".
+const currentDevices = ref<DeviceDeployment[]>([])
 
 function isLeafNode(node: NavTreeNode): boolean {
   return !node.children || node.children.length === 0
@@ -529,7 +534,6 @@ function getNodeIcon(node: NavTreeNode) {
 // =====================================================================
 //  Device List
 // =====================================================================
-const currentDevices = ref<DeviceDeployment[]>([])
 const searchQuery = ref('')
 
 async function loadNodeDevices(nodeId: number) {
