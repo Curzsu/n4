@@ -50,3 +50,9 @@ __pycache__/
 # FUXA backup JSON dumps (multi-GB, never belong in git)
 tools/
 outputs/
+
+# DB dumps / one-off import scripts / local backup artifacts
+monitor-backend/materials/
+n4_monitor*.sql
+旧脚本备份/
+构建数据/

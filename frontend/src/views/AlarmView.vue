@@ -2,7 +2,6 @@
 import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import AlarmTable from '@/components/AlarmTable.vue'
-import AlarmToastStack from '@/components/AlarmToastStack.vue'
 import AlarmSeverityChart from '@/components/charts/AlarmSeverityChart.vue'
 import AlarmTrendChart from '@/components/charts/AlarmTrendChart.vue'
 import AlarmHourChart from '@/components/charts/AlarmHourChart.vue'
@@ -46,9 +45,6 @@ const initialSeverity = computed(() => {
         @close="showHourChart = false"
       />
     </div>
-
-    <!-- Bottom-right alarm notification popups -->
-    <AlarmToastStack />
   </div>
 </template>
 
