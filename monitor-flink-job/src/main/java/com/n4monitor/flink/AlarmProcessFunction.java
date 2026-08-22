@@ -16,11 +16,14 @@ import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
 
+import java.util.concurrent.TimeUnit;
+
 /**
  * Stage 3: rule lookup + alarm lifecycle evaluation (stateful, keyed by path).
  * <p>
- * Reads rules from Redis per-message (so dynamic rule updates are picked up
- * without restart), evaluates, and manages alarm lifecycle. The preceding
+ * Reads rules and point metadata from Redis through per-subtask TTL caches
+ * (dynamic updates are picked up within the TTL, no restart needed),
+ * evaluates, and manages alarm lifecycle. The preceding
  * {@code keyBy(path)} guarantees all messages for one point reach the same
  * task instance, making the read-modify-write on alarm:active race-free.
  * <p>
@@ -50,6 +53,18 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
     private transient ObjectMapper objectMapper;
     private transient RuleEvaluator ruleEvaluator;
     private transient RedisStateStore stateStore;
+
+    /** TTL for the per-subtask point-metadata cache (alarm:point:rule). */
+    private static final long POINT_META_TTL_SECONDS = 60;
+
+    /**
+     * Per-subtask TTL cache of point metadata (alarm:point:rule entries).
+     * keyBy(path) routes every frame of a path to one subtask, so the cache
+     * is effectively a sharded copy of the map and stays bounded by
+     * total-points / parallelism. Missing entries are cached too (negative
+     * caching); a deployment config change takes effect within the TTL.
+     */
+    private transient TtlCache<PointMetaParser.PointMeta> pointMetaCache;
 
     /**
      * Pending alarm state held per key (path) while a delay-confirmation
@@ -112,6 +127,7 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
         ruleEvaluator = new RuleEvaluator(objectMapper, rulesNumericKey, rulesEnumKey);
         stateStore = new RedisStateStore(objectMapper, latestRedisKey, activeRedisKey,
                 notificationChannel, realtimeChannel, persistenceChannel);
+        pointMetaCache = new TtlCache<>(POINT_META_TTL_SECONDS, TimeUnit.SECONDS);
 
         // Per-key pending-alarm state for delay confirmation. Keyed by the
         // process function's key (path). One pending record per point at most.
@@ -154,12 +170,15 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
         Jedis jedis = jedisPool.getResource();
         try {
 
-        // 1. Resolve this point's metadata (type + alarm_code) from Redis in a single hget.
-        //    The hash value is {"type":"numeric","alarm_code":"..."}; type drives rule
-        //    evaluation routing and alarm_code selects the rule. Both come from the same
+        // 1. Resolve this point's metadata (type + alarm_code) through the
+        //    per-subtask TTL cache (keyBy routes all frames of a path here, so
+        //    the cache is a sharded copy of the point-rule map; config changes
+        //    take effect within the TTL). The hash value is
+        //    {"type":"numeric","alarm_code":"..."}; type drives rule evaluation
+        //    routing and alarm_code selects the rule. Both come from the same
         //    point_deployment row so they stay consistent.
-        PointMetaParser.PointMeta meta =
-                PointMetaParser.parse(objectMapper, jedis.hget(pointRuleMapKey, path), path);
+        PointMetaParser.PointMeta meta = pointMetaCache.get(path,
+                key -> PointMetaParser.parse(objectMapper, jedis.hget(pointRuleMapKey, key), key));
         String type = meta.type();
         String alarmName = meta.alarmName();
         // Backfill the type onto the point object so downstream state (latest/active/TDengine)
