@@ -35,13 +35,13 @@
         :cell-style="cellStyle"
         max-height="480"
       >
-        <el-table-column prop="pointName" label="Point Name" width="160" show-overflow-tooltip :resizable="false">
+        <el-table-column prop="pointName" label="Point Name" width="160" align="left" header-align="center" show-overflow-tooltip :resizable="false">
           <template #default="{ row }">
             <span class="point-name">{{ row.pointName }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column prop="dataType" label="Type" width="90" :resizable="false">
+        <el-table-column prop="dataType" label="Type" width="90" align="left" header-align="center" :resizable="false">
           <template #default="{ row }">
             <span :class="['type-tag', row.dataType === 'enum' ? 'tag-enum' : 'tag-numeric']">
               {{ row.dataType || 'numeric' }}
@@ -49,7 +49,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="Bind Alarm Rule" min-width="240" :resizable="false">
+        <el-table-column label="Bind Alarm Rule" min-width="240" align="left" header-align="center" :resizable="false">
           <template #default="{ row }">
             <el-select
               v-model="row.alarmCode"
@@ -95,9 +95,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, type CSSProperties } from 'vue'
 import { Search, Check } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { templateApi } from '@/api/template'
 import { alarmApi } from '@/api/alarm'
 import type { DeviceTemplate, PointTemplateItem, NumericRuleItem, EnumRuleItem } from '@/api/types'
@@ -106,19 +106,21 @@ const emit = defineEmits<{
   (e: 'saved'): void
 }>()
 
-const headerCellStyle = {
+const headerCellStyle: CSSProperties = {
   backgroundColor: '#0d1117',
   color: '#e5e7eb',
   fontSize: '10px',
   fontWeight: '600',
   borderBottom: '1px solid #2d3748',
+  textAlign: 'center',
 }
 
-const cellStyle = {
+const cellStyle: CSSProperties = {
   backgroundColor: '#111827',
   color: '#e5e7eb',
   fontSize: '10px',
   borderBottom: '1px solid #1f2937',
+  textAlign: 'left',
 }
 
 // State
@@ -215,6 +217,34 @@ async function handleSave() {
     return
   }
 
+  const modifiedCount = points.value.filter(p => {
+    if (!p.pointTmplId) return false
+    const orig = originalMap.value.get(p.pointTmplId) || ''
+    const curr = p.alarmCode || ''
+    return orig !== curr
+  }).length
+
+  if (modifiedCount === 0) {
+    ElMessage.info('No rules modified')
+    dialogVisible.value = false
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `Are you sure you want to save alarm rule bindings for ${modifiedCount} point(s)?`,
+      'Confirm Save',
+      {
+        confirmButtonText: 'Save',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+        customClass: 'dark-message-box'
+      }
+    )
+  } catch {
+    return
+  }
+
   saving.value = true
   try {
     const promises: Promise<any>[] = []
@@ -235,8 +265,6 @@ async function handleSave() {
     if (promises.length > 0) {
       await Promise.all(promises)
       ElMessage.success(`Saved successfully (${promises.length} rule(s) updated)`)
-    } else {
-      ElMessage.info('No rules modified')
     }
 
     dialogVisible.value = false

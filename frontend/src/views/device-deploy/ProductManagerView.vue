@@ -1,136 +1,8 @@
 <template>
   <div class="product-manager-view" v-loading="loading">
     <div class="card-container detail-card">
-      <!-- Case 1: Creating a new template -->
-      <div v-if="isCreating" class="form-container-wrapper">
-        <div class="panel-header">
-          <div class="header-title">
-            <el-icon class="title-icon"><Plus /></el-icon>
-            <span>Add Device Template</span>
-          </div>
-          <div class="action-buttons">
-            <el-button size="small" class="btn-secondary btn-back" @click="cancelCreate">Back to List</el-button>
-          </div>
-        </div>
-        <div class="detail-body">
-          <el-form 
-            :model="form" 
-            :rules="rules" 
-            ref="formRef" 
-            label-width="120px"
-            label-position="right"
-            class="custom-form"
-          >
-            <el-form-item label="Template Name" prop="deviceTmplName">
-              <el-input v-model="form.deviceTmplName" placeholder="e.g. Row Precision AC" />
-            </el-form-item>
-            
-            <el-form-item label="Template Type" prop="deviceType">
-              <el-input v-model="form.deviceType" placeholder="e.g. AC, UPS, TRANSFORMER" />
-            </el-form-item>
-
-            <el-form-item label="Model / Specs" prop="model">
-              <el-input v-model="form.model" placeholder="e.g. DK-1200XT" />
-            </el-form-item>
-
-            <el-form-item label="Manufacturer" prop="manufacturer">
-              <el-input v-model="form.manufacturer" placeholder="e.g. Daikin Industries" />
-            </el-form-item>
-
-            <el-form-item label="Manufacture Date" prop="manuDate">
-              <el-date-picker
-                v-model="form.manuDate"
-                type="date"
-                placeholder="Select date"
-                format="YYYY-MM-DD"
-                value-format="YYYY-MM-DD"
-                style="width: 100%"
-              />
-            </el-form-item>
-            
-            <el-form-item>
-              <el-button type="primary" class="btn-primary" @click="submitCreate" :loading="submitting">Create Template</el-button>
-              <el-button class="btn-secondary" @click="cancelCreate">Cancel</el-button>
-            </el-form-item>
-          </el-form>
-
-          <!-- Local Temp Points Table for New Template -->
-          <div class="point-table-section" style="margin-top: 24px; border-top: 1px dashed #334155; padding-top: 16px;">
-            <div class="points-header">
-              <div class="section-title">
-                <el-icon class="section-icon"><List /></el-icon>
-                <span>Initial Points Configuration (Total: {{ tempPoints.length }} points)</span>
-              </div>
-              <div class="points-actions">
-                <!-- Batch manage state -->
-                <template v-if="isPointBatchManaging">
-                  <el-button 
-                    type="danger" 
-                    size="small" 
-                    class="btn-danger"
-                    :icon="Delete" 
-                    :disabled="selectedPoints.length === 0" 
-                    @click="batchDeletePoints"
-                  >
-                    Batch Delete ({{ selectedPoints.length }} selected)
-                  </el-button>
-                  <el-button 
-                    size="small"
-                    class="btn-secondary"
-                    @click="exitPointBatchManage"
-                  >
-                    Exit Manage
-                  </el-button>
-                </template>
-                <!-- Normal state -->
-                <template v-else>
-                  <el-button 
-                    size="small" 
-                    class="btn-secondary"
-                    :icon="Edit"
-                    @click="enterPointBatchManage"
-                  >
-                    Batch Manage
-                  </el-button>
-                  <el-button type="primary" size="small" class="btn-primary" :icon="Plus" @click="openAddPointDialog">Add Point</el-button>
-                </template>
-              </div>
-            </div>
-            
-            <el-table 
-              :data="tempPoints" 
-              style="width: 100%; margin-top: 10px;" 
-              border 
-              size="small"
-              class="custom-table"
-              :header-cell-style="headerCellStyle"
-              :cell-style="cellStyle"
-              @selection-change="handleSelectionChange"
-            >
-              <el-table-column type="selection" width="30" v-if="isPointBatchManaging" align="center" header-align="center" :resizable="false" />
-              <el-table-column prop="pointName" label="Point Name" min-width="180" align="center" header-align="center" show-overflow-tooltip :resizable="false" />
-              <el-table-column prop="dataType" label="Data Type" width="110" align="center" header-align="center" :resizable="false" />
-              <el-table-column prop="unit" label="Unit" width="90" align="center" header-align="center" :resizable="false" />
-              <el-table-column prop="displayPrecision" label="Precision" width="90" align="center" header-align="center" :resizable="false" />
-              <el-table-column label="Alarm Rule" min-width="180" align="center" header-align="center" :resizable="false">
-                <template #default="{ row }">
-                  <div class="alarm-rule-cell">
-                    <span v-if="row.alarmCode" class="alarm-code-tag">{{ row.alarmCode }}</span>
-                    <span v-else class="alarm-none-tag">Unconfigured</span>
-                    <div class="alarm-btn-group">
-                      <el-button size="small" type="primary" link :icon="Edit" @click="openEditPointDialog(row)">Edit</el-button>
-                      <el-button size="small" type="danger" link :icon="Delete" @click="deletePoint(row)">Delete</el-button>
-                    </div>
-                  </div>
-                </template>
-              </el-table-column>
-            </el-table>
-          </div>
-        </div>
-      </div>
-
-      <!-- Case 2: Editing an existing template -->
-      <div v-else-if="selectedTemplate" class="form-container-wrapper">
+      <!-- Case 1: Template detail view when template selected -->
+      <div v-if="selectedTemplate" class="form-container-wrapper">
         <div class="panel-header">
           <div class="header-title">
             <el-icon class="title-icon"><Edit /></el-icon>
@@ -140,8 +12,7 @@
             <el-button size="small" class="btn-secondary" :icon="Odometer" @click="openConfigPanel">
               Set Faceplate Panel
             </el-button>
-            <el-button v-if="!isEditing" size="small" class="btn-secondary" :icon="Edit" @click="startEdit">Edit Template</el-button>
-            <el-button v-else size="small" class="btn-primary" :icon="Check" :loading="submitting" @click="submitUpdate">Save</el-button>
+            <el-button size="small" class="btn-secondary" :icon="Edit" @click="openEditTemplateDialog">Edit Template</el-button>
             <el-button 
               size="small" 
               class="btn-danger"
@@ -157,12 +28,10 @@
         <div class="detail-body">
           <el-form 
             :model="form" 
-            :rules="rules" 
-            ref="formRef" 
             label-width="110px"
             label-position="right"
             class="custom-form-compact"
-            :disabled="!isEditing"
+            disabled
           >
             <el-row :gutter="16">
               <el-col :span="8">
@@ -255,12 +124,12 @@
               @selection-change="handleSelectionChange"
             >
               <el-table-column type="selection" width="30" v-if="isPointBatchManaging" align="center" header-align="center" :resizable="false" />
-              <el-table-column prop="pointTmplId" label="ID" width="55" align="center" header-align="center" :resizable="false" />
-              <el-table-column prop="pointName" label="Point Name" min-width="180" align="center" header-align="center" show-overflow-tooltip :resizable="false" />
-              <el-table-column prop="dataType" label="Data Type" width="110" align="center" header-align="center" :resizable="false" />
-              <el-table-column prop="unit" label="Unit" width="90" align="center" header-align="center" :resizable="false" />
-              <el-table-column prop="displayPrecision" label="Precision" width="90" align="center" header-align="center" :resizable="false" />
-              <el-table-column label="Alarm Rule" min-width="220" align="center" header-align="center" :resizable="false">
+              <el-table-column prop="pointTmplId" label="ID" width="55" align="left" header-align="center" :resizable="false" />
+              <el-table-column prop="pointName" label="Point Name" min-width="180" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+              <el-table-column prop="dataType" label="Data Type" width="110" align="left" header-align="center" :resizable="false" />
+              <el-table-column prop="unit" label="Unit" width="90" align="left" header-align="center" :resizable="false" />
+              <el-table-column prop="displayPrecision" label="Precision" width="90" align="left" header-align="center" :resizable="false" />
+              <el-table-column label="Alarm Rule" min-width="220" align="left" header-align="center" :resizable="false">
                 <template #default="{ row }">
                   <div class="alarm-rule-cell">
                     <span
@@ -280,7 +149,7 @@
                       Unconfigured
                     </span>
                     <div class="alarm-btn-group">
-                      <el-button size="small" type="primary" link :icon="Edit" @click="openAlarmRuleEditModal(row)">Edit</el-button>
+                      <el-button size="small" type="primary" link :icon="Edit" @click="openEditPointDialog(row)">Edit</el-button>
                       <el-button size="small" type="danger" link :icon="Delete" @click="deletePoint(row)">Delete</el-button>
                     </div>
                   </div>
@@ -333,7 +202,7 @@
                 size="small" 
                 class="btn-primary"
                 :icon="Plus"
-                @click="startCreate"
+                @click="openAddTemplateDialog"
               >
                 Add Template
               </el-button>
@@ -365,25 +234,25 @@
             @selection-change="handleTemplateSelectionChange"
           >
             <el-table-column v-if="isTemplateBatchManaging" type="selection" width="30" align="center" header-align="center" :resizable="false" />
-            <el-table-column prop="deviceTmplId" label="ID" width="55" align="center" header-align="center" :resizable="false" />
-            <el-table-column prop="deviceTmplName" label="Template Name" min-width="180" align="center" header-align="center" show-overflow-tooltip :resizable="false" />
-            <el-table-column prop="deviceType" label="Type" width="110" align="center" header-align="center" show-overflow-tooltip :resizable="false" />
-            <el-table-column label="Model / Specs" min-width="130" align="center" header-align="center" show-overflow-tooltip :resizable="false">
+            <el-table-column prop="deviceTmplId" label="ID" width="55" align="left" header-align="center" :resizable="false" />
+            <el-table-column prop="deviceTmplName" label="Template Name" min-width="180" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+            <el-table-column prop="deviceType" label="Type" width="110" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+            <el-table-column label="Model / Specs" min-width="130" align="left" header-align="center" show-overflow-tooltip :resizable="false">
               <template #default="{ row }">
                 <span>{{ row.model || '—' }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="Manufacturer" min-width="140" align="center" header-align="center" show-overflow-tooltip :resizable="false">
+            <el-table-column label="Manufacturer" min-width="140" align="left" header-align="center" show-overflow-tooltip :resizable="false">
               <template #default="{ row }">
                 <span>{{ row.manufacturer || '—' }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="Manufacture Date" width="110" align="center" header-align="center" :resizable="false">
+            <el-table-column label="Manufacture Date" width="110" align="left" header-align="center" :resizable="false">
               <template #default="{ row }">
                 <span>{{ row.manuDate || '—' }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="pointCount" label="Points" width="70" align="center" header-align="center" :resizable="false" />
+            <el-table-column prop="pointCount" label="Points" width="70" align="left" header-align="center" :resizable="false" />
             <el-table-column label="Actions" width="160" align="center" header-align="center" fixed="right" :resizable="false">
               <template #default="{ row }">
                 <el-button 
@@ -419,6 +288,123 @@
       </div>
     </div>
 
+    <!-- ===== Dialog: Add Device Template ===== -->
+    <el-dialog
+      v-model="addTemplateDialogVisible"
+      title="Add Device Template"
+      width="520px"
+      append-to-body
+      class="dark-dialog"
+      destroy-on-close
+    >
+      <el-form
+        :model="addTemplateForm"
+        :rules="addTemplateRules"
+        ref="addTemplateFormRef"
+        label-width="120px"
+        label-position="right"
+        size="small"
+        class="custom-form"
+      >
+        <el-form-item label="Template Name" prop="deviceTmplName">
+          <el-input v-model="addTemplateForm.deviceTmplName" maxlength="64" placeholder="e.g. Row Precision AC" />
+        </el-form-item>
+
+        <el-form-item label="Template Type" prop="deviceType">
+          <el-input v-model="addTemplateForm.deviceType" maxlength="50" placeholder="e.g. AC, UPS, TRANSFORMER" />
+        </el-form-item>
+
+        <el-form-item label="Model / Specs" prop="model">
+          <el-input v-model="addTemplateForm.model" maxlength="50" placeholder="e.g. DK-1200XT" />
+        </el-form-item>
+
+        <el-form-item label="Manufacturer" prop="manufacturer">
+          <el-input v-model="addTemplateForm.manufacturer" maxlength="50" placeholder="e.g. Daikin Industries" />
+        </el-form-item>
+
+        <el-form-item label="Manufacture Date" prop="manuDate">
+          <el-date-picker
+            v-model="addTemplateForm.manuDate"
+            type="date"
+            placeholder="Select date"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button class="btn-secondary" size="small" @click="addTemplateDialogVisible = false">Cancel</el-button>
+        <el-button
+          type="primary"
+          size="small"
+          class="btn-primary"
+          @click="submitAddTemplate"
+          :loading="addTemplateSubmitting"
+        >
+          Create
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- ===== Dialog: Edit Device Template ===== -->
+    <el-dialog
+      v-model="editTemplateDialogVisible"
+      title="Edit Device Template"
+      width="520px"
+      append-to-body
+      class="dark-dialog"
+    >
+      <el-form
+        :model="editTemplateForm"
+        :rules="editTemplateRules"
+        ref="editTemplateFormRef"
+        label-width="120px"
+        label-position="right"
+        size="small"
+        class="custom-form"
+      >
+        <el-form-item label="Template Name" prop="deviceTmplName">
+          <el-input v-model="editTemplateForm.deviceTmplName" maxlength="64" placeholder="e.g. Row Precision AC" />
+        </el-form-item>
+
+        <el-form-item label="Template Type" prop="deviceType">
+          <el-input v-model="editTemplateForm.deviceType" maxlength="50" placeholder="e.g. AC, UPS, TRANSFORMER" />
+        </el-form-item>
+
+        <el-form-item label="Model / Specs" prop="model">
+          <el-input v-model="editTemplateForm.model" maxlength="50" placeholder="e.g. DK-1200XT" />
+        </el-form-item>
+
+        <el-form-item label="Manufacturer" prop="manufacturer">
+          <el-input v-model="editTemplateForm.manufacturer" maxlength="50" placeholder="e.g. Daikin Industries" />
+        </el-form-item>
+
+        <el-form-item label="Manufacture Date" prop="manuDate">
+          <el-date-picker
+            v-model="editTemplateForm.manuDate"
+            type="date"
+            placeholder="Select date"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button class="btn-secondary" size="small" @click="editTemplateDialogVisible = false">Cancel</el-button>
+        <el-button
+          type="primary"
+          size="small"
+          class="btn-primary"
+          @click="submitEditTemplate"
+          :loading="editTemplateSubmitting"
+        >
+          Save
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- Add/Edit Point Dialog -->
     <el-dialog
       v-model="pointDialogVisible"
@@ -427,12 +413,12 @@
       append-to-body
       class="dark-dialog"
     >
-      <el-form :model="pointForm" :rules="pointRules" ref="pointFormRef" label-width="110px">
+      <el-form :model="pointForm" :rules="pointRules" ref="pointFormRef" label-width="120px">
         <el-form-item label="Point Name" prop="pointName">
-          <el-input v-model="pointForm.pointName" placeholder="e.g. Temperature" />
+          <el-input v-model="pointForm.pointName" maxlength="50" placeholder="e.g. Temperature" />
         </el-form-item>
         <el-form-item label="Point Type" prop="pointType">
-          <el-select v-model="pointForm.pointType" placeholder="Select type" style="width: 100%">
+          <el-select v-model="pointForm.pointType" placeholder="Select point type" style="width: 100%" clearable>
             <el-option value="DI" label="DI - Digital Input" />
             <el-option value="DO" label="DO - Digital Output" />
             <el-option value="AI" label="AI - Analog Input" />
@@ -440,7 +426,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="Data Type" prop="dataType">
-          <el-select v-model="pointForm.dataType" placeholder="Select data type" style="width: 100%">
+          <el-select v-model="pointForm.dataType" placeholder="Select data type" style="width: 100%" clearable>
             <el-option value="numeric" label="numeric - Number" />
             <el-option value="enum" label="enum - Enumeration" />
             <el-option value="boolean" label="boolean - Boolean" />
@@ -448,7 +434,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="Unit" prop="unit">
-          <el-input v-model="pointForm.unit" placeholder="e.g. ℃, %, V, None" />
+          <el-input v-model="pointForm.unit" maxlength="20" placeholder="e.g. ℃, %, V, None" />
         </el-form-item>
         <el-form-item label="Precision" prop="displayPrecision">
           <el-input-number v-model="pointForm.displayPrecision" :min="0" :max="4" style="width: 100%" />
@@ -514,7 +500,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, type CSSProperties } from 'vue'
-import { Plus, Edit, Check, Delete, List, Odometer, Download, Upload, UploadFilled, Search, Picture } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete, List, Odometer, Download, Upload, UploadFilled, Search, Picture } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { templateApi } from '@/api/template'
 import type { DeviceTemplate, PointTemplateItem } from '@/api/types'
@@ -522,6 +508,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { useDashboardStore } from '@/stores/dashboard'
 import TemplateDiagramDialog from './dialogs/TemplateDiagramDialog.vue'
 import AlarmRuleEditModal from './dialogs/AlarmRuleEditModal.vue'
+import { triggerFormShake } from '@/utils/formAnimation'
 
 const store = useDashboardStore()
 
@@ -546,20 +533,16 @@ const cellStyle: CSSProperties = {
   color: '#e5e7eb',
   fontSize: '10px',
   borderBottom: '1px solid #1f2937',
-  textAlign: 'center',
+  textAlign: 'left',
 }
 
 const loading = ref(false)
-const submitting = ref(false)
 const tableSearchQuery = ref('')
-const isCreating = ref(false)
-const isEditing = ref(false)
 const selectedPoints = ref<any[]>([])
 const isPointBatchManaging = ref(false)
 const isTemplateBatchManaging = ref(false)
 const selectedTemplates = ref<any[]>([])
 const importDialogVisible = ref(false)
-const tempPoints = ref<any[]>([])
 
 function handleTemplateSelectionChange(val: any[]) {
   selectedTemplates.value = val
@@ -593,35 +576,64 @@ const pointFormRef = ref<FormInstance>()
 const pointForm = ref<any>({
   pointTmplId: null,
   pointName: '',
-  pointType: 'AI',
-  dataType: 'numeric',
-  unit: 'None',
+  pointType: null,
+  dataType: null,
+  unit: '',
   displayPrecision: 0
 })
 
 const validatePointNameUnique = (_rule: any, value: any, callback: any) => {
-  if (!value) {
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  if (!trimmed) {
     callback(new Error('Please enter point name'))
     return
   }
-  const list = isCreating.value ? tempPoints.value : templatePoints.value
+  if (trimmed.length < 1 || trimmed.length > 50) {
+    callback(new Error('Point name must be between 1 and 50 characters'))
+    return
+  }
+  if (/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/.test(trimmed) || /[^\x00-\x7F]/.test(trimmed)) {
+    callback(new Error('Point name cannot contain Chinese characters'))
+    return
+  }
+  if (!/^[a-zA-Z0-9_\-\.\s()]+$/.test(trimmed)) {
+    callback(new Error('Point name contains invalid characters'))
+    return
+  }
+  const list = templatePoints.value
   const exists = list.some(p => {
     if (isEditingPoint.value && p.pointTmplId === pointForm.value.pointTmplId) {
       return false
     }
-    return p.pointName === value
+    return (p.pointName || '').trim().toLowerCase() === trimmed.toLowerCase()
   })
   if (exists) {
-    callback(new Error('Point name already exists'))
+    callback(new Error('Point name already exists in this template'))
     return
+  }
+  callback()
+}
+
+const validateUnit = (_rule: any, value: any, callback: any) => {
+  if (value !== undefined && value !== null && value !== '') {
+    const trimmed = typeof value === 'string' ? value.trim() : ''
+    if (trimmed.length > 20) {
+      callback(new Error('Unit cannot exceed 20 characters'))
+      return
+    }
+    if (/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/.test(trimmed) || /[^\x00-\x7F]/.test(trimmed)) {
+      callback(new Error('Unit cannot contain Chinese characters'))
+      return
+    }
   }
   callback()
 }
 
 const pointRules = ref<FormRules>({
   pointName: [
+    { required: true, message: 'Please enter point name', trigger: 'blur' },
     { validator: validatePointNameUnique, trigger: 'blur' },
-    { max: 150, message: 'Point name cannot exceed 150 characters', trigger: 'blur' }
+    { max: 50, message: 'Point name cannot exceed 50 characters', trigger: 'blur' }
   ],
   pointType: [
     { required: true, message: 'Please select point type', trigger: 'change' }
@@ -630,11 +642,25 @@ const pointRules = ref<FormRules>({
     { required: true, message: 'Please select data type', trigger: 'change' }
   ],
   unit: [
-    { max: 50, message: 'Unit cannot exceed 50 characters', trigger: 'blur' }
+    { validator: validateUnit, trigger: 'blur' },
+    { max: 20, message: 'Unit cannot exceed 20 characters', trigger: 'blur' }
+  ],
+  displayPrecision: [
+    {
+      validator: (_rule: any, value: any, callback: any) => {
+        if (value !== undefined && value !== null && value !== '') {
+          const num = Number(value)
+          if (!Number.isInteger(num) || num < 0 || num > 4) {
+            callback(new Error('Precision must be an integer between 0 and 4'))
+            return
+          }
+        }
+        callback()
+      },
+      trigger: 'change'
+    }
   ]
 })
-
-const formRef = ref<FormInstance>()
 
 const form = ref<DeviceTemplate>({
   deviceTmplName: '',
@@ -644,15 +670,303 @@ const form = ref<DeviceTemplate>({
   manuDate: ''
 })
 
-const rules = ref<FormRules>({
+const validateNoChinese = (fieldName: string, maxLen: number) => (_rule: any, value: any, callback: any) => {
+  if (value !== undefined && value !== null && value !== '') {
+    const trimmed = typeof value === 'string' ? value.trim() : ''
+    if (trimmed.length > maxLen) {
+      callback(new Error(`${fieldName} cannot exceed ${maxLen} characters`))
+      return
+    }
+    if (/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/.test(trimmed) || /[^\x00-\x7F]/.test(trimmed)) {
+      callback(new Error(`${fieldName} cannot contain Chinese characters`))
+      return
+    }
+  }
+  callback()
+}
+
+const validateDeviceType = (_rule: any, value: any, callback: any) => {
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  if (!trimmed) {
+    callback(new Error('Please enter template type'))
+    return
+  }
+  if (trimmed.length < 1 || trimmed.length > 50) {
+    callback(new Error('Template type must be between 1 and 50 characters'))
+    return
+  }
+  if (/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/.test(trimmed) || /[^\x00-\x7F]/.test(trimmed)) {
+    callback(new Error('Template type cannot contain Chinese characters'))
+    return
+  }
+  if (!/^[a-zA-Z0-9_\-]+$/.test(trimmed)) {
+    callback(new Error('Template type must contain only letters, numbers, hyphens or underscores'))
+    return
+  }
+  callback()
+}
+
+// Template Add Dialog states
+const addTemplateDialogVisible = ref(false)
+const addTemplateSubmitting = ref(false)
+const addTemplateFormRef = ref<FormInstance>()
+const addTemplateForm = ref<DeviceTemplate>({
+  deviceTmplName: '',
+  deviceType: '',
+  model: '',
+  manufacturer: '',
+  manuDate: ''
+})
+
+const validateAddTemplateNameUnique = (_rule: any, value: any, callback: any) => {
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  if (!trimmed) {
+    callback(new Error('Please enter template name'))
+    return
+  }
+  if (trimmed.length < 2 || trimmed.length > 64) {
+    callback(new Error('Template name must be between 2 and 64 characters'))
+    return
+  }
+  if (/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/.test(trimmed) || /[^\x00-\x7F]/.test(trimmed)) {
+    callback(new Error('Template name cannot contain Chinese characters'))
+    return
+  }
+  if (!/^[a-zA-Z0-9_\-\.\s()]+$/.test(trimmed)) {
+    callback(new Error('Template name contains invalid characters'))
+    return
+  }
+  const exists = store.allTemplates.some(t => {
+    return (t.deviceTmplName || '').trim().toLowerCase() === trimmed.toLowerCase()
+  })
+  if (exists) {
+    callback(new Error('Template name already exists'))
+    return
+  }
+  callback()
+}
+
+const addTemplateRules = ref<FormRules>({
   deviceTmplName: [
     { required: true, message: 'Please enter template name', trigger: 'blur' },
-    { min: 2, max: 100, message: 'Length must be between 2 and 100 characters', trigger: 'blur' }
+    { validator: validateAddTemplateNameUnique, trigger: 'blur' },
+    { max: 64, message: 'Template name cannot exceed 64 characters', trigger: 'blur' }
   ],
   deviceType: [
-    { required: true, message: 'Please enter template type', trigger: 'blur' }
+    { required: true, message: 'Please enter template type', trigger: 'blur' },
+    { validator: validateDeviceType, trigger: 'blur' },
+    { max: 50, message: 'Template type cannot exceed 50 characters', trigger: 'blur' }
+  ],
+  model: [
+    { validator: validateNoChinese('Model / specs', 50), trigger: 'blur' },
+    { max: 50, message: 'Model / specs cannot exceed 50 characters', trigger: 'blur' }
+  ],
+  manufacturer: [
+    { validator: validateNoChinese('Manufacturer', 50), trigger: 'blur' },
+    { max: 50, message: 'Manufacturer cannot exceed 50 characters', trigger: 'blur' }
   ]
 })
+
+function openAddTemplateDialog() {
+  addTemplateForm.value = {
+    deviceTmplName: '',
+    deviceType: '',
+    model: '',
+    manufacturer: '',
+    manuDate: ''
+  }
+  addTemplateDialogVisible.value = true
+  nextTick(() => {
+    if (addTemplateFormRef.value) {
+      addTemplateFormRef.value.clearValidate()
+    }
+  })
+}
+
+async function submitAddTemplate() {
+  if (!addTemplateFormRef.value) return
+  const valid = await addTemplateFormRef.value.validate().catch(() => false)
+  if (!valid) {
+    triggerFormShake(addTemplateFormRef, 'Please check and correct the highlighted template fields')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `Are you sure you want to create device template "${addTemplateForm.value.deviceTmplName}"?`,
+      'Confirm Create',
+      {
+        confirmButtonText: 'Create',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+        customClass: 'dark-message-box'
+      }
+    )
+  } catch {
+    return
+  }
+
+  addTemplateSubmitting.value = true
+  try {
+    const payload: DeviceTemplate = {
+      deviceTmplName: addTemplateForm.value.deviceTmplName.trim(),
+      deviceType: addTemplateForm.value.deviceType.trim(),
+      model: addTemplateForm.value.model ? addTemplateForm.value.model.trim() : '',
+      manufacturer: addTemplateForm.value.manufacturer ? addTemplateForm.value.manufacturer.trim() : '',
+      manuDate: addTemplateForm.value.manuDate || ''
+    }
+    const createdTemplate = await templateApi.createTemplate(payload)
+    ElMessage.success('Device template created successfully')
+    addTemplateDialogVisible.value = false
+    await store.refreshAfterMutation()
+
+    store.selectedNode = {
+      id: createdTemplate.deviceTmplId,
+      label: createdTemplate.deviceTmplName,
+      type: 'product',
+      status: 1,
+      children: []
+    }
+  } catch (err: any) {
+    ElMessage.error(err.message || 'Failed to create template')
+  } finally {
+    addTemplateSubmitting.value = false
+  }
+}
+
+// Template Edit Dialog states
+const editTemplateDialogVisible = ref(false)
+const editTemplateSubmitting = ref(false)
+const editTemplateFormRef = ref<FormInstance>()
+const editTemplateForm = ref<DeviceTemplate>({
+  deviceTmplName: '',
+  deviceType: '',
+  model: '',
+  manufacturer: '',
+  manuDate: ''
+})
+
+const validateEditTemplateNameUnique = (_rule: any, value: any, callback: any) => {
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  if (!trimmed) {
+    callback(new Error('Please enter template name'))
+    return
+  }
+  if (trimmed.length < 2 || trimmed.length > 64) {
+    callback(new Error('Template name must be between 2 and 64 characters'))
+    return
+  }
+  if (/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/.test(trimmed) || /[^\x00-\x7F]/.test(trimmed)) {
+    callback(new Error('Template name cannot contain Chinese characters'))
+    return
+  }
+  if (!/^[a-zA-Z0-9_\-\.\s()]+$/.test(trimmed)) {
+    callback(new Error('Template name contains invalid characters'))
+    return
+  }
+  const currentId = editTemplateForm.value.deviceTmplId
+  const exists = store.allTemplates.some(t => {
+    if (currentId && t.deviceTmplId === currentId) {
+      return false
+    }
+    return (t.deviceTmplName || '').trim().toLowerCase() === trimmed.toLowerCase()
+  })
+  if (exists) {
+    callback(new Error('Template name already exists'))
+    return
+  }
+  callback()
+}
+
+const editTemplateRules = ref<FormRules>({
+  deviceTmplName: [
+    { required: true, message: 'Please enter template name', trigger: 'blur' },
+    { validator: validateEditTemplateNameUnique, trigger: 'blur' },
+    { max: 64, message: 'Template name cannot exceed 64 characters', trigger: 'blur' }
+  ],
+  deviceType: [
+    { required: true, message: 'Please enter template type', trigger: 'blur' },
+    { validator: validateDeviceType, trigger: 'blur' },
+    { max: 50, message: 'Template type cannot exceed 50 characters', trigger: 'blur' }
+  ],
+  model: [
+    { validator: validateNoChinese('Model / specs', 50), trigger: 'blur' },
+    { max: 50, message: 'Model / specs cannot exceed 50 characters', trigger: 'blur' }
+  ],
+  manufacturer: [
+    { validator: validateNoChinese('Manufacturer', 50), trigger: 'blur' },
+    { max: 50, message: 'Manufacturer cannot exceed 50 characters', trigger: 'blur' }
+  ]
+})
+
+function openEditTemplateDialog() {
+  if (!selectedTemplate.value) return
+  editTemplateForm.value = {
+    deviceTmplId: selectedTemplate.value.deviceTmplId,
+    deviceTmplName: selectedTemplate.value.deviceTmplName,
+    deviceType: selectedTemplate.value.deviceType,
+    model: selectedTemplate.value.model,
+    manufacturer: selectedTemplate.value.manufacturer,
+    manuDate: selectedTemplate.value.manuDate
+  }
+  editTemplateDialogVisible.value = true
+  nextTick(() => {
+    if (editTemplateFormRef.value) {
+      editTemplateFormRef.value.clearValidate()
+    }
+  })
+}
+
+async function submitEditTemplate() {
+  if (!editTemplateForm.value.deviceTmplId) {
+    ElMessage.error('Missing template ID')
+    return
+  }
+  if (!editTemplateFormRef.value) return
+  const valid = await editTemplateFormRef.value.validate().catch(() => false)
+  if (!valid) {
+    triggerFormShake(editTemplateFormRef, 'Please check and correct the highlighted template fields')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `Are you sure you want to save changes to template "${editTemplateForm.value.deviceTmplName}"?`,
+      'Confirm Save',
+      {
+        confirmButtonText: 'Save',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+        customClass: 'dark-message-box'
+      }
+    )
+  } catch {
+    return
+  }
+
+  try {
+    editTemplateSubmitting.value = true
+    const payload: DeviceTemplate = {
+      ...editTemplateForm.value,
+      deviceTmplName: editTemplateForm.value.deviceTmplName.trim(),
+      deviceType: editTemplateForm.value.deviceType.trim(),
+      model: editTemplateForm.value.model ? editTemplateForm.value.model.trim() : '',
+      manufacturer: editTemplateForm.value.manufacturer ? editTemplateForm.value.manufacturer.trim() : '',
+      manuDate: editTemplateForm.value.manuDate || ''
+    }
+    await templateApi.updateTemplate(editTemplateForm.value.deviceTmplId, payload)
+    ElMessage.success('Template updated successfully')
+    editTemplateDialogVisible.value = false
+    await store.refreshAfterMutation()
+    if (selectedTemplate.value) {
+      form.value = { ...selectedTemplate.value }
+    }
+  } catch (err: any) {
+    ElMessage.error(err.message || 'Failed to update template')
+  } finally {
+    editTemplateSubmitting.value = false
+  }
+}
 
 const templates = computed<DeviceTemplate[]>(() => store.allTemplates)
 
@@ -674,10 +988,8 @@ watch(selectedTemplate, async (newVal) => {
   selectedTemplates.value = []
   if (newVal) {
     form.value = { ...newVal }
-    isEditing.value = false
     await loadTemplatePoints()
   } else {
-    isCreating.value = false
     templatePoints.value = []
   }
 }, { immediate: true })
@@ -689,7 +1001,6 @@ const filteredTableTemplates = computed(() => {
 })
 
 function editTemplateFromTable(row: DeviceTemplate) {
-  isCreating.value = false
   store.selectedNode = {
     id: row.deviceTmplId,
     label: row.deviceTmplName,
@@ -699,97 +1010,12 @@ function editTemplateFromTable(row: DeviceTemplate) {
   }
 }
 
-function startCreate() {
-  isCreating.value = true
-  tempPoints.value = []
-  store.selectedNode = store.deviceTree[0] || null
-  form.value = {
-    deviceTmplName: '',
-    deviceType: '',
-    model: '',
-    manufacturer: '',
-    manuDate: ''
-  }
-}
-
-function cancelCreate() {
-  isCreating.value = false
-}
-
 function goBackToList() {
   store.selectedNode = null
 }
 
-function startEdit() {
-  isEditing.value = true
-}
-
 function handleSelectionChange(val: any[]) {
   selectedPoints.value = val
-}
-
-async function submitCreate() {
-  if (!formRef.value) return
-  await formRef.value.validate(async (valid) => {
-    if (valid) {
-      submitting.value = true
-      try {
-        const createdTemplate = await templateApi.createTemplate(form.value)
-
-        for (const ip of tempPoints.value) {
-          await templateApi.addPoint(createdTemplate.deviceTmplId!, {
-            pointName: ip.pointName,
-            pointType: ip.pointType,
-            dataType: ip.dataType,
-            unit: ip.unit,
-            displayPrecision: ip.displayPrecision
-          })
-        }
-
-        ElMessage.success('Template and points created successfully')
-        isCreating.value = false
-        await store.refreshAfterMutation()
-
-        store.selectedNode = {
-          id: createdTemplate.deviceTmplId,
-          label: createdTemplate.deviceTmplName,
-          type: 'product',
-          status: 1,
-          children: []
-        }
-
-        await nextTick()
-        isEditing.value = true
-      } catch (err: any) {
-        ElMessage.error(err.message || 'Failed to create template')
-      } finally {
-        submitting.value = false
-      }
-    }
-  })
-}
-
-async function submitUpdate() {
-  if (!formRef.value) return
-  await formRef.value.validate(async (valid) => {
-    if (valid) {
-      submitting.value = true
-      try {
-        if (form.value.deviceTmplId) {
-          await templateApi.updateTemplate(form.value.deviceTmplId, form.value)
-          ElMessage.success('Template saved successfully')
-          isEditing.value = false
-          await store.refreshAfterMutation()
-        } else {
-          ElMessage.error('Missing template ID')
-        }
-      } catch (err: any) {
-        ElMessage.error(err.message || 'Failed to update template')
-      } finally {
-        submitting.value = false
-      }
-    }
-  })
 }
 
 function confirmDelete(target?: DeviceTemplate | null) {
@@ -805,6 +1031,7 @@ function confirmDelete(target?: DeviceTemplate | null) {
       cancelButtonText: 'Cancel',
       type: 'warning',
       confirmButtonClass: 'el-button--danger',
+      customClass: 'dark-message-box',
       boxType: 'confirm'
     }
   ).then(async () => {
@@ -835,38 +1062,43 @@ function batchDeleteTemplates() {
       cancelButtonText: 'Cancel',
       type: 'warning',
       confirmButtonClass: 'el-button--danger',
+      customClass: 'dark-message-box',
       boxType: 'confirm'
     }
   ).then(async () => {
     loading.value = true
     try {
       for (const t of selectedTemplates.value) {
-        await templateApi.deleteTemplate(t.deviceTmplId)
+        if (t.deviceTmplId) {
+          await templateApi.deleteTemplate(t.deviceTmplId)
+        }
       }
       ElMessage.success('Batch delete completed successfully')
-    } catch (err: any) {
-      ElMessage.error(err.message || 'Failed to batch delete templates')
-    } finally {
+      await store.refreshAfterMutation()
       selectedTemplates.value = []
       isTemplateBatchManaging.value = false
-      await store.refreshAfterMutation()
-      store.selectedNode = store.deviceTree[0] || null
+    } catch (err: any) {
+      ElMessage.error(err.message || 'Batch delete failed')
+    } finally {
       loading.value = false
     }
   }).catch(() => {})
 }
 
 async function loadTemplatePoints() {
-  if (selectedTemplate.value?.deviceTmplId) {
-    loadingPoints.value = true
-    try {
-      templatePoints.value = await templateApi.getPoints(selectedTemplate.value.deviceTmplId)
-    } catch (e: any) {
-      console.error(e)
-      ElMessage.error(e.message || 'Failed to load points')
-    } finally {
-      loadingPoints.value = false
-    }
+  if (!selectedTemplate.value?.deviceTmplId) {
+    templatePoints.value = []
+    return
+  }
+  loadingPoints.value = true
+  try {
+    const list = await templateApi.getPoints(selectedTemplate.value.deviceTmplId)
+    templatePoints.value = list || []
+  } catch (err: any) {
+    ElMessage.error(err.message || 'Failed to load template points')
+    templatePoints.value = []
+  } finally {
+    loadingPoints.value = false
   }
 }
 
@@ -875,8 +1107,8 @@ function openAddPointDialog() {
   pointForm.value = {
     pointTmplId: null,
     pointName: '',
-    pointType: 'AI',
-    dataType: 'numeric',
+    pointType: null,
+    dataType: null,
     unit: '',
     displayPrecision: 0
   }
@@ -893,8 +1125,8 @@ function openEditPointDialog(row: any) {
   pointForm.value = {
     pointTmplId: row.pointTmplId,
     pointName: row.pointName,
-    pointType: row.pointType || 'AI',
-    dataType: row.dataType || 'numeric',
+    pointType: row.pointType || null,
+    dataType: row.dataType || null,
     unit: row.unit || '',
     displayPrecision: row.displayPrecision ?? 0
   }
@@ -908,113 +1140,119 @@ function openEditPointDialog(row: any) {
 
 async function submitPointForm() {
   if (!pointFormRef.value) return
-  await pointFormRef.value.validate(async (valid) => {
-    if (valid) {
-      if (isCreating.value) {
-        if (isEditingPoint.value) {
-          const index = tempPoints.value.findIndex(p => p.pointTmplId === pointForm.value.pointTmplId)
-          if (index !== -1) {
-            tempPoints.value[index] = { ...pointForm.value }
-          }
-          ElMessage.success('Point updated')
-        } else {
-          const tempId = Math.floor(Math.random() * -1000000)
-          tempPoints.value.push({
-            ...pointForm.value,
-            pointTmplId: tempId
-          })
-          ElMessage.success('Point added')
-        }
-        pointDialogVisible.value = false
-        return
-      }
+  const valid = await pointFormRef.value.validate().catch(() => false)
+  if (!valid) {
+    triggerFormShake(pointFormRef, 'Please check and correct the highlighted point fields')
+    return
+  }
 
-      pointSubmitting.value = true
-      try {
-        const tmplId = selectedTemplate.value?.deviceTmplId
-        if (!tmplId) {
-          throw new Error('Template not found, please refresh')
-        }
-
-        if (isEditingPoint.value && pointForm.value.pointTmplId) {
-          await templateApi.updatePoint(pointForm.value.pointTmplId, {
-            pointName: pointForm.value.pointName,
-            pointType: pointForm.value.pointType,
-            dataType: pointForm.value.dataType,
-            unit: pointForm.value.unit,
-            displayPrecision: pointForm.value.displayPrecision
-          })
-          ElMessage.success('Point updated successfully')
-        } else {
-          await templateApi.addPoint(tmplId, {
-            pointName: pointForm.value.pointName,
-            pointType: pointForm.value.pointType,
-            dataType: pointForm.value.dataType,
-            unit: pointForm.value.unit,
-            displayPrecision: pointForm.value.displayPrecision
-          })
-          ElMessage.success('Point added successfully')
-        }
-        pointDialogVisible.value = false
-        await loadTemplatePoints()
-      } catch (err: any) {
-        ElMessage.error(err.message || 'Failed to save point')
-      } finally {
-        pointSubmitting.value = false
+  const actionText = isEditingPoint.value
+    ? `save changes to point "${pointForm.value.pointName}"`
+    : `add point "${pointForm.value.pointName}"`
+  
+  try {
+    await ElMessageBox.confirm(
+      `Are you sure you want to ${actionText}?`,
+      isEditingPoint.value ? 'Confirm Save' : 'Confirm Add',
+      {
+        confirmButtonText: 'Confirm',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+        customClass: 'dark-message-box'
       }
+    )
+  } catch {
+    return
+  }
+
+  pointSubmitting.value = true
+  try {
+    const tmplId = selectedTemplate.value?.deviceTmplId
+    if (!tmplId) {
+      throw new Error('Template not found, please refresh')
     }
-  })
+
+    const payload = {
+      pointName: pointForm.value.pointName.trim(),
+      pointType: pointForm.value.pointType,
+      dataType: pointForm.value.dataType,
+      unit: pointForm.value.unit ? pointForm.value.unit.trim() : '',
+      displayPrecision: pointForm.value.displayPrecision ?? 0
+    }
+
+    if (isEditingPoint.value && pointForm.value.pointTmplId) {
+      await templateApi.updatePoint(pointForm.value.pointTmplId, payload)
+      ElMessage.success('Point updated successfully')
+    } else {
+      await templateApi.addPoint(tmplId, payload)
+      ElMessage.success('Point added successfully')
+    }
+    pointDialogVisible.value = false
+    await loadTemplatePoints()
+  } catch (err: any) {
+    ElMessage.error(err.message || 'Failed to save point')
+  } finally {
+    pointSubmitting.value = false
+  }
 }
 
 async function deletePoint(row: any) {
-  if (isCreating.value) {
-    tempPoints.value = tempPoints.value.filter(p => p.pointTmplId !== row.pointTmplId)
-    ElMessage.success('Point deleted')
+  try {
+    await ElMessageBox.confirm(
+      `Are you sure you want to delete point "${row.pointName}"?`,
+      'Delete Confirmation',
+      {
+        confirmButtonText: 'Delete',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+        customClass: 'dark-message-box'
+      }
+    )
+  } catch {
     return
   }
 
-  ElMessageBox.confirm(`Are you sure you want to delete point "${row.pointName}"?`, 'Delete Confirmation', {
-    confirmButtonText: 'Delete',
-    cancelButtonText: 'Cancel',
-    type: 'warning'
-  }).then(async () => {
-    try {
-      await templateApi.deletePoint(row.pointTmplId)
-      ElMessage.success('Point deleted successfully')
-      await loadTemplatePoints()
-    } catch {
-      ElMessage.error('Failed to delete point')
-    }
-  }).catch(() => {})
+  try {
+    await templateApi.deletePoint(row.pointTmplId)
+    ElMessage.success('Point deleted successfully')
+    await loadTemplatePoints()
+  } catch {
+    ElMessage.error('Failed to delete point')
+  }
 }
 
 async function batchDeletePoints() {
-  if (isCreating.value) {
-    tempPoints.value = tempPoints.value.filter(p => !selectedPoints.value.includes(p))
-    ElMessage.success('Batch delete completed')
-    selectedPoints.value = []
-    isPointBatchManaging.value = false
+  if (!selectedPoints.value.length) return
+
+  try {
+    await ElMessageBox.confirm(
+      `Are you sure you want to delete ${selectedPoints.value.length} selected point(s)?`,
+      'Batch Delete Confirmation',
+      {
+        confirmButtonText: 'Delete',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+        customClass: 'dark-message-box'
+      }
+    )
+  } catch {
     return
   }
 
-  ElMessageBox.confirm('Are you sure you want to delete all selected points?', 'Batch Delete Confirmation', {
-    confirmButtonText: 'Delete',
-    cancelButtonText: 'Cancel',
-    type: 'warning'
-  }).then(async () => {
-    try {
-      for (const p of selectedPoints.value) {
-        await templateApi.deletePoint(p.pointTmplId)
-      }
-      ElMessage.success('Selected points deleted successfully')
-    } catch {
-      ElMessage.error('Failed to delete some points')
-    } finally {
-      selectedPoints.value = []
-      isPointBatchManaging.value = false
-      await loadTemplatePoints()
+  try {
+    for (const p of selectedPoints.value) {
+      await templateApi.deletePoint(p.pointTmplId)
     }
-  }).catch(() => {})
+    ElMessage.success('Selected points deleted successfully')
+  } catch {
+    ElMessage.error('Failed to delete some points')
+  } finally {
+    selectedPoints.value = []
+    isPointBatchManaging.value = false
+    await loadTemplatePoints()
+  }
 }
 
 const diagramDialogRef = ref<InstanceType<typeof TemplateDiagramDialog> | null>(null)
@@ -1157,62 +1395,99 @@ function importAllTemplatesAndPoints(file: File) {
         throw new Error('Invalid format: Header must have at least 9 columns')
       }
 
-      const groups = new Map<string, { type: string, model: string, manufacturer: string, points: any[] }>()
+      const groups = new Map<string, { type: string, model: string, manufacturer: string, points: any[], seenPointNames: Set<string> }>()
+      const validationErrors: string[] = []
 
       for (let i = 1; i < lines.length; i++) {
         const parts = lines[i].split(delimiter).map((s: any) => s.replace(/^"|"$/g, '').trim())
         if (parts.every((p: any) => p === '')) continue
 
+        const rowNum = i + 1
         if (parts.length < 9) {
-          throw new Error(`Row ${i + 1} has insufficient columns`)
+          validationErrors.push(`Row ${rowNum}: Insufficient columns (expected 9, got ${parts.length})`)
+          continue
         }
 
         const tplName = parts[0]
-        if (!tplName) {
-          throw new Error(`Row ${i + 1}: Template name cannot be empty`)
+        if (!tplName || tplName.length < 2 || tplName.length > 100) {
+          validationErrors.push(`Row ${rowNum}: Template name must be 2-100 characters`)
         }
 
-        const type = parts[1]
-        const model = parts[2]
-        const manufacturer = parts[3]
+        const type = parts[1] || 'EM'
+        if (type.length > 50) {
+          validationErrors.push(`Row ${rowNum}: Device type cannot exceed 50 characters`)
+        }
+
+        const model = (parts[2] || '').slice(0, 100)
+        const manufacturer = (parts[3] || '').slice(0, 100)
 
         const pointName = parts[4]
-        if (!pointName) {
-          throw new Error(`Row ${i + 1}: Point name cannot be empty`)
+        if (!pointName || pointName.length < 1 || pointName.length > 150) {
+          validationErrors.push(`Row ${rowNum}: Point name must be 1-150 characters`)
+        } else if (!/^[a-zA-Z0-9_\-\.\s()]+$/.test(pointName)) {
+          validationErrors.push(`Row ${rowNum}: Point name "${pointName}" contains invalid characters`)
         }
 
-        const typeStr = parts[5] || ''
+        const typeStr = (parts[5] || '').toUpperCase()
         let pointType = 'AI'
-        if (typeStr.toUpperCase().includes('DI')) pointType = 'DI'
-        else if (typeStr.toUpperCase().includes('DO')) pointType = 'DO'
-        else if (typeStr.toUpperCase().includes('AI')) pointType = 'AI'
-        else if (typeStr.toUpperCase().includes('AO')) pointType = 'AO'
+        if (typeStr.includes('DI')) pointType = 'DI'
+        else if (typeStr.includes('DO')) pointType = 'DO'
+        else if (typeStr.includes('AI')) pointType = 'AI'
+        else if (typeStr.includes('AO')) pointType = 'AO'
+        else {
+          validationErrors.push(`Row ${rowNum}: Invalid point type "${parts[5]}", must be DI, DO, AI, or AO`)
+        }
 
-        let dataType = parts[6] || ''
+        let dataType = (parts[6] || '').toLowerCase()
+        const validDataTypes = ['numeric', 'enum', 'boolean', 'string']
         if (!dataType) {
           dataType = (pointType === 'DI' || pointType === 'DO') ? 'enum' : 'numeric'
+        } else if (!validDataTypes.includes(dataType)) {
+          validationErrors.push(`Row ${rowNum}: Invalid data type "${parts[6]}", must be numeric, enum, boolean, or string`)
         }
 
-        const unit = parts[7] || ''
+        const unit = (parts[7] || '').slice(0, 50)
         const precisionStr = parts[8]
-        const displayPrecision = parseInt(precisionStr) || 0
+        const displayPrecision = parseInt(precisionStr, 10)
+        if (isNaN(displayPrecision) || displayPrecision < 0 || displayPrecision > 4) {
+          validationErrors.push(`Row ${rowNum}: Display precision must be an integer between 0 and 4`)
+        }
 
         if (!groups.has(tplName)) {
           groups.set(tplName, {
             type,
             model,
             manufacturer,
-            points: []
+            points: [],
+            seenPointNames: new Set<string>()
           })
         }
 
-        groups.get(tplName)!.points.push({
+        const group = groups.get(tplName)!
+        const lowerPointName = (pointName || '').toLowerCase()
+        if (group.seenPointNames.has(lowerPointName)) {
+          validationErrors.push(`Row ${rowNum}: Duplicate point name "${pointName}" under template "${tplName}"`)
+        } else {
+          group.seenPointNames.add(lowerPointName)
+        }
+
+        group.points.push({
           pointName,
           pointType,
           dataType,
           unit,
-          displayPrecision
+          displayPrecision: isNaN(displayPrecision) ? 0 : Math.max(0, Math.min(4, displayPrecision))
         })
+      }
+
+      if (validationErrors.length > 0) {
+        const errorSummary = validationErrors.slice(0, 5).join('\n') + (validationErrors.length > 5 ? `\n...and ${validationErrors.length - 5} more error(s)` : '')
+        ElMessageBox.alert(errorSummary, 'CSV Validation Failed', {
+          type: 'error',
+          confirmButtonText: 'OK'
+        })
+        loading.value = false
+        return
       }
 
       if (groups.size === 0) {
@@ -1342,7 +1617,11 @@ $bg-dark: #0b1119;
   max-width: 600px;
 
   :deep(.el-form-item) {
-    margin-bottom: 6px;
+    margin-bottom: 22px;
+
+    &.is-error {
+      margin-bottom: 24px;
+    }
   }
 
   :deep(.el-form-item__label) {
@@ -1558,10 +1837,7 @@ $bg-dark: #0b1119;
   :deep(.el-table__cell .cell) {
     padding: 0 4px !important;
   }
-  :deep(.el-table__header-cell) {
-    padding: 0 4px !important;
-  }
-  :deep(td.el-table__cell .cell),
+  :deep(.el-table__header-cell .cell),
   :deep(th.el-table__cell .cell) {
     padding: 0 4px !important;
     line-height: 20px !important;
@@ -1569,7 +1845,21 @@ $bg-dark: #0b1119;
     font-size: 10px !important;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+  :deep(td.el-table__cell .cell) {
+    padding: 0 4px !important;
+    line-height: 20px !important;
+    height: 20px !important;
+    font-size: 10px !important;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    text-align: left !important;
+  }
+  :deep(td.el-table__cell.is-center .cell) {
+    justify-content: center !important;
     text-align: center !important;
   }
 }

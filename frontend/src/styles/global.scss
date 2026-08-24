@@ -166,7 +166,24 @@ html, body, #app {
   }
   
   .el-form-item {
-    margin-bottom: 10px;
+    margin-bottom: 22px !important;
+    position: relative;
+    transition: margin-bottom 0.2s ease;
+
+    &.is-error {
+      margin-bottom: 24px !important;
+    }
+  }
+
+  .custom-form,
+  .custom-form-compact {
+    .el-form-item {
+      margin-bottom: 22px !important;
+
+      &.is-error {
+        margin-bottom: 24px !important;
+      }
+    }
   }
 
   .el-form-item__label {
@@ -175,6 +192,19 @@ html, body, #app {
     font-size: 10px !important;
     height: 24px !important;
     line-height: 24px !important;
+  }
+
+  .el-form-item__error {
+    color: #f87171 !important;
+    font-size: 10px !important;
+    line-height: 14px !important;
+    padding-top: 3px !important;
+    position: absolute !important;
+    top: 100% !important;
+    left: 0 !important;
+    z-index: 10 !important;
+    pointer-events: none;
+    white-space: nowrap;
   }
   
   // Inputs and selects inside dark dialog
@@ -533,4 +563,156 @@ html, body, #app {
 ::-webkit-scrollbar-thumb:hover {
   background: $text-muted;
 }
+
+// =====================================================================
+// Global Dark Message Box / Alert / Confirm Styling
+// =====================================================================
+.el-overlay-message-box {
+  background-color: rgba(0, 0, 0, 0.65) !important;
+}
+
+.el-message-box,
+.dark-message-box {
+  background-color: #111b27 !important;
+  border: 1px solid #1e293b !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.8), 0 8px 10px -6px rgba(0, 0, 0, 0.8) !important;
+  padding: 16px 20px !important;
+  color: #cbd5e1 !important;
+
+  .el-message-box__header {
+    padding-bottom: 12px !important;
+
+    .el-message-box__title {
+      color: #f8fafc !important;
+      font-size: 14px !important;
+      font-weight: 600 !important;
+    }
+
+    .el-message-box__headerbtn {
+      top: 14px !important;
+      right: 14px !important;
+
+      .el-message-box__close {
+        color: #94a3b8 !important;
+        font-size: 16px !important;
+
+        &:hover {
+          color: #f8fafc !important;
+        }
+      }
+    }
+  }
+
+  .el-message-box__content {
+    color: #cbd5e1 !important;
+    font-size: 12px !important;
+    padding: 10px 0 16px 0 !important;
+
+    .el-message-box__container {
+      display: flex;
+      align-items: center;
+    }
+
+    .el-message-box__message {
+      color: #cbd5e1 !important;
+      line-height: 1.6 !important;
+    }
+
+    .el-message-box__status {
+      font-size: 22px !important;
+
+      &.el-icon {
+        &.status-warning {
+          color: #f59e0b !important;
+        }
+        &.status-error {
+          color: #ef4444 !important;
+        }
+        &.status-success {
+          color: #10b981 !important;
+        }
+        &.status-info {
+          color: #38bdf8 !important;
+        }
+      }
+    }
+  }
+
+  .el-message-box__btns {
+    padding-top: 12px !important;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+
+    .el-button {
+      background-color: transparent !important;
+      border: 1px solid #334155 !important;
+      color: #cbd5e1 !important;
+      font-size: 11px !important;
+      height: 28px !important;
+      line-height: 28px !important;
+      padding: 0 14px !important;
+      border-radius: 4px !important;
+      transition: all 0.2s ease !important;
+
+      &:hover {
+        background-color: #1e293b !important;
+        border-color: #475569 !important;
+        color: #f8fafc !important;
+      }
+
+      &--primary {
+        background-color: #3b82f6 !important;
+        border-color: #3b82f6 !important;
+        color: #ffffff !important;
+
+        &:hover {
+          background-color: #2563eb !important;
+          border-color: #2563eb !important;
+        }
+      }
+
+      &--danger {
+        background-color: #ef4444 !important;
+        border-color: #ef4444 !important;
+        color: #ffffff !important;
+
+        &:hover {
+          background-color: #dc2626 !important;
+          border-color: #dc2626 !important;
+        }
+      }
+    }
+  }
+}
+
+// Form Validation Re-trigger Shake and Pulse Animation
+@keyframes formErrorShake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-4px); }
+  40%, 80% { transform: translateX(4px); }
+}
+
+@keyframes errorTextPulse {
+  0% { opacity: 0.2; transform: scale(0.92) translateY(-2px); }
+  50% { opacity: 1; transform: scale(1.05) translateY(0); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.shake-errors {
+  .el-form-item.is-error .el-input__wrapper,
+  .el-form-item.is-error .el-select__wrapper,
+  .el-form-item.is-error .el-input-number,
+  .el-form-item.is-error .el-textarea__inner {
+    animation: formErrorShake 0.4s ease-in-out !important;
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.45) !important;
+  }
+
+  .el-form-item.is-error .el-form-item__error {
+    animation: errorTextPulse 0.35s ease-out !important;
+  }
+}
+
 

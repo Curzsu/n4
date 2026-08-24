@@ -16,6 +16,8 @@ public class PointDeployment {
     private String dataType;
     private String unit;
     private Integer displayPrecision;
+    private String allPath;
+    private String type;
     private Boolean isDeleted;
     private java.time.LocalDateTime createTime;
     private java.time.LocalDateTime updateTime;

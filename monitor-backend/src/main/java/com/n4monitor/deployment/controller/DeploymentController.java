@@ -27,45 +27,45 @@ public class DeploymentController {
         this.deploymentService = deploymentService;
     }
 
-    /** 全部设备部署列表 */
+    /** List all deployed devices */
     @GetMapping
     public ApiResponse<List<DeviceDeployment>> listAll() {
         return ApiResponse.success(deploymentService.listAll());
     }
 
-    /** 某导航节点下的设备部署列表 */
+    /** List deployed devices under a navigation node */
     @GetMapping("/nodes/{nodeId}")
     public ApiResponse<List<DeviceDeployment>> listByNode(@PathVariable Long nodeId) {
         return ApiResponse.success(deploymentService.listByNode(nodeId));
     }
 
-    /** 单个设备部署详情 */
+    /** Get deployed device details */
     @GetMapping("/{deviceDeployId}")
     public ApiResponse<DeviceDeployment> getDevice(@PathVariable Long deviceDeployId) {
         return ApiResponse.success(deploymentService.getDevice(deviceDeployId));
     }
 
-    /** 设备部署点位列表 */
+    /** List points for a deployed device */
     @GetMapping("/{deviceDeployId}/points")
     public ApiResponse<List<PointDeployment>> listPoints(@PathVariable Long deviceDeployId) {
         return ApiResponse.success(deploymentService.listPoints(deviceDeployId));
     }
 
-    /** 部署新设备（自动从模板生成点位） */
+    /** Deploy new device (generate points from template) */
     @PostMapping
     public ApiResponse<DeviceDeployment> createDeployment(@RequestBody DeviceDeployment deployment) {
         return ApiResponse.success(deploymentService.createDeployment(deployment));
     }
 
-    /** 更新设备部署信息 */
+    /** Update deployed device */
     @PutMapping("/{deviceDeployId}")
     public ApiResponse<String> updateDevice(@PathVariable Long deviceDeployId,
                                             @RequestBody DeviceDeployment deployment) {
         deploymentService.updateDevice(deviceDeployId, deployment);
-        return ApiResponse.success("更新设备部署成功");
+        return ApiResponse.success("Device deployment updated successfully");
     }
 
-    /** 移动设备到其他节点 */
+    /** Move device to another node */
     @PutMapping("/{deviceDeployId}/move")
     public ApiResponse<String> moveDevice(@PathVariable Long deviceDeployId,
                                           @RequestBody Map<String, Object> body) {
@@ -73,21 +73,21 @@ public class DeploymentController {
                 : Long.valueOf(body.get("targetNodeId").toString());
         String newName = body.get("newName") == null ? null : body.get("newName").toString();
         deploymentService.moveDevice(deviceDeployId, targetNodeId, newName);
-        return ApiResponse.success("移动设备成功");
+        return ApiResponse.success("Device moved successfully");
     }
 
-    /** 更新部署点位 */
+    /** Update deployed point */
     @PutMapping("/points/{pointDeployId}")
     public ApiResponse<String> updatePoint(@PathVariable Long pointDeployId,
                                            @RequestBody PointDeployment point) {
         deploymentService.updatePoint(pointDeployId, point);
-        return ApiResponse.success("更新点位成功");
+        return ApiResponse.success("Point updated successfully");
     }
 
-    /** 删除设备部署（级联删除点位） */
+    /** Delete device deployment (cascade deletes points) */
     @DeleteMapping("/{deviceDeployId}")
     public ApiResponse<String> deleteDeployment(@PathVariable Long deviceDeployId) {
         deploymentService.deleteDeployment(deviceDeployId);
-        return ApiResponse.success("删除设备部署成功");
+        return ApiResponse.success("Device deployment deleted successfully");
     }
 }

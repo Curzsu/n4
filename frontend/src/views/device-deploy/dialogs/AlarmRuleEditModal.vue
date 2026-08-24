@@ -171,7 +171,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
 import { alarmApi } from '@/api/alarm'
 import { templateApi } from '@/api/template'
@@ -303,34 +303,179 @@ async function handleSave() {
     ElMessage.warning('Alarm Name is required')
     return
   }
+  if (alarmName.length > 64) {
+    ElMessage.warning('Alarm Name cannot exceed 64 characters')
+    return
+  }
+  if (/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/.test(alarmName) || /[^\x00-\x7F]/.test(alarmName)) {
+    ElMessage.warning('Alarm Name cannot contain Chinese characters')
+    return
+  }
   if (!type) {
     ElMessage.warning('Point Type is required')
+    return
+  }
+
+  if (type === 'NUMERIC') {
+    if (f.timeDelay !== '' && f.timeDelay !== null && f.timeDelay !== undefined) {
+      const td = Number(f.timeDelay)
+      if (isNaN(td) || !Number.isInteger(td) || td < 0 || td > 86400) {
+        ElMessage.warning('Time Delay must be an integer between 0 and 86400 seconds')
+        return
+      }
+    }
+
+    if (f.deadband !== '' && f.deadband !== null && f.deadband !== undefined) {
+      const db = Number(f.deadband)
+      if (isNaN(db) || db < 0) {
+        ElMessage.warning('Deadband must be a non-negative number')
+        return
+      }
+    }
+
+    const levels = [
+      ['highHighValue', 'highHighSeverity', 'highHighMessage'],
+      ['highValue', 'highSeverity', 'highMessage'],
+      ['lowValue', 'lowSeverity', 'lowMessage'],
+      ['lowLowValue', 'lowLowSeverity', 'lowLowMessage'],
+    ] as const
+
+    for (const [vKey, sKey, mKey] of levels) {
+      const val = f[vKey]?.toString().trim()
+      if (val) {
+        const numVal = Number(val)
+        if (isNaN(numVal)) {
+          ElMessage.warning(`Threshold ${vKey} must be a valid number`)
+          return
+        }
+        if (!f[sKey]) {
+          ElMessage.warning(`Severity is required when ${vKey} is configured`)
+          return
+        }
+      }
+      const msg = f[mKey]?.toString().trim()
+      if (msg) {
+        if (msg.length > 150) {
+          ElMessage.warning(`Message for ${vKey} cannot exceed 150 characters`)
+          return
+        }
+        if (/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/.test(msg) || /[^\x00-\x7F]/.test(msg)) {
+          ElMessage.warning(`Message for ${vKey} cannot contain Chinese characters`)
+          return
+        }
+      }
+    }
+
+    const hasAny = levels.some(([v]) => f[v]?.toString().trim() !== '')
+    if (!hasAny) {
+      ElMessage.warning('At least one threshold Value is required')
+      return
+    }
+
+    // Cross-threshold logical ordering check
+    const hh = f.highHighValue?.toString().trim() !== '' ? Number(f.highHighValue) : null
+    const h = f.highValue?.toString().trim() !== '' ? Number(f.highValue) : null
+    const l = f.lowValue?.toString().trim() !== '' ? Number(f.lowValue) : null
+    const ll = f.lowLowValue?.toString().trim() !== '' ? Number(f.lowLowValue) : null
+
+    if (hh !== null && h !== null && hh <= h) {
+      ElMessage.warning(`High-High threshold (${hh}) must be greater than High threshold (${h})`)
+      return
+    }
+    if (hh !== null && l !== null && hh <= l) {
+      ElMessage.warning(`High-High threshold (${hh}) must be greater than Low threshold (${l})`)
+      return
+    }
+    if (hh !== null && ll !== null && hh <= ll) {
+      ElMessage.warning(`High-High threshold (${hh}) must be greater than Low-Low threshold (${ll})`)
+      return
+    }
+    if (h !== null && l !== null && h <= l) {
+      ElMessage.warning(`High threshold (${h}) must be greater than Low threshold (${l})`)
+      return
+    }
+    if (h !== null && ll !== null && h <= ll) {
+      ElMessage.warning(`High threshold (${h}) must be greater than Low-Low threshold (${ll})`)
+      return
+    }
+    if (l !== null && ll !== null && l <= ll) {
+      ElMessage.warning(`Low threshold (${l}) must be greater than Low-Low threshold (${ll})`)
+      return
+    }
+  } else if (type === 'ENUM') {
+    const items = enumFormItems.value.filter(e => e.enumValue !== null && e.enumValue !== undefined && String(e.enumValue).trim() !== '')
+    if (items.length === 0) {
+      ElMessage.warning('At least one enum value is required')
+      return
+    }
+    for (const e of items) {
+      e.enumValue = String(e.enumValue).trim()
+      if (e.enumValue.length > 50) {
+        ElMessage.warning(`Enum value "${e.enumValue}" exceeds 50 characters`)
+        return
+      }
+      if (/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/.test(e.enumValue) || /[^\x00-\x7F]/.test(e.enumValue)) {
+        ElMessage.warning(`Enum value "${e.enumValue}" cannot contain Chinese characters`)
+        return
+      }
+      if (e.enumMeaning) {
+        e.enumMeaning = String(e.enumMeaning).trim()
+        if (e.enumMeaning.length > 50) {
+          ElMessage.warning(`Enum meaning cannot exceed 50 characters`)
+          return
+        }
+        if (/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/.test(e.enumMeaning) || /[^\x00-\x7F]/.test(e.enumMeaning)) {
+          ElMessage.warning(`Enum meaning cannot contain Chinese characters`)
+          return
+        }
+      }
+      if (e.message) {
+        e.message = String(e.message).trim()
+        if (e.message.length > 150) {
+          ElMessage.warning(`Enum message cannot exceed 150 characters`)
+          return
+        }
+        if (/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/.test(e.message) || /[^\x00-\x7F]/.test(e.message)) {
+          ElMessage.warning(`Enum message cannot contain Chinese characters`)
+          return
+        }
+      }
+      if (e.timeDelay !== null && e.timeDelay !== undefined) {
+        const td = Number(e.timeDelay)
+        if (isNaN(td) || !Number.isInteger(td) || td < 0 || td > 86400) {
+          ElMessage.warning(`Time Delay for enum "${e.enumValue}" must be between 0 and 86400 seconds`)
+          return
+        }
+      }
+    }
+    const seen = new Set<string>()
+    for (const e of items) {
+      if (seen.has(e.enumValue)) {
+        ElMessage.warning(`Duplicate enum value: ${e.enumValue}. Each value must be unique.`)
+        return
+      }
+      seen.add(e.enumValue)
+    }
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `Are you sure you want to save alarm rule "${alarmName}"?`,
+      'Confirm Save',
+      {
+        confirmButtonText: 'Save',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+        customClass: 'dark-message-box'
+      }
+    )
+  } catch {
     return
   }
 
   saving.value = true
   try {
     if (type === 'NUMERIC') {
-      const levels = [
-        ['highHighValue', 'highHighSeverity'],
-        ['highValue', 'highSeverity'],
-        ['lowValue', 'lowSeverity'],
-        ['lowLowValue', 'lowLowSeverity'],
-      ] as const
-      for (const [vKey, sKey] of levels) {
-        if (f[vKey]?.trim() && !f[sKey]) {
-          ElMessage.warning(`Severity is required when ${vKey} is filled`)
-          saving.value = false
-          return
-        }
-      }
-      const hasAny = levels.some(([v]) => f[v]?.toString().trim() !== '')
-      if (!hasAny) {
-        ElMessage.warning('At least one threshold Value is required')
-        saving.value = false
-        return
-      }
-
       const payload: NumericRuleItem = {
         ...(f.id ? { id: f.id } : {}),
         alarmName,
@@ -355,23 +500,6 @@ async function handleSave() {
       }
     } else if (type === 'ENUM') {
       const items = enumFormItems.value.filter(e => e.enumValue !== null && e.enumValue !== undefined && String(e.enumValue).trim() !== '')
-      if (items.length === 0) {
-        ElMessage.warning('At least one enum value is required')
-        saving.value = false
-        return
-      }
-      for (const e of items) {
-        e.enumValue = String(e.enumValue).trim()
-      }
-      const seen = new Set<string>()
-      for (const e of items) {
-        if (seen.has(e.enumValue)) {
-          ElMessage.warning(`Duplicate enum value: ${e.enumValue}. Each value must be unique.`)
-          saving.value = false
-          return
-        }
-        seen.add(e.enumValue)
-      }
       const payload: EnumRuleItem[] = items.map(e => ({
         ...e,
         alarmName,
@@ -425,7 +553,12 @@ defineExpose({
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  .el-form-item { margin-bottom: 12px; }
+  .el-form-item {
+    margin-bottom: 22px;
+    &.is-error {
+      margin-bottom: 24px;
+    }
+  }
   .field-half {
     flex: 1 1 0; min-width: 0;
     .el-input, .el-select { width: 100%; }
