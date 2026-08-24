@@ -10,10 +10,12 @@ import 'element-plus/theme-chalk/dark/css-vars.css'
 import router from './router'
 import App from './App.vue'
 import './styles/global.scss'
+import { setupPermissionDirective } from './directives/permission'
 
 const app = createApp(App)
 app.use(createPinia())
 app.use(router)
+setupPermissionDirective(app)
 // Registers the v-loading directive (and the loading service).
 app.use(ElLoading)
 app.mount('#app')
