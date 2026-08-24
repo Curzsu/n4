@@ -124,6 +124,10 @@ export interface MonitorPoint {
 export interface AlarmRecord {
   id: string
   time: string
+  /** Raw epoch-millis timestamp, kept for sub-second sorting precision.
+   *  Absent on records loaded from the API (which only carry the formatted
+   *  "yyyy-MM-dd HH:mm:ss" string); present on live WebSocket records. */
+  timestampMs?: number
   value?: string
   severity: string
   source: string
