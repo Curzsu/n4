@@ -27,66 +27,66 @@ public class DashboardNavController {
         this.navService = navService;
     }
 
-    /** 获取两级导航树 */
+    /** Get navigation tree */
     @GetMapping("/tree")
     public ApiResponse<List<NavTreeNodeDto>> getNavTree() {
         return ApiResponse.success(navService.getNavTree());
     }
 
-    /** 查某二级节点下设备列表 */
+    /** Query devices under a node */
     @GetMapping("/nodes/{nodeId}/devices")
     public ApiResponse<List<DeviceDeployListDto>> getDevicesByNode(@PathVariable Long nodeId) {
         return ApiResponse.success(navService.getDevicesByNode(nodeId));
     }
 
-    /** 按设备部署ID查单个设备详情 */
+    /** Get single device detail by deployment ID */
     @GetMapping("/devices/{deviceDeployId}")
     public ApiResponse<DeviceDeployListDto> getDeviceById(@PathVariable Long deviceDeployId) {
         return ApiResponse.success(navService.getDeviceById(deviceDeployId));
     }
 
-    // ===== System Deployment 页：节点 CRUD =====
+    // ===== Navigation Node CRUD =====
 
-    /** 新增节点 */
+    /** Create navigation node */
     @PostMapping("/nodes")
     public ApiResponse<NavNode> createNode(@RequestBody NavNode node) {
         return ApiResponse.success(navService.createNode(node));
     }
 
-    /** 编辑节点 */
+    /** Update navigation node */
     @PutMapping("/nodes/{nodeId}")
     public ApiResponse<NavNode> updateNode(@PathVariable Long nodeId, @RequestBody NavNode node) {
         return ApiResponse.success(navService.updateNode(nodeId, node));
     }
 
-    /** 删除节点（级联：删一级连带子节点并解绑设备） */
+    /** Delete node (cascade delete children and unmount devices) */
     @DeleteMapping("/nodes/{nodeId}")
     public ApiResponse<DeleteImpactDto> deleteNode(@PathVariable Long nodeId) {
         return ApiResponse.success(navService.deleteNode(nodeId));
     }
 
-    /** 删除前预览影响范围（子节点数 + 设备数） */
+    /** Preview delete impact (child node count and mounted device count) */
     @GetMapping("/nodes/{nodeId}/impact")
     public ApiResponse<DeleteImpactDto> getDeleteImpact(@PathVariable Long nodeId) {
         return ApiResponse.success(navService.getDeleteImpact(nodeId));
     }
 
-    // ===== 设备挂载/卸载 =====
+    // ===== Device Mount / Unmount =====
 
-    /** 查所有可挂载设备（nav_node_id 为空） */
+    /** Query mountable devices (unmounted) */
     @GetMapping("/devices/mountable")
     public ApiResponse<List<DeviceDeployListDto>> getMountableDevices() {
         return ApiResponse.success(navService.getMountableDevices());
     }
 
-    /** 批量挂载设备到某二级节点 */
+    /** Mount devices to a leaf node */
     @PostMapping("/nodes/{nodeId}/devices")
     public ApiResponse<Integer> mountDevices(@PathVariable Long nodeId,
                                              @RequestBody List<Long> deviceIds) {
         return ApiResponse.success(navService.mountDevices(nodeId, deviceIds));
     }
 
-    /** 卸载单台设备（nav_node_id 置空） */
+    /** Unmount device */
     @DeleteMapping("/devices/{deviceDeployId}/mount")
     public ApiResponse<Integer> unmountDevice(@PathVariable Long deviceDeployId) {
         return ApiResponse.success(navService.unmountDevice(deviceDeployId));

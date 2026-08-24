@@ -12,7 +12,7 @@
     <select id="findByDeviceDeployId" resultType="com.n4monitor.deployment.entity.PointDeployment">
         SELECT point_deploy_id, point_tmpl_id, device_deploy_id, alarm_code, point_name,
                n4_address, point_code, register, point_type, data_type, unit, display_precision,
-               is_deleted, create_time, update_time
+               all_path, type, is_deleted, create_time, update_time
         FROM point_deployment
         WHERE device_deploy_id = #{deviceDeployId} AND is_deleted = 0
         ORDER BY point_deploy_id
@@ -21,7 +21,7 @@
     <select id="findByPointDeployId" resultType="com.n4monitor.deployment.entity.PointDeployment">
         SELECT point_deploy_id, point_tmpl_id, device_deploy_id, alarm_code, point_name,
                n4_address, point_code, register, point_type, data_type, unit, display_precision,
-               is_deleted, create_time, update_time
+               all_path, type, is_deleted, create_time, update_time
         FROM point_deployment
         WHERE point_deploy_id = #{pointDeployId} AND is_deleted = 0
     </select>
@@ -29,21 +29,25 @@
     <insert id="insert" useGeneratedKeys="true" keyProperty="pointDeployId">
         INSERT INTO point_deployment (
             point_tmpl_id, device_deploy_id, alarm_code, point_name, n4_address,
-            point_code, register, point_type, data_type, unit, display_precision
+            point_code, register, point_type, data_type, unit, display_precision,
+            all_path, type
         ) VALUES (
             #{pointTmplId}, #{deviceDeployId}, #{alarmCode}, #{pointName}, #{n4Address},
-            #{pointCode}, #{register}, #{pointType}, #{dataType}, #{unit}, #{displayPrecision}
+            #{pointCode}, #{register}, #{pointType}, #{dataType}, #{unit}, #{displayPrecision},
+            #{allPath}, #{type}
         )
     </insert>
 
     <insert id="insertBatch">
         INSERT INTO point_deployment (
             point_tmpl_id, device_deploy_id, alarm_code, point_name, n4_address,
-            point_code, register, point_type, data_type, unit, display_precision
+            point_code, register, point_type, data_type, unit, display_precision,
+            all_path, type
         ) VALUES
         <foreach collection="points" item="p" separator=",">
             (#{p.pointTmplId}, #{p.deviceDeployId}, #{p.alarmCode}, #{p.pointName}, #{p.n4Address},
-             #{p.pointCode}, #{p.register}, #{p.pointType}, #{p.dataType}, #{p.unit}, #{p.displayPrecision})
+             #{p.pointCode}, #{p.register}, #{p.pointType}, #{p.dataType}, #{p.unit}, #{p.displayPrecision},
+             #{p.allPath}, #{p.type})
         </foreach>
     </insert>
 
@@ -58,6 +62,8 @@
             data_type = #{dataType},
             unit = #{unit},
             display_precision = #{displayPrecision},
+            all_path = #{allPath},
+            type = #{type},
             update_time = NOW()
         WHERE point_deploy_id = #{pointDeployId}
     </update>

@@ -9,6 +9,7 @@ public class DeviceDeployment {
     private Long navNodeId;
     private String facePlateId;
     private String alarmCode;
+    private String systemName;
     private String deviceDeployName;
     private String deviceAlias;
     private String n4Address;

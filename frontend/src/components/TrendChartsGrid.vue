@@ -1,9 +1,9 @@
 <template>
   <div ref="gridRef" class="trend-charts-grid">
-    <PowerTrendChart ref="chartRefs" />
-    <EnergyTrendChart ref="chartRefs" />
-    <PueTrendChart ref="chartRefs" />
-    <TemperatureTrendChart ref="chartRefs" />
+    <PowerTrendChart ref="powerChartRef" />
+    <EnergyTrendChart ref="energyChartRef" />
+    <PueTrendChart ref="pueChartRef" />
+    <TemperatureTrendChart ref="tempChartRef" />
   </div>
 </template>
 
@@ -13,20 +13,22 @@ import PowerTrendChart from './charts/PowerTrendChart.vue'
 import EnergyTrendChart from './charts/EnergyTrendChart.vue'
 import PueTrendChart from './charts/PueTrendChart.vue'
 import TemperatureTrendChart from './charts/TemperatureTrendChart.vue'
-import type VChart from 'vue-echarts'
 
 const gridRef = ref<HTMLElement>()
-// ref="chartRefs" collects the four chart component instances in order.
-const chartRefs = ref<InstanceType<typeof VChart>[]>([])
+const powerChartRef = ref<any>()
+const energyChartRef = ref<any>()
+const pueChartRef = ref<any>()
+const tempChartRef = ref<any>()
 
 let resizeObserver: ResizeObserver | null = null
 
 onMounted(() => {
   if (!gridRef.value || typeof ResizeObserver === 'undefined') return
   resizeObserver = new ResizeObserver(() => {
-    // ResizeObserver also fires on mount; charts size themselves correctly on
-    // mount, so only forward container changes that alter the size.
-    chartRefs.value.forEach((chart) => chart?.resize?.())
+    powerChartRef.value?.resize?.()
+    energyChartRef.value?.resize?.()
+    pueChartRef.value?.resize?.()
+    tempChartRef.value?.resize?.()
   })
   resizeObserver.observe(gridRef.value)
 })
