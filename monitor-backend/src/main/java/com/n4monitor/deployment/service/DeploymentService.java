@@ -17,12 +17,20 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
 public class DeploymentService {
 
     private static final String DEVICE_ALARM_CODE = "Communication_status_00";
+    private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("^[a-zA-Z0-9_\\-\\.\\s()]+$");
+    private static final Pattern IPV4_PATTERN = Pattern.compile("^(?:(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)$");
+    private static final Pattern IPV6_PATTERN = Pattern.compile("^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$");
+    private static final Pattern MAC_PATTERN = Pattern.compile("^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$");
+    private static final Set<String> VALID_POINT_TYPES = Set.of("DI", "DO", "AI", "AO");
+    private static final Set<String> VALID_DATA_TYPES = Set.of("numeric", "enum", "boolean", "string");
 
     private final DeviceDeploymentMapper deviceDeploymentMapper;
     private final PointDeploymentMapper pointDeploymentMapper;
@@ -30,23 +38,22 @@ public class DeploymentService {
     private final PointTemplateMapper pointTemplateMapper;
     private final NavNodeMapper navNodeMapper;
 
-    /** 全部设备部署列表 */
+    /** List all deployed devices */
     public List<DeviceDeployment> listAll() {
         return deviceDeploymentMapper.findAll();
     }
 
-    /** 某导航节点下的设备部署列表 */
+    /** List deployed devices under a navigation node */
     public List<DeviceDeployment> listByNode(Long navNodeId) {
         return deviceDeploymentMapper.findByNavNodeId(navNodeId);
     }
 
-    /** 单个设备部署详情 */
+    /** Get deployed device details */
     public DeviceDeployment getDevice(Long deviceDeployId) {
-        DeviceDeployment deployment = requireDevice(deviceDeployId);
-        return deployment;
+        return requireDevice(deviceDeployId);
     }
 
-    /** 设备部署点位列表（isReal 按模板名是否为真实模板判断） */
+    /** List points for a deployed device */
     public List<PointDeployment> listPoints(Long deviceDeployId) {
         DeviceDeployment deployment = requireDevice(deviceDeployId);
         DeviceTemplate template = deviceTemplateMapper.findByDeviceTmplId(deployment.getDeviceTmplId());
@@ -59,24 +66,25 @@ public class DeploymentService {
         return points;
     }
 
-    /** 部署新设备：插入设备记录并从模板复制生成全部点位 */
+    /** Deploy new device and generate points from template */
     @Transactional
     public DeviceDeployment createDeployment(DeviceDeployment deployment) {
         if (deployment.getDeviceTmplId() == null) {
-            throw new IllegalArgumentException("必须选择设备模板");
+            throw new IllegalArgumentException("Device template must be selected");
         }
         if (deployment.getNavNodeId() == null) {
-            throw new IllegalArgumentException("必须选择部署节点");
+            throw new IllegalArgumentException("Target deployment node must be selected");
         }
-        if (deployment.getDeviceDeployName() == null || deployment.getDeviceDeployName().trim().isEmpty()) {
-            throw new IllegalArgumentException("设备部署名称不能为空");
-        }
+        validateDeploymentFields(deployment);
+
         DeviceTemplate template = requireTemplate(deployment.getDeviceTmplId());
         NavNode node = requireNode(deployment.getNavNodeId());
 
         deployment.setDeviceDeployName(deployment.getDeviceDeployName().trim());
         if (deployment.getDeviceAlias() == null || deployment.getDeviceAlias().trim().isEmpty()) {
             deployment.setDeviceAlias(deployment.getDeviceDeployName());
+        } else {
+            deployment.setDeviceAlias(deployment.getDeviceAlias().trim());
         }
         if (deployment.getAlarmCode() == null || deployment.getAlarmCode().trim().isEmpty()) {
             deployment.setAlarmCode(DEVICE_ALARM_CODE);
@@ -84,15 +92,16 @@ public class DeploymentService {
         if (deployment.getStatus() == null) {
             deployment.setStatus(1);
         }
+        deployment.setSystemName(node.getNodeName());
         deployment.setN4Address(buildDeviceN4Address(node.getNodeName(), deployment.getDeviceDeployName()));
 
         try {
             deviceDeploymentMapper.insert(deployment);
         } catch (org.springframework.dao.DuplicateKeyException e) {
-            throw new IllegalArgumentException("设备部署名已存在：" + deployment.getDeviceDeployName());
+            throw new IllegalArgumentException("Device deployment name already exists: " + deployment.getDeviceDeployName());
         }
 
-        // 从模板复制点位
+        // Copy points from template
         List<PointTemplate> templatePoints = pointTemplateMapper.findByDeviceTmplId(deployment.getDeviceTmplId());
         List<PointDeployment> newPoints = new ArrayList<>();
         String prefix = template.getDeviceTmplName() + "_";
@@ -104,9 +113,12 @@ public class DeploymentService {
             String suffix = stripPrefix(tp.getPointName(), prefix);
             String pointName = deployment.getDeviceDeployName() + "_" + suffix;
             p.setPointName(pointName);
-            p.setN4Address(buildPointN4Address(node.getNodeName(), pointName));
+            String n4Addr = buildPointN4Address(node.getNodeName(), pointName);
+            p.setN4Address(n4Addr);
+            p.setAllPath(n4Addr);
             p.setPointType(tp.getPointType());
             p.setDataType(tp.getDataType());
+            p.setType(tp.getDataType() != null ? tp.getDataType() : "numeric");
             p.setUnit(tp.getUnit());
             p.setDisplayPrecision(tp.getDisplayPrecision());
             newPoints.add(p);
@@ -117,16 +129,18 @@ public class DeploymentService {
         return deployment;
     }
 
-    /** 更新设备部署信息（设备名变化时同步 n4_address 与点位前缀） */
+    /** Update deployed device info */
     @Transactional
     public void updateDevice(Long deviceDeployId, DeviceDeployment deployment) {
         DeviceDeployment existing = requireDevice(deviceDeployId);
-        if (deployment.getDeviceDeployName() == null || deployment.getDeviceDeployName().trim().isEmpty()) {
-            throw new IllegalArgumentException("设备部署名称不能为空");
-        }
         if (deployment.getDeviceTmplId() == null) {
-            throw new IllegalArgumentException("必须选择设备模板");
+            deployment.setDeviceTmplId(existing.getDeviceTmplId());
         }
+        if (deployment.getNavNodeId() == null) {
+            deployment.setNavNodeId(existing.getNavNodeId());
+        }
+        validateDeploymentFields(deployment);
+
         requireTemplate(deployment.getDeviceTmplId());
         NavNode node = requireNode(deployment.getNavNodeId());
 
@@ -136,10 +150,13 @@ public class DeploymentService {
         deployment.setDeviceDeployName(newName);
         if (deployment.getDeviceAlias() == null || deployment.getDeviceAlias().trim().isEmpty()) {
             deployment.setDeviceAlias(newName);
+        } else {
+            deployment.setDeviceAlias(deployment.getDeviceAlias().trim());
         }
         if (deployment.getAlarmCode() == null || deployment.getAlarmCode().trim().isEmpty()) {
             deployment.setAlarmCode(DEVICE_ALARM_CODE);
         }
+        deployment.setSystemName(node.getNodeName());
         deployment.setN4Address(buildDeviceN4Address(node.getNodeName(), newName));
 
         if (nameChanged) {
@@ -150,16 +167,20 @@ public class DeploymentService {
         deviceDeploymentMapper.update(deployment);
     }
 
-    /** 移动设备到其他节点（可选重命名，点位前缀与 n4_address 同步） */
+    /** Move device to another node */
     @Transactional
     public void moveDevice(Long deviceDeployId, Long targetNodeId, String newName) {
         DeviceDeployment existing = requireDevice(deviceDeployId);
         if (targetNodeId == null) {
-            throw new IllegalArgumentException("必须选择目标节点");
+            throw new IllegalArgumentException("Target node must be selected");
         }
         NavNode node = requireNode(targetNodeId);
         String finalName = newName == null || newName.trim().isEmpty()
                 ? existing.getDeviceDeployName() : newName.trim();
+
+        if (finalName.length() < 2 || finalName.length() > 100 || !IDENTIFIER_PATTERN.matcher(finalName).matches()) {
+            throw new IllegalArgumentException("Device name must be 2-100 characters containing valid characters");
+        }
 
         String oldPrefix = existing.getDeviceDeployName() + "_";
         String newPrefix = finalName + "_";
@@ -170,32 +191,28 @@ public class DeploymentService {
                 buildDeviceN4Address(node.getNodeName(), finalName));
     }
 
-    /** 更新部署点位（寄存器地址等） */
+    /** Update point deployment */
     @Transactional
     public void updatePoint(Long pointDeployId, PointDeployment point) {
         PointDeployment existing = pointDeploymentMapper.findByPointDeployId(pointDeployId);
         if (existing == null) {
-            throw new IllegalArgumentException("点位不存在或已删除");
+            throw new IllegalArgumentException("Point not found or deleted");
         }
-        if (point.getPointName() == null || point.getPointName().trim().isEmpty()) {
-            throw new IllegalArgumentException("点位名称不能为空");
-        }
-        if (point.getDataType() == null || point.getDataType().trim().isEmpty()) {
-            throw new IllegalArgumentException("点位数据类型不能为空");
-        }
+        validatePointDeploymentFields(point);
+
         existing.setAlarmCode(point.getAlarmCode());
-        existing.setPointName(point.getPointName());
+        existing.setPointName(point.getPointName().trim());
         existing.setN4Address(point.getN4Address());
         existing.setPointCode(point.getPointCode());
         existing.setRegister(point.getRegister());
         existing.setPointType(point.getPointType());
         existing.setDataType(point.getDataType());
-        existing.setUnit(point.getUnit());
+        existing.setUnit(point.getUnit() == null ? null : point.getUnit().trim());
         existing.setDisplayPrecision(point.getDisplayPrecision());
         pointDeploymentMapper.update(existing);
     }
 
-    /** 删除设备部署（物理删除点位 + 逻辑删除设备） */
+    /** Delete device deployment (deletes points and logically deletes device) */
     @Transactional
     public void deleteDeployment(Long deviceDeployId) {
         requireDevice(deviceDeployId);
@@ -203,26 +220,128 @@ public class DeploymentService {
         deviceDeploymentMapper.logicalDelete(deviceDeployId);
     }
 
+    private void validateDeploymentFields(DeviceDeployment deployment) {
+        if (deployment == null) {
+            throw new IllegalArgumentException("Deployment payload cannot be null");
+        }
+        String name = deployment.getDeviceDeployName();
+        if (name == null || name.trim().isEmpty()) {
+            throw new IllegalArgumentException("Device deployment name cannot be empty");
+        }
+        String trimmedName = name.trim();
+        if (trimmedName.length() < 2 || trimmedName.length() > 100) {
+            throw new IllegalArgumentException("Device deployment name must be between 2 and 100 characters");
+        }
+        if (!IDENTIFIER_PATTERN.matcher(trimmedName).matches()) {
+            throw new IllegalArgumentException("Device deployment name contains invalid characters");
+        }
+
+        if (deployment.getDeviceAlias() != null && deployment.getDeviceAlias().trim().length() > 100) {
+            throw new IllegalArgumentException("Device alias cannot exceed 100 characters");
+        }
+
+        if (deployment.getIpAddress() != null && !deployment.getIpAddress().trim().isEmpty()) {
+            String ip = deployment.getIpAddress().trim();
+            if (ip.length() > 45 || (!IPV4_PATTERN.matcher(ip).matches() && !IPV6_PATTERN.matcher(ip).matches())) {
+                throw new IllegalArgumentException("Invalid IP address format: " + ip);
+            }
+            deployment.setIpAddress(ip);
+        }
+
+        if (deployment.getMacAddress() != null && !deployment.getMacAddress().trim().isEmpty()) {
+            String mac = deployment.getMacAddress().trim();
+            if (mac.length() > 17 || !MAC_PATTERN.matcher(mac).matches()) {
+                throw new IllegalArgumentException("Invalid MAC address format: " + mac);
+            }
+            deployment.setMacAddress(mac);
+        }
+
+        if (deployment.getLocation() != null && deployment.getLocation().trim().length() > 50) {
+            throw new IllegalArgumentException("Location cannot exceed 50 characters");
+        }
+        if (deployment.getDepartment() != null && deployment.getDepartment().trim().length() > 100) {
+            throw new IllegalArgumentException("Department cannot exceed 100 characters");
+        }
+        if (deployment.getResponsiblePerson() != null && deployment.getResponsiblePerson().trim().length() > 50) {
+            throw new IllegalArgumentException("Responsible person cannot exceed 50 characters");
+        }
+        if (deployment.getContactPhone() != null && deployment.getContactPhone().trim().length() > 20) {
+            throw new IllegalArgumentException("Contact phone cannot exceed 20 characters");
+        }
+    }
+
+    private void validatePointDeploymentFields(PointDeployment point) {
+        if (point == null) {
+            throw new IllegalArgumentException("Point payload cannot be null");
+        }
+        String name = point.getPointName();
+        if (name == null || name.trim().isEmpty()) {
+            throw new IllegalArgumentException("Point name cannot be empty");
+        }
+        String trimmedName = name.trim();
+        if (trimmedName.length() > 150) {
+            throw new IllegalArgumentException("Point name cannot exceed 150 characters");
+        }
+
+        if (point.getPointType() != null && !point.getPointType().trim().isEmpty()) {
+            String pt = point.getPointType().trim().toUpperCase();
+            if (!VALID_POINT_TYPES.contains(pt)) {
+                throw new IllegalArgumentException("Invalid point type: " + point.getPointType());
+            }
+            point.setPointType(pt);
+        }
+
+        if (point.getDataType() == null || point.getDataType().trim().isEmpty()) {
+            throw new IllegalArgumentException("Point data type cannot be empty");
+        } else {
+            String dt = point.getDataType().trim().toLowerCase();
+            if (!VALID_DATA_TYPES.contains(dt)) {
+                throw new IllegalArgumentException("Invalid data type: " + point.getDataType());
+            }
+            point.setDataType(dt);
+        }
+
+        if (point.getUnit() != null && point.getUnit().trim().length() > 50) {
+            throw new IllegalArgumentException("Unit cannot exceed 50 characters");
+        }
+
+        if (point.getDisplayPrecision() != null) {
+            int prec = point.getDisplayPrecision();
+            if (prec < 0 || prec > 4) {
+                throw new IllegalArgumentException("Display precision must be between 0 and 4");
+            }
+        }
+    }
+
     private DeviceDeployment requireDevice(Long deviceDeployId) {
+        if (deviceDeployId == null) {
+            throw new IllegalArgumentException("Device deployment ID cannot be null");
+        }
         DeviceDeployment deployment = deviceDeploymentMapper.findByDeviceDeployId(deviceDeployId);
         if (deployment == null) {
-            throw new IllegalArgumentException("设备部署不存在或已删除");
+            throw new IllegalArgumentException("Device deployment not found or deleted");
         }
         return deployment;
     }
 
     private DeviceTemplate requireTemplate(Long deviceTmplId) {
+        if (deviceTmplId == null) {
+            throw new IllegalArgumentException("Device template ID cannot be null");
+        }
         DeviceTemplate template = deviceTemplateMapper.findByDeviceTmplId(deviceTmplId);
         if (template == null) {
-            throw new IllegalArgumentException("设备模板不存在或已删除");
+            throw new IllegalArgumentException("Device template not found or deleted");
         }
         return template;
     }
 
     private NavNode requireNode(Long navNodeId) {
+        if (navNodeId == null) {
+            throw new IllegalArgumentException("Deployment node ID cannot be null");
+        }
         NavNode node = navNodeMapper.findByNodeId(navNodeId);
         if (node == null || Boolean.TRUE.equals(node.getIsDeleted())) {
-            throw new IllegalArgumentException("部署节点不存在或已删除");
+            throw new IllegalArgumentException("Deployment node not found or deleted");
         }
         return node;
     }

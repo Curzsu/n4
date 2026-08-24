@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 @Service
 public class DashboardNavService {
 
-    /** 一级节点未配置 max_level 时的默认最大层级（兼容旧的两级导航） */
+    /** Default max level when root node max_level is not configured */
     private static final int DEFAULT_MAX_LEVEL = 2;
 
     private final NavNodeMapper navNodeMapper;
@@ -28,7 +28,7 @@ public class DashboardNavService {
         this.navNodeMapper = navNodeMapper;
     }
 
-    /** 构建任意层级导航树；deviceCount 只填在叶子分组节点（没有子分组的节点）上 */
+    /** Build multi-level navigation tree; deviceCount populated on leaf group nodes */
     public List<NavTreeNodeDto> getNavTree() {
         List<NavNode> all = navNodeMapper.findAll();
         Map<Long, Integer> countMap = new HashMap<>();
@@ -55,7 +55,7 @@ public class DashboardNavService {
             dto.setMaxLevel(n.getMaxLevel());
             dtoMap.put(n.getNodeId(), dto);
         }
-        // 组装父子关系（任意层级）
+        // Assemble parent-child relations
         Set<Long> hasChildren = new HashSet<>();
         for (NavNode n : all) {
             if (n.getParentId() != null && dtoMap.containsKey(n.getParentId())) {
@@ -63,7 +63,7 @@ public class DashboardNavService {
                 hasChildren.add(n.getParentId());
             }
         }
-        // 二次遍历：子节点继承一级节点的 maxLevel，供前端限制可创建层级
+        // Second pass: child nodes inherit maxLevel from root nodes
         for (NavNode n : all) {
             NavTreeNodeDto dto = dtoMap.get(n.getNodeId());
             if (dto.getMaxLevel() == null && n.getParentId() != null) {
@@ -73,7 +73,7 @@ public class DashboardNavService {
                 }
             }
         }
-        // 叶子分组节点才显示设备数
+        // Leaf nodes show device counts
         for (NavNode n : all) {
             if (!hasChildren.contains(n.getNodeId())) {
                 NavTreeNodeDto dto = dtoMap.get(n.getNodeId());
@@ -87,14 +87,14 @@ public class DashboardNavService {
                 .filter(n -> n.getNodeLevel() != null && n.getNodeLevel() == 1)
                 .map(n -> dtoMap.get(n.getNodeId()))
                 .collect(Collectors.toList());
-        // 非叶子节点：hasRealData 由子节点向上传播
+        // Non-leaf nodes: propagate hasRealData upwards from children
         for (NavTreeNodeDto root : level1) {
             propagateHasRealData(root);
         }
         return level1;
     }
 
-    /** 递归计算非叶子节点的 hasRealData（叶子节点已在构建时赋值） */
+    /** Recursively calculate hasRealData for non-leaf nodes */
     private boolean propagateHasRealData(NavTreeNodeDto node) {
         if (node.getHasRealData() != null) {
             return node.getHasRealData();
@@ -109,13 +109,13 @@ public class DashboardNavService {
         return any;
     }
 
-    /** 查某叶子分组节点下设备列表 */
+    /** Query devices under a leaf node */
     public List<DeviceDeployListDto> getDevicesByNode(Long nodeId) {
         List<Map<String, Object>> rows = navNodeMapper.findDevicesByNodeId(nodeId);
         return rows.stream().map(this::toDeviceDto).collect(Collectors.toList());
     }
 
-    /** 按设备部署ID查单个设备 */
+    /** Get single device detail by deployment ID */
     public DeviceDeployListDto getDeviceById(Long deviceDeployId) {
         Map<String, Object> row = navNodeMapper.findDeviceById(deviceDeployId);
         if (row == null) {
@@ -124,20 +124,18 @@ public class DashboardNavService {
         return toDeviceDto(row);
     }
 
-    /** 查所有可挂载设备（nav_node_id 为空） */
+    /** Query mountable devices (nav_node_id is null) */
     public List<DeviceDeployListDto> getMountableDevices() {
         return navNodeMapper.findUnmountedDevices().stream()
                 .map(this::toDeviceDto).collect(Collectors.toList());
     }
 
-    // ===== 节点 CRUD =====
+    // ===== Node CRUD =====
 
-    /** 新增节点。parentId 为空则一级，非空则挂在父节点下一级（支持任意层级，受一级节点 max_level 限制） */
+    /** Create navigation node */
     @Transactional
     public NavNode createNode(NavNode node) {
-        if (node.getNodeName() == null || node.getNodeName().trim().isEmpty()) {
-            throw new IllegalArgumentException("节点名称不能为空");
-        }
+        validateNavNode(node);
         if (node.getSortOrder() == null) {
             node.setSortOrder(0);
         }
@@ -149,51 +147,50 @@ public class DashboardNavService {
         } else {
             NavNode parent = navNodeMapper.findByNodeId(node.getParentId());
             if (parent == null || Boolean.TRUE.equals(parent.getIsDeleted())) {
-                throw new IllegalArgumentException("父节点不存在");
+                throw new IllegalArgumentException("Parent node not found or deleted");
             }
             node.setNodeLevel(parent.getNodeLevel() + 1);
             int maxLevel = resolveMaxLevel(parent);
             if (node.getNodeLevel() > maxLevel) {
-                throw new IllegalArgumentException("该分组最多支持 " + maxLevel + " 级目录");
+                throw new IllegalArgumentException("This group supports a maximum of " + maxLevel + " directory levels");
             }
-            // 非一级节点不需要图标
+            // Non-root nodes do not require an icon
             node.setIcon(null);
         }
         navNodeMapper.insert(node);
         return node;
     }
 
-    /** 编辑节点：更新名称/图标/排序/父级。有子节点的节点不允许改父级 */
+    /** Edit navigation node */
     @Transactional
     public NavNode updateNode(Long nodeId, NavNode node) {
         NavNode existing = navNodeMapper.findByNodeId(nodeId);
         if (existing == null || Boolean.TRUE.equals(existing.getIsDeleted())) {
-            throw new IllegalArgumentException("节点不存在或已删除");
+            throw new IllegalArgumentException("Node not found or deleted");
         }
-        if (node.getNodeName() == null || node.getNodeName().trim().isEmpty()) {
-            throw new IllegalArgumentException("节点名称不能为空");
-        }
-        existing.setNodeName(node.getNodeName());
+        validateNavNode(node);
+
+        existing.setNodeName(node.getNodeName().trim());
         existing.setIcon(node.getIcon());
         if (node.getSortOrder() != null) {
             existing.setSortOrder(node.getSortOrder());
         }
-        // 父级可改：挂到任意层级的节点下（深度受一级节点 max_level 限制）
+        // Reparenting validation
         if (node.getParentId() != null && !node.getParentId().equals(existing.getParentId())) {
             if (node.getParentId().equals(existing.getNodeId())) {
-                throw new IllegalArgumentException("不能把自己挂到自己下面");
+                throw new IllegalArgumentException("Cannot set a node as its own parent");
             }
             List<NavNode> children = navNodeMapper.findChildren(nodeId);
             if (!children.isEmpty()) {
-                throw new IllegalArgumentException("该节点下还有子节点，不能调整父级");
+                throw new IllegalArgumentException("Cannot change parent for a node that still has child nodes");
             }
             NavNode newParent = navNodeMapper.findByNodeId(node.getParentId());
             if (newParent == null || Boolean.TRUE.equals(newParent.getIsDeleted())) {
-                throw new IllegalArgumentException("目标父节点不存在或已删除");
+                throw new IllegalArgumentException("Target parent node not found or deleted");
             }
             int newLevel = newParent.getNodeLevel() + 1;
             if (newLevel > resolveMaxLevel(newParent)) {
-                throw new IllegalArgumentException("目标分组最多支持 " + resolveMaxLevel(newParent) + " 级目录");
+                throw new IllegalArgumentException("Target group supports a maximum of " + resolveMaxLevel(newParent) + " directory levels");
             }
             existing.setParentId(node.getParentId());
             existing.setNodeLevel(newLevel);
@@ -203,7 +200,7 @@ public class DashboardNavService {
         return existing;
     }
 
-    /** 删除节点：递归级联删所有子孙节点并解绑设备 */
+    /** Delete node and cascade unmount devices */
     @Transactional
     public DeleteImpactDto deleteNode(Long nodeId) {
         NavNode existing = requireNode(nodeId);
@@ -213,7 +210,7 @@ public class DashboardNavService {
         return impact;
     }
 
-    /** 删除前预览影响范围（不执行删除）：返回子孙节点总数 + 直接挂载设备总数 */
+    /** Preview delete impact */
     public DeleteImpactDto getDeleteImpact(Long nodeId) {
         NavNode existing = requireNode(nodeId);
         DeleteImpactDto impact = new DeleteImpactDto();
@@ -222,9 +219,9 @@ public class DashboardNavService {
         return impact;
     }
 
-    // ===== 设备挂载/卸载 =====
+    // ===== Device Mount / Unmount =====
 
-    /** 批量挂载设备到某叶子分组节点（任意层级，只要没有子分组即可挂载） */
+    /** Mount devices to leaf node */
     @Transactional
     public int mountDevices(Long nodeId, List<Long> deviceIds) {
         if (deviceIds == null || deviceIds.isEmpty()) {
@@ -232,20 +229,40 @@ public class DashboardNavService {
         }
         NavNode node = requireNode(nodeId);
         if (!navNodeMapper.findChildren(nodeId).isEmpty()) {
-            throw new IllegalArgumentException("设备只能挂载到叶子分组节点（该节点下还有子分组）");
+            throw new IllegalArgumentException("Devices can only be mounted to leaf group nodes");
         }
         return navNodeMapper.mountDevices(nodeId, deviceIds);
     }
 
-    /** 卸载单台设备（nav_node_id 置空） */
+    /** Unmount device */
     @Transactional
     public int unmountDevice(Long deviceDeployId) {
         return navNodeMapper.unmountDevice(deviceDeployId);
     }
 
-    // ===== 内部工具 =====
+    // ===== Internal Utilities =====
 
-    /** 递归删除子树并统计直接挂载设备数；impact.childCount 累加子孙节点数 */
+    private void validateNavNode(NavNode node) {
+        if (node == null) {
+            throw new IllegalArgumentException("Node payload cannot be null");
+        }
+        String name = node.getNodeName();
+        if (name == null || name.trim().isEmpty()) {
+            throw new IllegalArgumentException("Node name cannot be empty");
+        }
+        String trimmed = name.trim();
+        if (trimmed.length() > 50) {
+            throw new IllegalArgumentException("Node name cannot exceed 50 characters");
+        }
+        if (trimmed.contains("/") || trimmed.contains("\\") || trimmed.contains("'") || trimmed.contains("\"")) {
+            throw new IllegalArgumentException("Node name cannot contain slashes or quotation marks");
+        }
+        if (node.getSortOrder() != null && (node.getSortOrder() < 0 || node.getSortOrder() > 99999)) {
+            throw new IllegalArgumentException("Sort order must be between 0 and 99999");
+        }
+    }
+
+    /** Recursive delete sub-tree */
     private int deleteRecursive(Long nodeId, DeleteImpactDto impact) {
         List<NavNode> children = navNodeMapper.findChildren(nodeId);
         int devices = 0;
@@ -270,14 +287,17 @@ public class DashboardNavService {
     }
 
     private NavNode requireNode(Long nodeId) {
+        if (nodeId == null) {
+            throw new IllegalArgumentException("Node ID cannot be null");
+        }
         NavNode node = navNodeMapper.findByNodeId(nodeId);
         if (node == null || Boolean.TRUE.equals(node.getIsDeleted())) {
-            throw new IllegalArgumentException("节点不存在或已删除");
+            throw new IllegalArgumentException("Node not found or deleted");
         }
         return node;
     }
 
-    /** 向上找到一级根节点，取其 max_level；未配置按 2 级处理 */
+    /** Resolve root max level */
     private int resolveMaxLevel(NavNode node) {
         NavNode cur = node;
         while (cur != null && cur.getParentId() != null) {

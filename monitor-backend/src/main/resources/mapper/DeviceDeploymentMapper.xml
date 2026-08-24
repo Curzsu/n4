@@ -5,7 +5,7 @@
 
     <sql id="joinTemplateCols">
         dd.device_deploy_id, dd.device_tmpl_id, dd.nav_node_id, dd.face_plate_id, dd.alarm_code,
-        dd.device_deploy_name, dd.device_alias, dd.n4_address, dd.ip_address, dd.mac_address,
+        dd.system_name, dd.device_deploy_name, dd.device_alias, dd.n4_address, dd.ip_address, dd.mac_address,
         dd.status, dd.install_date, dd.warranty_expire, dd.location, dd.department,
         dd.responsible_person, dd.contact_phone, dd.extra_attrs, dd.is_deleted,
         dd.create_time, dd.update_time,
@@ -38,11 +38,11 @@
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="deviceDeployId">
         INSERT INTO device_deployment (
-            device_tmpl_id, nav_node_id, face_plate_id, alarm_code, device_deploy_name,
+            device_tmpl_id, nav_node_id, face_plate_id, alarm_code, system_name, device_deploy_name,
             device_alias, n4_address, ip_address, mac_address, status, install_date,
             warranty_expire, location, department, responsible_person, contact_phone, extra_attrs
         ) VALUES (
-            #{deviceTmplId}, #{navNodeId}, #{facePlateId}, #{alarmCode}, #{deviceDeployName},
+            #{deviceTmplId}, #{navNodeId}, #{facePlateId}, #{alarmCode}, #{systemName}, #{deviceDeployName},
             #{deviceAlias}, #{n4Address}, #{ipAddress}, #{macAddress}, #{status}, #{installDate},
             #{warrantyExpire}, #{location}, #{department}, #{responsiblePerson}, #{contactPhone}, #{extraAttrs}
         )
@@ -54,6 +54,7 @@
             nav_node_id = #{navNodeId},
             face_plate_id = #{facePlateId},
             alarm_code = #{alarmCode},
+            system_name = #{systemName},
             device_deploy_name = #{deviceDeployName},
             device_alias = #{deviceAlias},
             n4_address = #{n4Address},

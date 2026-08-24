@@ -62,6 +62,7 @@ import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { dashboardNavApi } from '@/api/dashboardNav'
 import { useDashboardStore } from '@/stores/dashboard'
 import type { NavTreeNode } from '@/api/types'
+import { triggerFormShake } from '@/utils/formAnimation'
 
 const emit = defineEmits<{
   (e: 'saved', node: { mode: 'create' | 'edit'; id?: number }): void
@@ -84,8 +85,48 @@ const form = ref({
   sortOrder: 0,
 })
 
+const validateNodeName = (_rule: any, value: any, callback: any) => {
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  if (!trimmed) {
+    callback(new Error('Please enter node name'))
+    return
+  }
+  if (trimmed.length < 1 || trimmed.length > 50) {
+    callback(new Error('Node name must be between 1 and 50 characters'))
+    return
+  }
+  if (/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/.test(trimmed) || /[^\x00-\x7F]/.test(trimmed)) {
+    callback(new Error('Node name cannot contain Chinese characters'))
+    return
+  }
+  if (/[/\\'"\x00-\x1f]/.test(trimmed)) {
+    callback(new Error('Node name cannot contain slashes (/ \\) or quotes (\' ")'))
+    return
+  }
+  callback()
+}
+
 const rules = {
-  nodeName: [{ required: true, message: 'Please enter node name', trigger: 'blur' }],
+  nodeName: [
+    { required: true, message: 'Please enter node name', trigger: 'blur' },
+    { validator: validateNodeName, trigger: 'blur' },
+    { max: 50, message: 'Node name cannot exceed 50 characters', trigger: 'blur' }
+  ],
+  sortOrder: [
+    {
+      validator: (_rule: any, value: any, callback: any) => {
+        if (value !== undefined && value !== null && value !== '') {
+          const num = Number(value)
+          if (!Number.isInteger(num) || num < 0 || num > 99999) {
+            callback(new Error('Sort order must be an integer between 0 and 99999'))
+            return
+          }
+        }
+        callback()
+      },
+      trigger: 'change'
+    }
+  ]
 }
 
 const showParentSelect = computed(() => targetParentLevel.value > 0)
@@ -169,7 +210,7 @@ function openCreate(parent: NavTreeNode | null = null) {
   form.value = {
     nodeName: '',
     parentId: parent ? parent.nodeId : null,
-    icon: parent ? null : 'OfficeBuilding',
+    icon: null,
     sortOrder: 0,
   }
   dialogVisible.value = true
@@ -191,37 +232,59 @@ function openEdit(node: NavTreeNode) {
 
 async function submitForm() {
   if (!formRef.value) return
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return
-    submitting.value = true
-    try {
-      if (dialogMode.value === 'create') {
-        const res = await dashboardNavApi.createNode({
-          nodeName: form.value.nodeName,
-          parentId: form.value.parentId,
-          icon: form.value.parentId == null ? form.value.icon : null,
-          sortOrder: form.value.sortOrder,
-        })
-        ElMessage.success('Node created successfully')
-        emit('saved', { mode: 'create', id: res.nodeId })
-      } else {
-        await dashboardNavApi.updateNode(editingNodeId.value!, {
-          nodeName: form.value.nodeName,
-          parentId: form.value.parentId,
-          icon: form.value.parentId == null ? form.value.icon : null,
-          sortOrder: form.value.sortOrder,
-        })
-        ElMessage.success('Node updated successfully')
-        emit('saved', { mode: 'edit', id: editingNodeId.value! })
+  const valid = await formRef.value.validate().catch(() => false)
+  if (!valid) {
+    triggerFormShake(formRef, 'Please check and correct the node name')
+    return
+  }
+
+  const confirmMsg = dialogMode.value === 'create'
+    ? `Are you sure you want to create group "${form.value.nodeName}"?`
+    : `Are you sure you want to save changes to group "${form.value.nodeName}"?`
+
+  try {
+    await ElMessageBox.confirm(
+      confirmMsg,
+      dialogMode.value === 'create' ? 'Confirm Create' : 'Confirm Save',
+      {
+        confirmButtonText: 'Confirm',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+        customClass: 'dark-message-box'
       }
-      dialogVisible.value = false
-      await store.loadNavTree()
-    } catch (e: any) {
-      ElMessage.error(e.message || 'Operation failed')
-    } finally {
-      submitting.value = false
+    )
+  } catch {
+    return
+  }
+
+  submitting.value = true
+  try {
+    if (dialogMode.value === 'create') {
+      const res = await dashboardNavApi.createNode({
+        nodeName: form.value.nodeName,
+        parentId: form.value.parentId,
+        icon: form.value.parentId == null ? form.value.icon : null,
+        sortOrder: form.value.sortOrder,
+      })
+      ElMessage.success('Node created successfully')
+      emit('saved', { mode: 'create', id: res.nodeId })
+    } else {
+      await dashboardNavApi.updateNode(editingNodeId.value!, {
+        nodeName: form.value.nodeName,
+        parentId: form.value.parentId,
+        icon: form.value.parentId == null ? form.value.icon : null,
+        sortOrder: form.value.sortOrder,
+      })
+      ElMessage.success('Node updated successfully')
+      emit('saved', { mode: 'edit', id: editingNodeId.value! })
     }
-  })
+    dialogVisible.value = false
+    await store.loadNavTree()
+  } catch (e: any) {
+    ElMessage.error(e.message || 'Operation failed')
+  } finally {
+    submitting.value = false
+  }
 }
 
 async function confirmDelete(node: NavTreeNode) {
@@ -239,6 +302,7 @@ async function confirmDelete(node: NavTreeNode) {
         cancelButtonText: 'Cancel',
         type: 'warning',
         confirmButtonClass: 'el-button--danger',
+        customClass: 'dark-message-box'
       },
     )
   } catch {

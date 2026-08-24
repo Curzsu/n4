@@ -85,15 +85,15 @@
                 :header-cell-style="headerCellStyle"
                 :cell-style="cellStyle"
               >
-                <el-table-column prop="pointName" label="Point Name" min-width="180" align="center" header-align="center" show-overflow-tooltip :resizable="false" />
-                <el-table-column prop="dataType" label="Data Type" width="110" align="center" header-align="center" :resizable="false" />
-                <el-table-column prop="unit" label="Unit" width="90" align="center" header-align="center" :resizable="false" />
-                <el-table-column prop="register" label="Register Address" min-width="150" align="center" header-align="center" :resizable="false">
+                <el-table-column prop="pointName" label="Point Name" min-width="180" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+                <el-table-column prop="dataType" label="Data Type" width="110" align="left" header-align="center" :resizable="false" />
+                <el-table-column prop="unit" label="Unit" width="90" align="left" header-align="center" :resizable="false" />
+                <el-table-column prop="register" label="Register Address" min-width="150" align="left" header-align="center" :resizable="false">
                   <template #default="{ row }">
                     <code class="addr-code">{{ row.register || 'N/A' }}</code>
                   </template>
                 </el-table-column>
-                <el-table-column label="Alarm Rule" min-width="160" align="center" header-align="center" :resizable="false">
+                <el-table-column label="Alarm Rule" min-width="160" align="left" header-align="center" :resizable="false">
                   <template #default="{ row }">
                     <div class="alarm-rule-cell">
                       <span
@@ -206,22 +206,22 @@
                 @selection-change="handleDeviceSelectionChange"
               >
                 <el-table-column v-if="isBatchManaging" type="selection" width="30" align="center" header-align="center" :resizable="false" />
-                <el-table-column prop="deviceDeployId" label="ID" width="55" align="center" header-align="center" :resizable="false" />
-                <el-table-column prop="deviceDeployName" label="Device Name" min-width="180" align="center" header-align="center" show-overflow-tooltip :resizable="false">
+                <el-table-column prop="deviceDeployId" label="ID" width="55" align="left" header-align="center" :resizable="false" />
+                <el-table-column prop="deviceDeployName" label="Device Name" min-width="180" align="left" header-align="center" show-overflow-tooltip :resizable="false">
                   <template #default="{ row }">
                     <el-link type="primary" class="device-link" @click="viewDeviceDetail(row as DeviceDeployment)">
                       {{ row.deviceDeployName }}
                     </el-link>
                   </template>
                 </el-table-column>
-                <el-table-column prop="deviceAlias" label="Device Alias" min-width="140" align="center" header-align="center" show-overflow-tooltip :resizable="false">
+                <el-table-column prop="deviceAlias" label="Device Alias" min-width="140" align="left" header-align="center" show-overflow-tooltip :resizable="false">
                   <template #default="{ row }">
                     <span>{{ row.deviceAlias || '-' }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column prop="deviceType" label="Device Type" width="110" align="center" header-align="center" show-overflow-tooltip :resizable="false" />
-                <el-table-column prop="manufacturer" label="Manufacturer" width="120" align="center" header-align="center" show-overflow-tooltip :resizable="false" />
-                <el-table-column label="Status" width="90" align="center" header-align="center" :resizable="false">
+                <el-table-column prop="deviceType" label="Device Type" width="110" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+                <el-table-column prop="manufacturer" label="Manufacturer" width="120" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+                <el-table-column label="Status" width="90" align="left" header-align="center" :resizable="false">
                   <template #default="{ row }">
                     <span class="status-dot" :class="getStatusClass(row.status)"></span>
                     <span class="status-text">{{ getStatusText(row.status) }}</span>
@@ -251,9 +251,9 @@
                 </div>
               </div>
               <el-table :data="selectedNode.children || []" class="custom-table" border size="small" :header-cell-style="headerCellStyle" :cell-style="cellStyle">
-                <el-table-column prop="nodeName" label="Group Name" min-width="200" align="center" header-align="center" :resizable="false" />
-                <el-table-column prop="deviceCount" label="Devices" width="100" align="center" header-align="center" :resizable="false" />
-                <el-table-column prop="sortOrder" label="Sort Order" width="100" align="center" header-align="center" :resizable="false" />
+                <el-table-column prop="nodeName" label="Group Name" min-width="200" align="left" header-align="center" :resizable="false" />
+                <el-table-column prop="deviceCount" label="Devices" width="100" align="left" header-align="center" :resizable="false" />
+                <el-table-column prop="sortOrder" label="Sort Order" width="100" align="left" header-align="center" :resizable="false" />
                 <template #empty>
                   <span class="empty-text">No child groups under this node</span>
                 </template>
@@ -293,10 +293,10 @@
         @selection-change="handleMountSelectionChange"
         max-height="360"
       >
-        <el-table-column type="selection" width="35" align="center" :resizable="false" />
-        <el-table-column prop="deviceDeployId" label="Device ID" min-width="90" align="center" :resizable="false" />
-        <el-table-column prop="deviceDeployName" label="Device Name" min-width="220" show-overflow-tooltip :resizable="false" />
-        <el-table-column prop="deviceType" label="Device Type" min-width="100" align="center" :resizable="false" />
+        <el-table-column type="selection" width="35" align="center" header-align="center" :resizable="false" />
+        <el-table-column prop="deviceDeployId" label="Device ID" min-width="90" align="left" header-align="center" :resizable="false" />
+        <el-table-column prop="deviceDeployName" label="Device Name" min-width="220" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+        <el-table-column prop="deviceType" label="Device Type" min-width="100" align="left" header-align="center" :resizable="false" />
         <template #empty>
           <span class="empty-text">No mountable devices available (all devices are mounted)</span>
         </template>
@@ -340,7 +340,7 @@
         </el-form-item>
 
         <el-form-item label="Device Template" prop="deviceTmplId">
-          <el-select v-model="deployForm.deviceTmplId" placeholder="Select device template..." style="width: 100%">
+          <el-select v-model="deployForm.deviceTmplId" placeholder="Select device template" style="width: 100%" clearable>
             <el-option
               v-for="t in store.allTemplates"
               :key="t.deviceTmplId"
@@ -351,19 +351,19 @@
         </el-form-item>
 
         <el-form-item label="Device Name" prop="deviceDeployName">
-          <el-input v-model="deployForm.deviceDeployName" placeholder="e.g. A1_PTU_A1_LVP_A1_00_Collector_00" />
+          <el-input v-model="deployForm.deviceDeployName" maxlength="64" placeholder="e.g. A1_PTU_A1_LVP_A1_00_Collector_00" />
         </el-form-item>
 
-        <el-form-item label="Device Alias">
-          <el-input v-model="deployForm.deviceAlias" placeholder="Defaults to device name" />
+        <el-form-item label="Device Alias" prop="deviceAlias">
+          <el-input v-model="deployForm.deviceAlias" maxlength="64" placeholder="Defaults to device name" />
         </el-form-item>
 
-        <el-form-item label="IP Address">
-          <el-input v-model="deployForm.ipAddress" placeholder="e.g. 192.168.1.100" />
+        <el-form-item label="IP Address" prop="ipAddress">
+          <el-input v-model="deployForm.ipAddress" maxlength="15" placeholder="e.g. 192.168.1.100" />
         </el-form-item>
 
         <el-form-item label="MAC Address" prop="macAddress">
-          <el-input v-model="deployForm.macAddress" placeholder="e.g. 00:1A:2B:3C:4D:5E" />
+          <el-input v-model="deployForm.macAddress" maxlength="17" placeholder="e.g. 00:1A:2B:3C:4D:5E" />
         </el-form-item>
 
         <el-form-item label="Install Date">
@@ -400,11 +400,11 @@
         class="custom-form"
       >
         <el-form-item label="Device Name" prop="deviceDeployName">
-          <el-input v-model="editDeviceForm.deviceDeployName" placeholder="Enter device name" />
+          <el-input v-model="editDeviceForm.deviceDeployName" maxlength="64" placeholder="Enter device name" />
         </el-form-item>
 
-        <el-form-item label="Device Alias">
-          <el-input v-model="editDeviceForm.deviceAlias" placeholder="Enter device alias" />
+        <el-form-item label="Device Alias" prop="deviceAlias">
+          <el-input v-model="editDeviceForm.deviceAlias" maxlength="64" placeholder="Enter device alias" />
         </el-form-item>
 
         <el-form-item label="Device Template" prop="deviceTmplId">
@@ -463,6 +463,7 @@ import { deploymentApi } from '@/api/deployment'
 import { useDashboardStore } from '@/stores/dashboard'
 import type { NavTreeNode, DeviceDeployItem, DeviceDeployment, PointDeploymentItem } from '@/api/types'
 import NavNodeDialog from '@/views/device-deploy/dialogs/NavNodeDialog.vue'
+import { triggerFormShake } from '@/utils/formAnimation'
 
 const store = useDashboardStore()
 
@@ -480,7 +481,7 @@ const cellStyle: CSSProperties = {
   color: '#e5e7eb',
   fontSize: '10px',
   borderBottom: '1px solid #1f2937',
-  textAlign: 'center',
+  textAlign: 'left',
 }
 
 // =====================================================================
@@ -501,6 +502,9 @@ function canAddChild(node: NavTreeNode): boolean {
   const maxLevel = node.maxLevel ?? 2
   return node.nodeLevel < maxLevel
 }
+
+const currentDevices = ref<DeviceDeployment[]>([])
+const searchQuery = ref('')
 
 watch(selectedNode, async (newNode) => {
   viewMode.value = 'list'
@@ -529,8 +533,6 @@ function getNodeIcon(node: NavTreeNode) {
 // =====================================================================
 //  Device List
 // =====================================================================
-const currentDevices = ref<DeviceDeployment[]>([])
-const searchQuery = ref('')
 
 async function loadNodeDevices(nodeId: number) {
   devicesLoading.value = true
@@ -576,13 +578,144 @@ function exitBatchManage() {
 // =====================================================================
 const deviceForm = ref<any>({})
 const devicePoints = ref<PointDeploymentItem[]>([])
+
+const validateNoChinese = (fieldName: string, maxLen: number) => (_rule: any, value: any, callback: any) => {
+  if (value !== undefined && value !== null && value !== '') {
+    const trimmed = typeof value === 'string' ? value.trim() : ''
+    if (trimmed.length > maxLen) {
+      callback(new Error(`${fieldName} cannot exceed ${maxLen} characters`))
+      return
+    }
+    if (/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/.test(trimmed) || /[^\x00-\x7F]/.test(trimmed)) {
+      callback(new Error(`${fieldName} cannot contain Chinese characters`))
+      return
+    }
+  }
+  callback()
+}
+
+function validateDeviceDeployName(_rule: any, value: any, callback: any) {
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  if (!trimmed) {
+    callback(new Error('Please enter device name'))
+    return
+  }
+  if (trimmed.length < 2 || trimmed.length > 64) {
+    callback(new Error('Device name must be between 2 and 64 characters'))
+    return
+  }
+  if (/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/.test(trimmed) || /[^\x00-\x7F]/.test(trimmed)) {
+    callback(new Error('Device name cannot contain Chinese characters'))
+    return
+  }
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_\-\.\s()]*$/.test(trimmed)) {
+    callback(new Error('Device name contains invalid characters'))
+    return
+  }
+  callback()
+}
+
+function validateIpAddress(_rule: any, value: any, callback: any) {
+  if (value !== undefined && value !== null && value !== '') {
+    const trimmed = typeof value === 'string' ? value.trim() : ''
+    if (!trimmed) {
+      callback()
+      return
+    }
+    if (/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/.test(trimmed) || /[^\x00-\x7F]/.test(trimmed)) {
+      callback(new Error('IP address cannot contain Chinese characters'))
+      return
+    }
+    const ipv4Regex = /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/
+    const ipv6Regex = /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/
+    if (!ipv4Regex.test(trimmed) && !ipv6Regex.test(trimmed)) {
+      callback(new Error('Invalid IP address format (e.g. 192.168.1.100)'))
+      return
+    }
+  }
+  callback()
+}
+
+function validateMacAddress(_rule: any, value: any, callback: any) {
+  if (value !== undefined && value !== null && value !== '') {
+    const trimmed = typeof value === 'string' ? value.trim() : ''
+    if (!trimmed) {
+      callback()
+      return
+    }
+    if (/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/.test(trimmed) || /[^\x00-\x7F]/.test(trimmed)) {
+      callback(new Error('MAC address cannot contain Chinese characters'))
+      return
+    }
+    if (!/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/.test(trimmed)) {
+      callback(new Error('Invalid MAC address format (e.g. 00:1A:2B:3C:4D:5E)'))
+      return
+    }
+  }
+  callback()
+}
+
 const editDeviceDialogVisible = ref(false)
 const editDeviceSubmitting = ref(false)
 const editDeviceForm = ref<any>({})
 const editDeviceFormRef = ref<FormInstance>()
+
 const editDeviceRules = ref<FormRules>({
-  deviceDeployName: [{ required: true, message: 'Please enter device name', trigger: 'blur' }],
-  deviceTmplId: [{ required: true, message: 'Please select device template', trigger: 'change' }]
+  deviceDeployName: [
+    { required: true, message: 'Please enter device name', trigger: 'blur' },
+    { validator: validateDeviceDeployName, trigger: 'blur' },
+    { max: 64, message: 'Device name cannot exceed 64 characters', trigger: 'blur' }
+  ],
+  deviceAlias: [
+    { validator: validateNoChinese('Device alias', 64), trigger: 'blur' },
+    { max: 64, message: 'Device alias cannot exceed 64 characters', trigger: 'blur' }
+  ],
+  deviceTmplId: [
+    { required: true, message: 'Please select device template', trigger: 'change' }
+  ],
+  ipAddress: [
+    { validator: validateIpAddress, trigger: 'blur' }
+  ],
+  macAddress: [
+    { validator: validateMacAddress, trigger: 'blur' }
+  ],
+  location: [
+    { validator: validateNoChinese('Location', 100), trigger: 'blur' },
+    { max: 100, message: 'Location cannot exceed 100 characters', trigger: 'blur' }
+  ],
+  department: [
+    { validator: validateNoChinese('Department', 50), trigger: 'blur' },
+    { max: 50, message: 'Department cannot exceed 50 characters', trigger: 'blur' }
+  ],
+  responsiblePerson: [
+    { validator: validateNoChinese('Responsible person', 50), trigger: 'blur' },
+    { max: 50, message: 'Responsible person cannot exceed 50 characters', trigger: 'blur' }
+  ],
+  contactPhone: [
+    { validator: validateNoChinese('Contact phone', 20), trigger: 'blur' },
+    { max: 20, message: 'Contact phone cannot exceed 20 characters', trigger: 'blur' }
+  ]
+})
+
+const deployRules = ref<FormRules>({
+  deviceTmplId: [
+    { required: true, message: 'Please select device template', trigger: 'change' }
+  ],
+  deviceDeployName: [
+    { required: true, message: 'Please enter device name', trigger: 'blur' },
+    { validator: validateDeviceDeployName, trigger: 'blur' },
+    { max: 64, message: 'Device name cannot exceed 64 characters', trigger: 'blur' }
+  ],
+  deviceAlias: [
+    { validator: validateNoChinese('Device alias', 64), trigger: 'blur' },
+    { max: 64, message: 'Device alias cannot exceed 64 characters', trigger: 'blur' }
+  ],
+  ipAddress: [
+    { validator: validateIpAddress, trigger: 'blur' }
+  ],
+  macAddress: [
+    { validator: validateMacAddress, trigger: 'blur' }
+  ]
 })
 
 async function viewDeviceDetail(row: DeviceDeployment) {
@@ -642,27 +775,43 @@ async function submitEditDevice() {
     return
   }
   if (!editDeviceFormRef.value) return
+  const valid = await editDeviceFormRef.value.validate().catch(() => false)
+  if (!valid) {
+    triggerFormShake(editDeviceFormRef, 'Please check and correct the highlighted device fields')
+    return
+  }
+
   try {
-    await editDeviceFormRef.value.validate()
+    await ElMessageBox.confirm(
+      `Are you sure you want to save changes to deployed device "${editDeviceForm.value.deviceDeployName}"?`,
+      'Confirm Save',
+      {
+        confirmButtonText: 'Save',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+        customClass: 'dark-message-box'
+      }
+    )
   } catch {
     return
   }
+
   try {
     editDeviceSubmitting.value = true
     const payload = {
       deviceTmplId: editDeviceForm.value.deviceTmplId,
       navNodeId: editDeviceForm.value.navNodeId,
-      deviceDeployName: editDeviceForm.value.deviceDeployName,
-      deviceAlias: editDeviceForm.value.deviceAlias,
+      deviceDeployName: editDeviceForm.value.deviceDeployName.trim(),
+      deviceAlias: editDeviceForm.value.deviceAlias ? editDeviceForm.value.deviceAlias.trim() : editDeviceForm.value.deviceDeployName.trim(),
       alarmCode: editDeviceForm.value.alarmCode,
-      ipAddress: editDeviceForm.value.ipAddress,
-      macAddress: editDeviceForm.value.macAddress,
+      ipAddress: editDeviceForm.value.ipAddress ? editDeviceForm.value.ipAddress.trim() : '',
+      macAddress: editDeviceForm.value.macAddress ? editDeviceForm.value.macAddress.trim() : '',
       installDate: editDeviceForm.value.installDate,
       warrantyExpire: editDeviceForm.value.warrantyExpire,
-      location: editDeviceForm.value.location,
-      department: editDeviceForm.value.department,
-      responsiblePerson: editDeviceForm.value.responsiblePerson,
-      contactPhone: editDeviceForm.value.contactPhone,
+      location: editDeviceForm.value.location ? editDeviceForm.value.location.trim() : '',
+      department: editDeviceForm.value.department ? editDeviceForm.value.department.trim() : '',
+      responsiblePerson: editDeviceForm.value.responsiblePerson ? editDeviceForm.value.responsiblePerson.trim() : '',
+      contactPhone: editDeviceForm.value.contactPhone ? editDeviceForm.value.contactPhone.trim() : '',
       status: editDeviceForm.value.status
     }
     await deploymentApi.update(editDeviceForm.value.deviceDeployId, payload)
@@ -685,7 +834,8 @@ function deleteDeviceFromDetail() {
     confirmButtonText: 'Delete',
     cancelButtonText: 'Cancel',
     type: 'warning',
-    confirmButtonClass: 'el-button--danger'
+    confirmButtonClass: 'el-button--danger',
+    customClass: 'dark-message-box'
   }).then(async () => {
     try {
       devicesLoading.value = true
@@ -706,7 +856,8 @@ function deleteDeviceFromTable(row: DeviceDeployment) {
     confirmButtonText: 'Delete',
     cancelButtonText: 'Cancel',
     type: 'warning',
-    confirmButtonClass: 'el-button--danger'
+    confirmButtonClass: 'el-button--danger',
+    customClass: 'dark-message-box'
   }).then(async () => {
     try {
       devicesLoading.value = true
@@ -726,7 +877,8 @@ function batchDeleteDevices() {
     confirmButtonText: 'Delete',
     cancelButtonText: 'Cancel',
     type: 'warning',
-    confirmButtonClass: 'el-button--danger'
+    confirmButtonClass: 'el-button--danger',
+    customClass: 'dark-message-box'
   }).then(async () => {
     try {
       devicesLoading.value = true
@@ -753,31 +905,18 @@ async function refreshAfterChange() {
 }
 
 // =====================================================================
-//  Deploy New Device Dialog
+//  Device Deploy (Create)
 // =====================================================================
 const deployDialogVisible = ref(false)
 const deploySubmitting = ref(false)
 const deployFormRef = ref<FormInstance>()
-const deployForm = ref({
-  deviceTmplId: null as number | null,
+const deployForm = ref<Partial<DeviceDeployment>>({
+  deviceTmplId: undefined,
   deviceDeployName: '',
   deviceAlias: '',
   ipAddress: '',
   macAddress: '',
   installDate: ''
-})
-function validateMacAddress(_rule: any, value: any, callback: any) {
-  if (value && !/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/.test(value)) {
-    callback(new Error('Invalid MAC address format (e.g. 00:1A:2B:3C:4D:5E)'))
-    return
-  }
-  callback()
-}
-
-const deployRules = ref<FormRules>({
-  deviceTmplId: [{ required: true, message: 'Please select device template', trigger: 'change' }],
-  deviceDeployName: [{ required: true, message: 'Please enter device name', trigger: 'blur' }],
-  macAddress: [{ validator: validateMacAddress, trigger: 'blur' }]
 })
 
 function openDeployDialog() {
@@ -786,7 +925,7 @@ function openDeployDialog() {
     return
   }
   deployForm.value = {
-    deviceTmplId: null,
+    deviceTmplId: undefined,
     deviceDeployName: '',
     deviceAlias: '',
     ipAddress: '',
@@ -803,34 +942,52 @@ function openDeployDialog() {
 
 async function submitDeploy() {
   if (!deployFormRef.value) return
-  await deployFormRef.value.validate(async (valid) => {
-    if (valid) {
-      if (!selectedNode.value?.nodeId) {
-        ElMessage.warning('Invalid target node, please select again.')
-        return
+  const valid = await deployFormRef.value.validate().catch(() => false)
+  if (!valid) {
+    triggerFormShake(deployFormRef, 'Please check and correct the highlighted deployment fields')
+    return
+  }
+
+  if (!selectedNode.value?.nodeId) {
+    ElMessage.warning('Invalid target node, please select again.')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `Are you sure you want to deploy device "${deployForm.value.deviceDeployName}"? This will automatically generate all template points.`,
+      'Confirm Deployment',
+      {
+        confirmButtonText: 'Deploy',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+        customClass: 'dark-message-box'
       }
-      deploySubmitting.value = true
-      const payload: Partial<DeviceDeployment> = {
-        deviceTmplId: deployForm.value.deviceTmplId || undefined,
-        deviceDeployName: deployForm.value.deviceDeployName,
-        deviceAlias: deployForm.value.deviceAlias || deployForm.value.deviceDeployName,
-        ipAddress: deployForm.value.ipAddress || undefined,
-        macAddress: deployForm.value.macAddress || undefined,
-        installDate: deployForm.value.installDate || undefined,
-        navNodeId: selectedNode.value.nodeId
-      }
-      try {
-        await deploymentApi.create(payload)
-        ElMessage.success('Device deployed and points generated successfully!')
-        deployDialogVisible.value = false
-        await refreshAfterChange()
-      } catch (err: any) {
-        ElMessage.error(err.message || 'Failed to deploy device')
-      } finally {
-        deploySubmitting.value = false
-      }
-    }
-  })
+    )
+  } catch {
+    return
+  }
+
+  deploySubmitting.value = true
+  const payload: Partial<DeviceDeployment> = {
+    deviceTmplId: deployForm.value.deviceTmplId || undefined,
+    deviceDeployName: (deployForm.value.deviceDeployName || '').trim(),
+    deviceAlias: deployForm.value.deviceAlias ? deployForm.value.deviceAlias.trim() : (deployForm.value.deviceDeployName || '').trim(),
+    ipAddress: deployForm.value.ipAddress ? deployForm.value.ipAddress.trim() : undefined,
+    macAddress: deployForm.value.macAddress ? deployForm.value.macAddress.trim() : undefined,
+    installDate: deployForm.value.installDate || undefined,
+    navNodeId: selectedNode.value.nodeId
+  }
+  try {
+    await deploymentApi.create(payload)
+    ElMessage.success('Device deployed and points generated successfully!')
+    deployDialogVisible.value = false
+    await refreshAfterChange()
+  } catch (err: any) {
+    ElMessage.error(err.message || 'Failed to deploy device')
+  } finally {
+    deploySubmitting.value = false
+  }
 }
 
 // =====================================================================
@@ -857,6 +1014,22 @@ function handleMountSelectionChange(rows: DeviceDeployItem[]) {
 
 async function submitMount() {
   if (!selectedNode.value || !mountSelectedIds.value.length) return
+
+  try {
+    await ElMessageBox.confirm(
+      `Are you sure you want to mount ${mountSelectedIds.value.length} selected device(s) to "${selectedNode.value.nodeName}"?`,
+      'Confirm Mount',
+      {
+        confirmButtonText: 'Mount',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+        customClass: 'dark-message-box'
+      }
+    )
+  } catch {
+    return
+  }
+
   mountSubmitting.value = true
   try {
     const count = await dashboardNavApi.mountDevices(
@@ -878,7 +1051,12 @@ async function handleUnmount(device: DeviceDeployment) {
     await ElMessageBox.confirm(
       `Are you sure you want to unmount device "${device.deviceDeployName}" from the current node?`,
       'Unmount Confirmation',
-      { confirmButtonText: 'Unmount', cancelButtonText: 'Cancel', type: 'warning' },
+      {
+        confirmButtonText: 'Unmount',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+        customClass: 'dark-message-box'
+      },
     )
   } catch {
     return
@@ -1244,10 +1422,7 @@ $bg-dark: #0b1119;
   :deep(.el-table__cell .cell) {
     padding: 0 4px !important;
   }
-  :deep(.el-table__header-cell) {
-    padding: 0 4px !important;
-  }
-  :deep(td.el-table__cell .cell),
+  :deep(.el-table__header-cell .cell),
   :deep(th.el-table__cell .cell) {
     padding: 0 4px !important;
     line-height: 20px !important;
@@ -1255,7 +1430,21 @@ $bg-dark: #0b1119;
     font-size: 10px !important;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+  :deep(td.el-table__cell .cell) {
+    padding: 0 4px !important;
+    line-height: 20px !important;
+    height: 20px !important;
+    font-size: 10px !important;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    text-align: left !important;
+  }
+  :deep(td.el-table__cell.is-center .cell) {
+    justify-content: center !important;
     text-align: center !important;
   }
 }
@@ -1418,7 +1607,11 @@ $bg-dark: #0b1119;
 
 .custom-form {
   :deep(.el-form-item) {
-    margin-bottom: 8px;
+    margin-bottom: 22px;
+
+    &.is-error {
+      margin-bottom: 24px;
+    }
   }
   :deep(.el-form-item__label) {
     color: $text-secondary;

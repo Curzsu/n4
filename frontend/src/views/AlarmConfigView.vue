@@ -526,8 +526,12 @@ onMounted(() => {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  // padding-left: 4px;
-  .el-form-item { margin-bottom: 12px; }
+  .el-form-item {
+    margin-bottom: 22px;
+    &.is-error {
+      margin-bottom: 24px;
+    }
+  }
   /* Element Plus sets width:100% on .el-form-item by default, which forces
      each item onto its own line. Override so flex-basis from the field-* classes
      actually controls the width. */

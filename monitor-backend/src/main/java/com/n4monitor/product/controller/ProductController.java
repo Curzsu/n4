@@ -34,7 +34,7 @@ public class ProductController {
     public ApiResponse<Product> getProductById(@PathVariable("id") Long id) {
         Product product = productService.getProductById(id);
         if (product == null) {
-            return ApiResponse.error(404, "产品不存在");
+            return ApiResponse.error(404, "Product not found");
         }
         return ApiResponse.success(product);
     }
@@ -49,13 +49,13 @@ public class ProductController {
     public ApiResponse<String> updateProduct(@PathVariable("id") Long id, @RequestBody Product product) {
         product.setProductId(id);
         productService.updateProduct(product);
-        return ApiResponse.success("更新成功");
+        return ApiResponse.success("Product updated successfully");
     }
 
     @DeleteMapping("/{id}")
     public ApiResponse<String> deleteProduct(@PathVariable("id") Long id) {
         productService.deleteProduct(id);
-        return ApiResponse.success("删除成功");
+        return ApiResponse.success("Product deleted successfully");
     }
 
     @GetMapping("/{id}/points")
