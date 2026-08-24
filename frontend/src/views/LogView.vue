@@ -52,7 +52,7 @@
           size="small"
           placeholder="All"
           clearable
-          style="width: 100px"
+          style="width: 90px"
           popper-class="alarm-config-popper"
           @change="handleSearch"
         >
@@ -95,31 +95,33 @@
         v-loading="loading"
       >
         <el-table-column prop="logId" label="ID" width="55" align="center" header-align="center" />
-        <el-table-column prop="operatorName" label="Operator" width="120" show-overflow-tooltip />
-        <el-table-column prop="module" label="Module" width="130" show-overflow-tooltip />
-        <el-table-column prop="operation" label="Operation" min-width="150" show-overflow-tooltip />
-        <el-table-column label="Type" width="80" align="center" header-align="center">
+        <el-table-column prop="operatorName" label="Operator" width="110" show-overflow-tooltip />
+        <el-table-column prop="module" label="Module" width="120" show-overflow-tooltip />
+        <el-table-column prop="operation" label="Operation" min-width="140" show-overflow-tooltip />
+        <el-table-column label="Type" width="75" align="center" header-align="center">
           <template #default="{ row }">
             <span :class="['type-badge', businessTypeClass(row.businessType)]">{{ businessTypeLabel(row.businessType) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="Status" width="80" align="center" header-align="center">
+        <el-table-column label="Status" width="75" align="center" header-align="center">
           <template #default="{ row }">
             <span :class="['status-badge', row.status === 1 ? 'active' : 'disabled']">
               {{ row.status === 1 ? 'Success' : 'Failed' }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="costTime" label="Cost(ms)" width="80" align="center" header-align="center">
+        <el-table-column prop="costTime" label="Cost(ms)" width="70" align="center" header-align="center">
           <template #default="{ row }">
             <span class="cost-text">{{ row.costTime }}ms</span>
           </template>
         </el-table-column>
-        <el-table-column prop="operatorIp" label="IP Address" width="120" show-overflow-tooltip />
-        <el-table-column prop="createTime" label="Timestamp" width="160" align="center" header-align="center" show-overflow-tooltip />
-        <el-table-column label="Actions" width="80" align="center" header-align="center" fixed="right">
+        <el-table-column prop="operatorIp" label="IP Address" width="110" show-overflow-tooltip />
+        <el-table-column prop="createTime" label="Timestamp" width="145" align="center" header-align="center" show-overflow-tooltip />
+        <el-table-column label="Actions" width="75" align="center" header-align="center">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="openDetail(row as OperationLog)">Detail</el-button>
+            <el-button type="primary" link size="small" @click="openDetail(row as OperationLog)">
+              Detail
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -139,14 +141,19 @@
     </div>
 
     <!-- Detail Dialog -->
-    <el-dialog v-model="detailVisible" title="Audit Log Details" width="620px" class="dark-dialog" :close-on-click-modal="false">
-      <div v-if="detail" class="detail-container">
+    <el-dialog v-model="detailVisible" title="Audit Log Details" width="650px" class="dark-dialog" :close-on-click-modal="false">
+      <div v-if="detail" class="log-detail-modal">
         <div class="detail-grid">
           <div class="detail-row"><span class="detail-k">Log ID:</span><span class="detail-v">{{ detail.logId }}</span></div>
           <div class="detail-row"><span class="detail-k">Operator:</span><span class="detail-v">{{ detail.operatorName }}</span></div>
           <div class="detail-row"><span class="detail-k">Module:</span><span class="detail-v">{{ detail.module }}</span></div>
           <div class="detail-row"><span class="detail-k">Operation:</span><span class="detail-v">{{ detail.operation }}</span></div>
-          <div class="detail-row"><span class="detail-k">Type:</span><span class="detail-v">{{ businessTypeLabel(detail.businessType) }}</span></div>
+          <div class="detail-row">
+            <span class="detail-k">Business Type:</span>
+            <span class="detail-v">
+              <span :class="['type-badge', businessTypeClass(detail.businessType)]">{{ businessTypeLabel(detail.businessType) }}</span>
+            </span>
+          </div>
           <div class="detail-row">
             <span class="detail-k">Status:</span>
             <span class="detail-v">
@@ -313,30 +320,77 @@ onMounted(() => {
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
-  padding: 6px 12px;
+  padding: 4px 10px;
   background-color: #111827;
   border: 1px solid #1f2937;
   border-radius: 4px;
   flex-shrink: 0;
-}
 
-.filter-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
+  .filter-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
 
-.filter-label {
-  font-size: 11px;
-  color: $text-secondary;
-  white-space: nowrap;
-}
+  .filter-label {
+    font-size: 10px !important;
+    color: $text-secondary;
+    white-space: nowrap;
+    line-height: 20px !important;
+  }
 
-.filter-actions {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  .filter-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  :deep(.el-input__wrapper),
+  :deep(.el-select__wrapper),
+  :deep(.el-date-editor.el-input__wrapper),
+  :deep(.el-range-editor.el-input__wrapper) {
+    background-color: #0b1119 !important;
+    height: 20px !important;
+    min-height: 20px !important;
+    line-height: 20px !important;
+    padding: 0 6px !important;
+    border-radius: 4px !important;
+    border: 1px solid #1e293b !important;
+    box-shadow: none !important;
+    font-size: 10px !important;
+  }
+
+  :deep(.el-input__inner),
+  :deep(.el-select__selected-item),
+  :deep(.el-select__placeholder),
+  :deep(.el-range-input) {
+    font-size: 10px !important;
+    height: 20px !important;
+    line-height: 20px !important;
+    color: #e5e7eb !important;
+
+    &::placeholder {
+      font-size: 10px !important;
+      color: #64748b !important;
+    }
+  }
+
+  :deep(.el-range-separator) {
+    font-size: 10px !important;
+    line-height: 20px !important;
+    color: #64748b !important;
+    padding: 0 4px !important;
+  }
+
+  :deep(.el-input__prefix),
+  :deep(.el-input__suffix),
+  :deep(.el-select__suffix),
+  :deep(.el-range__icon),
+  :deep(.el-range__close-icon) {
+    font-size: 10px !important;
+    line-height: 20px !important;
+  }
 }
 
 .table-wrapper {
@@ -402,87 +456,9 @@ onMounted(() => {
 }
 
 .cost-text {
-  font-size: 10px;
-  font-family: monospace;
-  color: #9ca3af;
-}
-
-.detail-container {
-  padding: 4px 0;
-}
-
-.detail-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px 16px;
-  background-color: #0b1119;
-  border: 1px solid #1e293b;
-  border-radius: 4px;
-  padding: 12px;
-}
-
-.detail-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 11px;
-
-  &.full-width {
-    grid-column: span 2;
-  }
-  &.params-row {
-    flex-direction: column;
-    gap: 4px;
-  }
-  &.error-row {
-    flex-direction: column;
-    gap: 4px;
-  }
-}
-
-.detail-k {
   color: $text-secondary;
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-.detail-v {
-  color: $text-primary;
-  font-size: 11px;
-}
-
-.code-text {
-  font-family: monospace;
-  color: #38bdf8;
-  word-break: break-all;
   font-size: 10px;
-}
-
-.params-pre {
-  margin: 0;
-  width: 100%;
-  max-height: 180px;
-  overflow: auto;
-  white-space: pre-wrap;
-  word-break: break-all;
   font-family: monospace;
-  font-size: 10px;
-  background-color: #080d14;
-  border: 1px solid #1f2937;
-  border-radius: 3px;
-  padding: 8px;
-  color: #a5f3fc;
-}
-
-.error-msg {
-  color: #ef4444;
-  font-size: 11px;
-  word-break: break-all;
-  background-color: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  padding: 6px 8px;
-  border-radius: 3px;
-  width: 100%;
 }
 
 /* ========================================================== */
@@ -530,14 +506,63 @@ onMounted(() => {
   }
 }
 
-.btn-danger, :deep(.el-button--danger:not(.is-link)) {
-  background-color: rgba($accent-red, 0.16) !important;
-  color: #fca5a5 !important;
+// Dark log detail modal
+.log-detail-modal {
+  padding: 4px 0;
+}
 
-  &:hover {
-    background-color: rgba($accent-red, 0.28) !important;
-    color: #fecaca !important;
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+}
+
+.detail-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 11px;
+
+  &.full-width {
+    grid-column: 1 / -1;
   }
+
+  .detail-k {
+    color: $text-secondary;
+    min-width: 90px;
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+
+  .detail-v {
+    color: $text-primary;
+    word-break: break-all;
+  }
+}
+
+.code-text {
+  font-family: monospace;
+  color: #93c5fd !important;
+  font-size: 11px;
+}
+
+.params-pre {
+  margin: 0;
+  padding: 8px;
+  background-color: #0b1119;
+  border: 1px solid #1e293b;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 10px;
+  color: #a5f3fc;
+  max-height: 180px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.error-msg {
+  color: #fca5a5;
+  font-size: 11px;
 }
 
 // Dark table overrides (matching AlarmConfigView)

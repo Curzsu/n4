@@ -28,7 +28,7 @@
         class="custom-table"
         v-loading="loading"
       >
-        <el-table-column prop="permName" label="Permission Name" min-width="220" show-overflow-tooltip>
+        <el-table-column prop="permName" label="Permission Name" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
             <span class="tree-perm-name">
               <el-icon v-if="row.icon" class="perm-icon"><component :is="row.icon" v-if="isValidIcon(row.icon)" /><Lock v-else /></el-icon>
@@ -36,56 +36,64 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="permCode" label="Permission Code" min-width="180" show-overflow-tooltip>
+        <el-table-column prop="permCode" label="Permission Code" min-width="170" show-overflow-tooltip>
           <template #default="{ row }">
             <span class="code-badge">{{ row.permCode }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="Type" width="80" align="center" header-align="center">
+        <el-table-column label="Type" width="75" align="center" header-align="center">
           <template #default="{ row }">
             <span :class="['type-badge', getPermTypeClass(row.permType)]">{{ getPermTypeLabel(row.permType) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="path" label="Route Path" width="160" show-overflow-tooltip />
-        <el-table-column prop="component" label="Component" width="180" show-overflow-tooltip />
-        <el-table-column prop="sortOrder" label="Sort" width="60" align="center" header-align="center" />
-        <el-table-column label="Status" width="80" align="center" header-align="center">
+        <el-table-column prop="path" label="Route Path" min-width="140" show-overflow-tooltip />
+        <el-table-column prop="component" label="Component" min-width="170" show-overflow-tooltip />
+        <el-table-column prop="sortOrder" label="Sort" width="55" align="center" header-align="center" />
+        <el-table-column label="Status" width="75" align="center" header-align="center">
           <template #default="{ row }">
             <span :class="['status-badge', row.status === 1 ? 'active' : 'disabled']">
               {{ row.status === 1 ? 'Active' : 'Disabled' }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="Actions" width="200" align="center" header-align="center" fixed="right">
+        <el-table-column label="Actions" width="160" align="center" header-align="center">
           <template #default="{ row }">
-            <el-button
-              v-if="row.permType === 1"
-              v-permission="'sys:permission:add'"
-              type="primary"
-              link
-              size="small"
-              @click="openCreate(row as PermissionNode)"
-            >
-              Add Child
-            </el-button>
-            <el-button
-              v-permission="'sys:permission:edit'"
-              type="primary"
-              link
-              size="small"
-              @click="openEdit(row as PermissionNode)"
-            >
-              Edit
-            </el-button>
-            <el-button
-              v-permission="'sys:permission:delete'"
-              type="danger"
-              link
-              size="small"
-              @click="removePermission(row as PermissionNode)"
-            >
-              Delete
-            </el-button>
+            <div class="action-btn-grid">
+              <div class="action-col">
+                <el-button
+                  v-if="row.permType === 1"
+                  v-permission="'sys:permission:add'"
+                  type="primary"
+                  link
+                  size="small"
+                  @click="openCreate(row as PermissionNode)"
+                >
+                  Add Child
+                </el-button>
+              </div>
+              <div class="action-col">
+                <el-button
+                  v-permission="'sys:permission:edit'"
+                  type="primary"
+                  link
+                  size="small"
+                  @click="openEdit(row as PermissionNode)"
+                >
+                  Edit
+                </el-button>
+              </div>
+              <div class="action-col">
+                <el-button
+                  v-permission="'sys:permission:delete'"
+                  type="danger"
+                  link
+                  size="small"
+                  @click="removePermission(row as PermissionNode)"
+                >
+                  Delete
+                </el-button>
+              </div>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -345,6 +353,26 @@ onMounted(() => {
 }
 
 /* ========================================================== */
+/* ABSOLUTE CSS GRID ACTION BUTTON MATRIX                     */
+/* ========================================================== */
+.action-btn-grid {
+  display: grid;
+  grid-template-columns: 56px 28px 36px;
+  column-gap: 6px;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin: 0 auto;
+
+  .action-col {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 20px;
+  }
+}
+
+/* ========================================================== */
 /* BORDERLESS ROUNDED CAPSULE TAGS & BADGES                  */
 /* ========================================================== */
 .code-badge {
@@ -425,6 +453,7 @@ onMounted(() => {
   height: 20px !important;
   line-height: 16px !important;
   transition: all 0.2s ease-in-out;
+  margin-left: 0 !important;
 
   &:hover {
     transform: translateY(-0.5px);

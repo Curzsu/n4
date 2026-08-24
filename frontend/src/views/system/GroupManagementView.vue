@@ -64,7 +64,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="description" label="Description" min-width="220" show-overflow-tooltip />
-        <el-table-column label="Status" width="80" align="center" header-align="center">
+        <el-table-column label="Status" width="75" align="center" header-align="center">
           <template #default="{ row }">
             <span :class="['status-badge', row.status === 1 ? 'active' : 'disabled']">
               {{ row.status === 1 ? 'Active' : 'Disabled' }}
@@ -72,24 +72,32 @@
           </template>
         </el-table-column>
         <el-table-column prop="createTime" label="Created At" width="160" align="center" header-align="center" show-overflow-tooltip />
-        <el-table-column label="Actions" width="220" align="center" header-align="center" fixed="right">
+        <el-table-column label="Actions" width="180" align="center" header-align="center">
           <template #default="{ row }">
-            <el-button v-permission="'sys:group:edit'" type="primary" link size="small" @click="openEdit(row as Group)">
-              Edit
-            </el-button>
-            <el-button v-permission="'sys:group:edit'" type="primary" link size="small" @click="openPermissions(row as Group)">
-              Permissions
-            </el-button>
-            <el-button
-              v-if="row.groupId !== 1"
-              v-permission="'sys:group:delete'"
-              type="danger"
-              link
-              size="small"
-              @click="removeGroup(row as Group)"
-            >
-              Delete
-            </el-button>
+            <div class="action-btn-grid">
+              <div class="action-col">
+                <el-button v-permission="'sys:group:edit'" type="primary" link size="small" @click="openEdit(row as Group)">
+                  Edit
+                </el-button>
+              </div>
+              <div class="action-col">
+                <el-button v-permission="'sys:group:edit'" type="primary" link size="small" @click="openPermissions(row as Group)">
+                  Permissions
+                </el-button>
+              </div>
+              <div class="action-col">
+                <el-button
+                  v-if="row.groupId !== 1"
+                  v-permission="'sys:group:delete'"
+                  type="danger"
+                  link
+                  size="small"
+                  @click="removeGroup(row as Group)"
+                >
+                  Delete
+                </el-button>
+              </div>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -394,30 +402,55 @@ onMounted(() => {
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
-  padding: 6px 12px;
+  padding: 4px 10px;
   background-color: #111827;
   border: 1px solid #1f2937;
   border-radius: 4px;
   flex-shrink: 0;
-}
 
-.filter-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
+  .filter-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
 
-.filter-label {
-  font-size: 11px;
-  color: $text-secondary;
-  white-space: nowrap;
-}
+  .filter-label {
+    font-size: 10px !important;
+    color: $text-secondary;
+    white-space: nowrap;
+    line-height: 20px !important;
+  }
 
-.filter-actions {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  .filter-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  :deep(.el-input__wrapper) {
+    background-color: #0b1119 !important;
+    height: 20px !important;
+    min-height: 20px !important;
+    line-height: 20px !important;
+    padding: 0 6px !important;
+    border-radius: 4px !important;
+    border: 1px solid #1e293b !important;
+    box-shadow: none !important;
+    font-size: 10px !important;
+  }
+
+  :deep(.el-input__inner) {
+    font-size: 10px !important;
+    height: 20px !important;
+    line-height: 20px !important;
+    color: #e5e7eb !important;
+
+    &::placeholder {
+      font-size: 10px !important;
+      color: #64748b !important;
+    }
+  }
 }
 
 .table-wrapper {
@@ -426,6 +459,26 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* ========================================================== */
+/* ABSOLUTE CSS GRID ACTION BUTTON MATRIX                     */
+/* ========================================================== */
+.action-btn-grid {
+  display: grid;
+  grid-template-columns: 28px 68px 36px;
+  column-gap: 6px;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin: 0 auto;
+
+  .action-col {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 20px;
+  }
 }
 
 /* ========================================================== */
@@ -536,6 +589,7 @@ onMounted(() => {
   height: 20px !important;
   line-height: 16px !important;
   transition: all 0.2s ease-in-out;
+  margin-left: 0 !important;
 
   &:hover {
     transform: translateY(-0.5px);

@@ -856,5 +856,80 @@ html, body, #app {
   }
 }
 
+// =====================================================================
+// Global Filter Bar & Input Compact Styling (10px standard)
+// =====================================================================
+.filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 4px 10px !important;
+  background-color: #111827 !important;
+  border: 1px solid #1f2937 !important;
+  border-radius: 4px !important;
+  flex-shrink: 0;
+
+  .filter-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .filter-label {
+    font-size: 10px !important;
+    color: #94a3b8 !important;
+    white-space: nowrap;
+    line-height: 20px !important;
+    font-weight: 500;
+  }
+
+  .el-input__wrapper,
+  .el-select__wrapper,
+  .el-date-editor.el-input__wrapper,
+  .el-range-editor.el-input__wrapper {
+    background-color: #0b1119 !important;
+    height: 20px !important;
+    min-height: 20px !important;
+    line-height: 20px !important;
+    padding: 0 6px !important;
+    border-radius: 4px !important;
+    border: 1px solid #1e293b !important;
+    box-shadow: none !important;
+    font-size: 10px !important;
+  }
+
+  .el-input__inner,
+  .el-select__selected-item,
+  .el-select__placeholder,
+  .el-range-input {
+    font-size: 10px !important;
+    height: 20px !important;
+    line-height: 20px !important;
+    color: #e5e7eb !important;
+
+    &::placeholder {
+      font-size: 10px !important;
+      color: #64748b !important;
+    }
+  }
+
+  .el-range-separator {
+    font-size: 10px !important;
+    line-height: 20px !important;
+    color: #64748b !important;
+    padding: 0 4px !important;
+  }
+
+  .el-input__prefix,
+  .el-input__suffix,
+  .el-select__suffix,
+  .el-range__icon,
+  .el-range__close-icon {
+    font-size: 10px !important;
+    line-height: 20px !important;
+  }
+}
+
 
 
