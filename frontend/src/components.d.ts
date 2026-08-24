@@ -18,6 +18,7 @@ declare module 'vue' {
     AlarmSourcesChart: typeof import('./components/charts/AlarmSourcesChart.vue')['default']
     AlarmSummary: typeof import('./components/AlarmSummary.vue')['default']
     AlarmSummaryPanel: typeof import('./components/AlarmSummaryPanel.vue')['default']
+    AlarmSummaryPlaceholder: typeof import('./components/AlarmSummaryPlaceholder.vue')['default']
     AlarmSystemChart: typeof import('./components/charts/AlarmSystemChart.vue')['default']
     AlarmTable: typeof import('./components/AlarmTable.vue')['default']
     AlarmToastStack: typeof import('./components/AlarmToastStack.vue')['default']
