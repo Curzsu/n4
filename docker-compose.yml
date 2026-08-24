@@ -21,9 +21,13 @@ services:
     container_name: n4-monitor-backend
     restart: unless-stopped
     ports:
-      - "8089:8089"
+      - "${SERVER_PORT:-8088}:${SERVER_PORT:-8088}"
     environment:
       TZ: Asia/Shanghai
+      # Backend HTTP port - single global switch (see .env.example SERVER_PORT).
+      # Aligns container-internal Spring Boot port with compose mapping and the
+      # frontend nginx upstream (BACKEND_PORT), so one edit reconfigures all.
+      SERVER_PORT: ${SERVER_PORT:-8088}
       # JVM options (heap, encoding). Adjust -Xmx to fit the host memory.
       JAVA_OPTS: "-Xms512m -Xmx1024m -Dfile.encoding=UTF-8"
       # ---- External middleware connection ----
@@ -81,6 +85,9 @@ services:
       - n4-monitor-backend
     environment:
       TZ: Asia/Shanghai
+      # Nginx upstream port, derived from the single SERVER_PORT switch. The
+      # image renders nginx.conf via envsubst using this value (default 8088).
+      BACKEND_PORT: ${SERVER_PORT:-8088}
     logging:
       driver: json-file
       options:

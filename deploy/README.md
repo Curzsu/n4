@@ -14,7 +14,7 @@ Linux 服务器 (47.121.30.136)
 │     └── FUXA     :1881    (已用 Docker 运行)
 │
 └── 本次部署 (Docker Compose 编排两个容器):
-      ├── n4-monitor-backend   Spring Boot fat jar + 内嵌 Flink   端口 8089
+      ├── n4-monitor-backend   Spring Boot fat jar + 内嵌 Flink   端口 ${SERVER_PORT:-8088}
       └── n4-monitor-frontend  Nginx 托管 Vue dist + 反代         对外端口 80
 
 可选：`docker compose --profile flink up -d` 另起独立 Flink 集群运行告警作业
@@ -23,7 +23,8 @@ Kafka topic，同时运行会瓜分分区导致告警随机丢失；切换顺序
 ```
 
 - 后端容器通过 `47.121.30.136` 访问已运行的中间件。
-- 前端 Nginx 容器对外暴露 80 端口，将 `/api`、`/ws` 反向代理到后端容器（容器间用 compose 服务名 `n4-monitor-backend:8089` 通信）。
+- 前端 Nginx 容器对外暴露 80 端口，将 `/api`、`/ws` 反向代理到后端容器（容器间用 compose 服务名 `n4-monitor-backend` 通信，端口由 `SERVER_PORT` 统一控制，默认 8088）。
+- **后端端口全局只改一处**：在 `.env` 里改 `SERVER_PORT`（默认 `8088`），compose 端口映射、nginx 反代（模板经 envsubst 渲染）会全部跟随，无需改代码或配置。
 - FUXA 图形监控 iframe 由浏览器直接访问 `http://47.121.30.136:1881/...`，Nginx 不代理 FUXA。
 
 ## 二、前置条件
@@ -37,8 +38,8 @@ docker --version
 # 2. Docker Compose v2 已安装 (Docker 20.10+ 自带 compose 插件)
 docker compose version
 
-# 3. 端口 80、8089 未被占用
-ss -tlnp | grep -E ':80|:8089'
+# 3. 端口 80、${SERVER_PORT:-8088} 未被占用
+ss -tlnp | grep -E ":80|:${SERVER_PORT:-8088}"
 
 # 4. 外部组件连通性自检（口令见 .env，勿写入文档或命令历史）
 mysql -h 47.121.30.136 -P 3306 -uroot -p -e "SELECT 1"          # MySQL
@@ -223,7 +224,7 @@ docker stats             # 查看容器实时资源占用
 | 端口 | 用途 |
 |------|------|
 | 80   | N4-monitor 前端（对外） |
-| 8089 | 后端 API。compose 当前绑定所有网卡（`8089:8089`）；若无需直连后端调试，可改为 `127.0.0.1:8089:8089` 收敛为仅本机访问，常规流量一律走前端 Nginx 反代 |
+| ${SERVER_PORT:-8088} | 后端 API（由 .env 的 `SERVER_PORT` 统一控制，默认 8088）。compose 绑定所有网卡（`${SERVER_PORT:-8088}:${SERVER_PORT:-8088}`）；若无需直连后端调试，可改为 `127.0.0.1:${SERVER_PORT:-8088}:${SERVER_PORT:-8088}` 收敛为仅本机访问，常规流量一律走前端 Nginx 反代 |
 | 1881 | FUXA 图形监控（浏览器需直接访问 iframe） |
 
 中间件端口（3306/6379/9092/6041）只需对后端容器可达，**不建议对公网开放**。
