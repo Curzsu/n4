@@ -23,7 +23,7 @@ Kafka topic，同时运行会瓜分分区导致告警随机丢失；切换顺序
 ```
 
 - 后端容器通过 `47.121.30.136` 访问已运行的中间件。
-- 前端 Nginx 容器对外暴露 80 端口，将 `/api`、`/ws` 反向代理到后端容器（容器间用 compose 服务名 `n4-monitor-backend` 通信，端口由 `SERVER_PORT` 统一控制，默认 8088）。
+- **后端与前端均使用 host 网络模式**（`network_mode: host`）：容器共享宿主机网络栈，访问同机 Redis/中间件走回环而非 Docker 网桥，延迟更低。前端 Nginx 直接监听宿主机 `:80`，将 `/api`、`/ws` 通过 `127.0.0.1:${SERVER_PORT}`（默认 8088）反向代理到后端。host 模式下容器间无 compose 服务名 DNS，故 nginx upstream 用回环地址。
 - **后端端口全局只改一处**：在 `.env` 里改 `SERVER_PORT`（默认 `8088`），compose 端口映射、nginx 反代（模板经 envsubst 渲染）会全部跟随，无需改代码或配置。
 - FUXA 图形监控 iframe 由浏览器直接访问 `http://47.121.30.136:1881/...`，Nginx 不代理 FUXA。
 

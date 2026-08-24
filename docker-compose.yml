@@ -20,8 +20,11 @@ services:
     image: n4-monitor-backend:latest
     container_name: n4-monitor-backend
     restart: unless-stopped
-    ports:
-      - "${SERVER_PORT:-8088}:${SERVER_PORT:-8088}"
+    # Host network: share the host network stack so container-localhost == host
+    # loopback. Redis/MQTT/Kafka on the same machine are reached via the loopback
+    # (no docker bridge/NAT hop). No ports mapping needed - the JVM binds the
+    # host port directly.
+    network_mode: host
     environment:
       TZ: Asia/Shanghai
       # Backend HTTP port - single global switch (see .env.example SERVER_PORT).
@@ -79,8 +82,11 @@ services:
     image: n4-monitor-frontend:latest
     container_name: n4-monitor-frontend
     restart: unless-stopped
-    ports:
-      - "80:80"
+    # Host network: share the host network stack. Nginx binds the host's :80
+    # directly and proxies to the backend via loopback (127.0.0.1), so the
+    # compose service-name DNS is NOT available in host mode - nginx.conf uses
+    # 127.0.0.1 as the upstream host.
+    network_mode: host
     depends_on:
       - n4-monitor-backend
     environment:
