@@ -226,7 +226,7 @@ sudo ./pack.sh                 # 生成 n4-monitor-pack-<时间戳>.tar.gz
 
 脚本会：
 1. `docker compose build` 重建 N4-monitor 镜像（确保打包的是最新构建）；
-2. `docker save` 导出 N4-monitor 自建镜像（`backend/frontend/flink`）**和无法从 registry 拉取的自定义镜像**（默认含 FUXA `frangoteam/fuxa:1.3.3`，脚本顶部 `EXTRA_IMAGES` 可增删）；
+2. `docker save` 导出镜像：N4-monitor 自建镜像（`backend/frontend/flink`）+ 无法从 registry 拉取的自定义镜像（默认含 FUXA `frangoteam/fuxa:1.3.3`，`EXTRA_IMAGES` 可增删）+ **中间件官方镜像**（emqx/kafka/mysql/redis/tdengine，`MIDDLEWARE_IMAGES`，避免测试机从 Docker Hub 拉取超时）；
 3. 收集 N4-monitor 代码仓库（git 跟踪文件 + `.env`）；
 4. 收集 `/opt` 下各中间件目录（emqx/fuxa/kafka/mysql/redis/tdengine）的 compose 定义 + `.env`，并**解析 compose 里的 bind-mount 源路径**：
    - 配置类目录（如 `./etc`、`./log`、nginx conf）→ **完整复制**；
@@ -270,10 +270,10 @@ sudo ./unpack.sh /opt/n4-monitor-pack-<时间戳>.tar.gz
 ```
 
 脚本会：
-1. `docker load` 导入 N4-monitor 自建镜像 + 自定义镜像（含 FUXA，不需要从 registry 拉）；
+1. `docker load` 导入全部随包镜像：N4-monitor 自建镜像 + 自定义镜像（FUXA）+ **中间件官方镜像**（emqx/kafka/mysql/redis/tdengine）——测试机无需从 Docker Hub 拉取，离线可用；
 2. 把 N4-monitor 代码 + `.env` 放到 `/opt/N4-monitor`；
 3. 把各中间件的 compose 定义 + 配置目录 + 空数据目录放到 `/opt/<name>`（bind-mount 挂载点已就绪）；
-4. 逐个 `docker compose up -d` 启动中间件（官方镜像自动拉取；已打包的如 FUXA 用本地镜像；数据卷全新/空目录初始化）；
+4. 逐个 `docker compose up -d` 启动中间件（镜像已本地加载；数据卷全新/空目录初始化）；
 5. `docker compose up -d` 启动 N4-monitor。
 
 ### 各中间件迁移策略（基于开发机实际 compose 核实）

@@ -36,6 +36,18 @@ N4_IMAGES=("n4-monitor-backend:latest" "n4-monitor-frontend:latest" "n4-monitor-
 # FUXA is the known one here (self-uploaded, not on a public registry).
 EXTRA_IMAGES=("frangoteam/fuxa:1.3.3")
 
+# Middleware official images the test server must pull from Docker Hub. If the
+# test server cannot reach Docker Hub (common behind GFW / restricted networks),
+# bundle them into the pack so `unpack.sh` loads them locally and no registry
+# pull is needed at startup. Keep in sync with each /opt/<name>/docker-compose.yml.
+MIDDLEWARE_IMAGES=(
+  "emqx/emqx-enterprise:6.2.1"
+  "apache/kafka:latest"
+  "mysql:8.4.5"
+  "redis:latest"
+  "tdengine/tsdb:latest"
+)
+
 # Subdirectory names that are PURE business data or runtime-only output - their
 # content is NOT packed (structure only). Adjust per actual middleware compose:
 #   data/db        -> database files, DAQ history, RDB/AOF (regenerate on test)
@@ -87,7 +99,7 @@ git ls-files -z | xargs -0 -I{} cp --parents "{}" "${STAGE_DIR}/N4-monitor/" 2>/
 # ---- 2. Images -------------------------------------------------------------
 echo "==> Exporting images via docker save..."
 mkdir -p "${STAGE_DIR}/images"
-ALL_IMAGES=("${N4_IMAGES[@]}" "${EXTRA_IMAGES[@]}")
+ALL_IMAGES=("${N4_IMAGES[@]}" "${EXTRA_IMAGES[@]}" "${MIDDLEWARE_IMAGES[@]}")
 for img in "${ALL_IMAGES[@]}"; do
   if docker image inspect "$img" >/dev/null 2>&1; then
     echo "    - ${img}"
