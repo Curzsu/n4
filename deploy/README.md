@@ -155,7 +155,9 @@ curl -I http://47.121.30.136/                   # 前端页面应返回 200
 
 开发机（`/opt` 下的中间件 + N4-monitor）要复制一份到测试机作为测试环境，用 `deploy/pack.sh`（开发机打包） + `deploy/unpack.sh`（测试机还原）两个脚本完成。
 
-**迁移范围（设计约定）**：代码 + compose 配置 + N4-monitor 自建镜像 + `.env` 配置；**不含任何业务数据**（MySQL 表数据、TDengine 时序数据、Redis 缓存、EMQX 设备配置都不迁移，测试机以空库/默认状态启动，可用种子数据或 SQL 脚本初始化）。
+**迁移范围（设计约定）**：
+- **迁移**：代码、compose 配置、N4-monitor 自建镜像、`.env` 配置、中间件**配置文件/配置目录**（如 emqx `./etc`）、FUXA 等自定义镜像、以及**数据挂载目录的结构**（空目录，保证容器启动时挂载点存在）。
+- **不迁移（业务数据）**：MySQL 表数据、TDengine 时序数据、Redis 缓存、Kafka 消息、以及 EMQX **数据目录**（`./data` / named volume）里保存的运行时配置（Dashboard 里改的认证、规则、桥接等）。测试机以空库/默认状态启动，可用种子数据或 SQL 脚本初始化。
 
 ### 开发机：一键打包
 
@@ -166,9 +168,11 @@ sudo ./pack.sh                 # 生成 n4-monitor-pack-<时间戳>.tar.gz
 
 脚本会：
 1. `docker compose build` 重建 N4-monitor 镜像（确保打包的是最新构建）；
-2. `docker save` 导出 `n4-monitor-backend/frontend/flink` 三个自建镜像；
+2. `docker save` 导出 N4-monitor 自建镜像（`backend/frontend/flink`）**和无法从 registry 拉取的自定义镜像**（默认含 FUXA `frangoteam/fuxa:1.3.3`，脚本顶部 `EXTRA_IMAGES` 可增删）；
 3. 收集 N4-monitor 代码仓库（git 跟踪文件 + `.env`）；
-4. 收集 `/opt` 下各中间件目录（emqx/fuxa/kafka/mysql/redis/tdengine）的 compose 定义（yaml + env，不含数据卷）；
+4. 收集 `/opt` 下各中间件目录（emqx/fuxa/kafka/mysql/redis/tdengine）的 compose 定义 + `.env`，并**解析 compose 里的 bind-mount 源路径**：
+   - 配置类目录（如 `./etc`、`./log`、nginx conf）→ **完整复制**；
+   - 数据类目录（`./data`、`mysql-data` 等，见脚本 `DATA_DIRS`）→ **只建空目录结构**，不打包内容；
 5. 打包成单个 `.tar.gz`。
 
 ### 测试机：一键还原
@@ -180,10 +184,10 @@ sudo ./unpack.sh n4-monitor-pack-<时间戳>.tar.gz
 ```
 
 脚本会：
-1. `docker load` 导入 N4-monitor 三个自建镜像；
+1. `docker load` 导入 N4-monitor 自建镜像 + 自定义镜像（含 FUXA，不需要从 registry 拉）；
 2. 把 N4-monitor 代码 + `.env` 放到 `/opt/N4-monitor`；
-3. 把各中间件的 compose 定义放到 `/opt/<name>`；
-4. 逐个 `docker compose up -d` 启动中间件（官方镜像自动拉取，数据卷全新）；
+3. 把各中间件的 compose 定义 + 配置目录 + 空数据目录放到 `/opt/<name>`（bind-mount 挂载点已就绪）；
+4. 逐个 `docker compose up -d` 启动中间件（官方镜像自动拉取；已打包的如 FUXA 用本地镜像；数据卷全新/空目录初始化）；
 5. `docker compose up -d` 启动 N4-monitor。
 
 ### 后续增量更新（测试机同步最新开发成果）
@@ -206,6 +210,12 @@ sudo ./unpack.sh n4-monitor-pack-<时间戳>.tar.gz   # 重新还原
 ### 测试机 IP 不同时的调整
 
 若测试机 IP 与开发机不同，还原后需更新地址相关配置（N4-monitor 与各中间件的 `.env` 里的 IP），再 `docker compose up -d` 重建。若中间件与 N4-monitor 都在同一台测试机且用 host 网络，可统一改为 `127.0.0.1`（见"网络模式"说明，FUXA 例外：前端 iframe 需用可访问地址）。
+
+### 关于数据挂载目录 / FUXA 镜像 / EMQX 配置
+
+- **数据挂载目录**：pack.sh 会解析各中间件 compose 的 bind-mount（以 `./` 或 `/` 开头的挂载源），把**配置类目录完整打包**、**数据类目录（`./data` 等）打包为空结构**。unpack.sh 还原时这些目录会重建，保证容器启动时挂载点存在。若实际中间件的数据目录名不在脚本 `DATA_DIRS` 列表里，会按配置目录被**完整复制**——若不想复制其内容，在脚本里补一个目录名即可。另外注意 bind-mount 空目录的**权限**问题（容器内以非 root 用户写数据时，需 `chown` 目录属主与容器一致，否则启动报权限错误）。
+- **FUXA（自定义镜像）**：`frangoteam/fuxa:1.3.3` 无法从公共 registry 拉取，pack.sh 已把 `EXTRA_IMAGES` 里的 FUXA 一并 `docker save` 导出，unpack.sh `docker load` 导入，测试机无需联网拉取。若以后有别的自定义镜像，加到 `pack.sh` 的 `EXTRA_IMAGES` 即可。
+- **EMQX 配置**：EMQX 6.x 的配置分两类——**静态配置文件**（`./etc` 下的 `emqx.conf` 等，随配置目录迁移）和**运行时配置**（Dashboard/API 里改的认证、规则引擎、桥接、ACL 等，存储在 `./data` 或 named volume）。**运行时配置不会迁移**，测试机的 EMQX 以全新默认状态启动，需要重新在测试机配置认证/规则/桥接。若希望连运行时配置一起迁，需把 EMQX 的 `./data`（或对应 named volume）也纳入打包（但这就属于"带业务数据"，需调整迁移范围）。
 
 ## 八、常用运维命令
 

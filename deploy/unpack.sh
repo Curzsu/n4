@@ -56,17 +56,17 @@ else
   exit 1
 fi
 
-# ---- 3. Middleware compose definitions -------------------------------------
+# ---- 3. Middleware compose definitions + mount dirs ------------------------
 if [ -d "${STAGE_DIR}/middleware" ]; then
-  echo "==> Installing middleware compose definitions ..."
+  echo "==> Installing middleware compose definitions and mount dirs ..."
   for p in "${STAGE_DIR}/middleware"/*/; do
     [ -d "$p" ] || continue
     name="$(basename "$p")"
     echo "    - ${name}"
     mkdir -p "${TARGET_ROOT}/${name}"
-    # Copy compose yaml + env files into the target dir.
-    find "$p" -maxdepth 2 -type f \( -name '*.yaml' -o -name '*.yml' -o -name '.env' -o -name '*.env' \) \
-      -exec cp {} "${TARGET_ROOT}/${name}/" \; 2>/dev/null || true
+    # Copy the whole staged dir (compose yaml + env + config dirs + empty data
+    # dirs). Preserve structure so bind-mount sources exist before startup.
+    cp -r "$p". "${TARGET_ROOT}/${name}/"
   done
 else
   echo "WARN: no middleware definitions in pack"
