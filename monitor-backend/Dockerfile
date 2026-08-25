@@ -13,13 +13,17 @@ COPY pom.xml .
 COPY monitor-common/pom.xml monitor-common/
 COPY monitor-flink-job/pom.xml monitor-flink-job/
 COPY monitor-backend/pom.xml monitor-backend/
-RUN mvn -B dependency:go-offline
+# Aliyun mirror settings: route all Maven Central downloads through Aliyun so
+# builds on restricted/slow networks (test servers) do not stall on
+# repo.maven.apache.org. Passed to every mvn invocation via -s.
+COPY deploy/maven-settings-aliyun.xml ./maven-settings.xml
+RUN mvn -s ./maven-settings.xml -B dependency:go-offline
 
 # Copy the source trees and build (skip tests; the CI/runtime env has no MySQL/Kafka)
 COPY monitor-common/src monitor-common/src
 COPY monitor-flink-job/src monitor-flink-job/src
 COPY monitor-backend/src monitor-backend/src
-RUN mvn -B clean package -DskipTests
+RUN mvn -s ./maven-settings.xml -B clean package -DskipTests
 
 # Extract the fat jar into a directory layout here (the JDK 'jar' tool is available
 # in this builder stage). The runtime stage (JRE only) has no 'jar' command, so we
