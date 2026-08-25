@@ -151,7 +151,63 @@ curl -I http://47.121.30.136/                   # 前端页面应返回 200
 
 浏览器访问 `http://47.121.30.136/` 即可使用监控系统。
 
-## 七、常用运维命令
+## 七、一键迁移到测试环境
+
+开发机（`/opt` 下的中间件 + N4-monitor）要复制一份到测试机作为测试环境，用 `deploy/pack.sh`（开发机打包） + `deploy/unpack.sh`（测试机还原）两个脚本完成。
+
+**迁移范围（设计约定）**：代码 + compose 配置 + N4-monitor 自建镜像 + `.env` 配置；**不含任何业务数据**（MySQL 表数据、TDengine 时序数据、Redis 缓存、EMQX 设备配置都不迁移，测试机以空库/默认状态启动，可用种子数据或 SQL 脚本初始化）。
+
+### 开发机：一键打包
+
+```bash
+cd /opt/N4-monitor/deploy
+sudo ./pack.sh                 # 生成 n4-monitor-pack-<时间戳>.tar.gz
+```
+
+脚本会：
+1. `docker compose build` 重建 N4-monitor 镜像（确保打包的是最新构建）；
+2. `docker save` 导出 `n4-monitor-backend/frontend/flink` 三个自建镜像；
+3. 收集 N4-monitor 代码仓库（git 跟踪文件 + `.env`）；
+4. 收集 `/opt` 下各中间件目录（emqx/fuxa/kafka/mysql/redis/tdengine）的 compose 定义（yaml + env，不含数据卷）；
+5. 打包成单个 `.tar.gz`。
+
+### 测试机：一键还原
+
+```bash
+# 把 tar.gz 传到测试机后
+cd /opt
+sudo ./unpack.sh n4-monitor-pack-<时间戳>.tar.gz
+```
+
+脚本会：
+1. `docker load` 导入 N4-monitor 三个自建镜像；
+2. 把 N4-monitor 代码 + `.env` 放到 `/opt/N4-monitor`；
+3. 把各中间件的 compose 定义放到 `/opt/<name>`；
+4. 逐个 `docker compose up -d` 启动中间件（官方镜像自动拉取，数据卷全新）；
+5. `docker compose up -d` 启动 N4-monitor。
+
+### 后续增量更新（测试机同步最新开发成果）
+
+```bash
+# 开发机：改完代码后
+cd /opt/N4-monitor
+git pull                          # 或直接在开发机改
+docker compose build              # 重建镜像
+sudo ./deploy/pack.sh             # 重新打包（含最新镜像+代码）
+
+# 测试机
+sudo ./unpack.sh n4-monitor-pack-<时间戳>.tar.gz   # 重新还原
+```
+
+注意：重复 `unpack.sh` 会**覆盖** `/opt/N4-monitor` 和中间件 compose 定义，但**不会清掉已存在的数据卷**（`docker compose up` 对已存在卷直接复用）。所以：
+- 测试机若有需要保留的数据，unpack 不会误删；
+- 若想彻底重置测试库，先手动 `docker compose down -v`（会清空该中间件的卷，谨慎）。
+
+### 测试机 IP 不同时的调整
+
+若测试机 IP 与开发机不同，还原后需更新地址相关配置（N4-monitor 与各中间件的 `.env` 里的 IP），再 `docker compose up -d` 重建。若中间件与 N4-monitor 都在同一台测试机且用 host 网络，可统一改为 `127.0.0.1`（见"网络模式"说明，FUXA 例外：前端 iframe 需用可访问地址）。
+
+## 八、常用运维命令
 
 ```bash
 # 查看实时日志
