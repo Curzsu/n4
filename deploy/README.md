@@ -211,12 +211,12 @@ sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plug
 
 装完建议确认系统是 Ubuntu 还是 Debian（`cat /etc/os-release`），源地址要对应。
 
-**Maven 阿里云镜像**：N4-monitor 的 Docker 构建已内置阿里云 Maven 镜像（`monitor-backend/Dockerfile` 使用 `deploy/maven-settings-aliyun.xml`，`mirrorOf=*` 全量镜像中央仓库），`docker compose build` 自动走国内源，无需额外配置。若在宿主机直接跑 `mvn`（非 Docker），可手动配一次镜像：
+**Maven 阿里云镜像**：N4-monitor 的 Docker 构建已内置阿里云 Maven 镜像（`monitor-backend/Dockerfile` 使用 `monitor-backend/maven-settings-aliyun.xml`，`mirrorOf=*` 全量镜像中央仓库），`docker compose build` 自动走国内源，无需额外配置。若在宿主机直接跑 `mvn`（非 Docker），可手动配一次镜像：
 
 ```bash
 # 宿主机直接 mvn 时配置 Maven 阿里云镜像（可选，Docker 构建已内置）
 mkdir -p ~/.m2
-cp /opt/N4-monitor/deploy/maven-settings-aliyun.xml ~/.m2/settings.xml
+cp /opt/N4-monitor/monitor-backend/maven-settings-aliyun.xml ~/.m2/settings.xml
 ```
 
 ### 开发机：一键打包

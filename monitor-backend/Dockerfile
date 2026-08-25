@@ -16,7 +16,9 @@ COPY monitor-backend/pom.xml monitor-backend/
 # Aliyun mirror settings: route all Maven Central downloads through Aliyun so
 # builds on restricted/slow networks (test servers) do not stall on
 # repo.maven.apache.org. Passed to every mvn invocation via -s.
-COPY deploy/maven-settings-aliyun.xml ./maven-settings.xml
+# Kept under monitor-backend/ (NOT deploy/) because .dockerignore excludes
+# deploy/ from the build context, which would make this COPY fail.
+COPY monitor-backend/maven-settings-aliyun.xml ./maven-settings.xml
 RUN mvn -s ./maven-settings.xml -B dependency:go-offline
 
 # Copy the source trees and build (skip tests; the CI/runtime env has no MySQL/Kafka)
