@@ -190,6 +190,25 @@ sudo ./unpack.sh n4-monitor-pack-<时间戳>.tar.gz
 4. 逐个 `docker compose up -d` 启动中间件（官方镜像自动拉取；已打包的如 FUXA 用本地镜像；数据卷全新/空目录初始化）；
 5. `docker compose up -d` 启动 N4-monitor。
 
+### 各中间件迁移策略（基于开发机实际 compose 核实）
+
+pack.sh 解析 compose 的 bind-mount（支持相对路径 `./x` 与绝对路径 `/opt/<name>/x`，自动跳过 named volume 与宿主机系统路径如 `/etc/localtime`），按 `DATA_DIRS` 分类决定"完整复制"或"只建空结构"。当前实测结果：
+
+| 中间件 | 挂载路径 | 处理 | 说明 |
+|---|---|---|---|
+| emqx | `/opt/emqx/data`、`/opt/emqx/log`（绝对） | 空结构 | 运行时数据 + 日志；Dashboard 里配的认证/规则/桥接**不迁移**，测试机需重配 |
+| fuxa | `./appdata`（相对） | **完整复制** | FUXA 组态项目（project.fuxap.db）+ 用户，手工搭建不可再生 |
+| fuxa | `./db`、`./logs` | 空结构 | DAQ 历史采集 + 日志 |
+| fuxa | `./images` | 完整复制 | 基本为空 |
+| kafka | named volume `kafka_data` | 不处理 | `docker compose up` 自动建空卷，消息不迁移 |
+| mysql | `./conf`（相对） | **完整复制** | MySQL 配置（utf8mb4 等） |
+| mysql | `./data`、`./log` | 空结构 | 数据库文件 + 日志；测试机空库，用种子 SQL 初始化 |
+| redis | `/opt/redis/conf/redis.conf`（绝对） | **完整复制** | Redis 配置 |
+| redis | `/opt/redis/data` | 空结构 | RDB/AOF，空库启动 |
+| tdengine | `/opt/tdengine/data`、`/log`（绝对） | 空结构 | 时序数据 + 日志，空库启动 |
+
+> 若测试机需要**保留 FUXA 组态**（通常是需要的，否则画面全丢），当前策略已默认完整复制 `./appdata`；若连 MySQL/TDengine 数据也要，需手动把这些目录改纳入完整复制（即调整迁移范围，属于"带业务数据"）。
+
 ### 后续增量更新（测试机同步最新开发成果）
 
 ```bash

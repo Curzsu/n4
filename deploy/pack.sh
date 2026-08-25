@@ -36,9 +36,15 @@ N4_IMAGES=("n4-monitor-backend:latest" "n4-monitor-frontend:latest" "n4-monitor-
 # FUXA is the known one here (self-uploaded, not on a public registry).
 EXTRA_IMAGES=("frangoteam/fuxa:1.3.3")
 
-# Subdirectory names that are PURE business data - their content is NOT packed
-# (structure only). Adjust per actual middleware compose if names differ.
-DATA_DIRS=("data" "mysql-data" "mysqldata" "tdengine-data" "kafka-data" "redis-data" "db" "databases")
+# Subdirectory names that are PURE business data or runtime-only output - their
+# content is NOT packed (structure only). Adjust per actual middleware compose:
+#   data/db        -> database files, DAQ history, RDB/AOF (regenerate on test)
+#   log/logs       -> runtime logs
+# NOTE: config dirs that hold real config (emqx etc, mysql conf, redis conf) are
+# NOT in this list and are copied in full, as is fuxa's appdata (its FUXA
+# project / HMI screens are a hand-built config that would have to be redone if
+# lost).
+DATA_DIRS=("data" "mysql-data" "mysqldata" "tdengine-data" "kafka-data" "redis-data" "db" "databases" "log" "logs")
 
 OUT_NAME="${1:-n4-monitor-pack-$(date +%Y%m%d-%H%M%S)}"
 STAGE_DIR="$(mktemp -d)"
@@ -116,29 +122,50 @@ for p in "${PROJECTS[@]}"; do
   [ -f "$COMPOSE_FILE" ] || COMPOSE_FILE="${DEV_ROOT}/${p}/compose.yaml"
 
   if [ -f "$COMPOSE_FILE" ]; then
-    # Collect local (relative) bind-mount sources. Only lines whose source
-    # starts with "./" or "/" are treated as local paths; plain names are
-    # Docker named volumes and are skipped (their data lives in /var/lib/docker).
+    # Collect bind-mount sources from the compose file. Three kinds:
+    #   ./relative   -> relative to the project dir  (/opt/<name>/<src>)
+    #   /absolute    -> absolute path on the host
+    #   plain name   -> Docker named volume (SKIP: lives in /var/lib/docker)
+    # Host system paths (e.g. /etc/localtime) are skipped - they resolve to the
+    # host filesystem and already exist on the test server.
     local_mounts=$(grep -E '^\s*-?\s*(\./|/)' "$COMPOSE_FILE" \
-      | sed -E 's/^\s*-?\s*//; s/:.*//; s/^\.\///' \
+      | sed -E 's/^\s*-?\s*//; s/:.*//' \
       | sort -u || true)
 
     for src in $local_mounts; do
       [ -z "$src" ] && continue
-      src_path="${DEV_ROOT}/${p}/${src}"
+
+      # Skip host system paths (localtime, timezone, etc).
+      case "$src" in
+        /etc/*) echo "    - ${p}:${src} (host system path - skip)"; continue;;
+      esac
+
+      # Resolve the source path on THIS host (relative vs absolute).
+      case "$src" in
+        /*) src_path="$src" ;;
+        *)  src_path="${DEV_ROOT}/${p}/${src}" ;;
+      esac
+
+      # Staged path relative to middleware/<name> so unpack can restore it.
+      # /opt/<name>/x -> x ; other absolute -> basename ; relative -> as-is.
+      case "$src" in
+        "$DEV_ROOT/${p}"/*) rel="${src#"$DEV_ROOT/${p}"/}" ;;
+        *)                  rel="$(basename "$src")" ;;
+      esac
+
       if [ -d "$src_path" ]; then
         if is_data_dir "$src_path"; then
-          echo "    - ${p}/:${src} (DATA dir - empty structure only)"
-          mkdir -p "${STAGE_DIR}/middleware/${p}/${src}"
+          echo "    - ${p}:${src} (DATA dir - empty structure only)"
+          mkdir -p "${STAGE_DIR}/middleware/${p}/${rel}"
         else
-          echo "    - ${p}/:${src} (config dir - full copy)"
-          mkdir -p "${STAGE_DIR}/middleware/${p}/$(dirname "$src")"
-          cp -r "$src_path" "${STAGE_DIR}/middleware/${p}/${src}"
+          echo "    - ${p}:${src} (config dir - full copy)"
+          mkdir -p "${STAGE_DIR}/middleware/${p}/$(dirname "$rel")"
+          cp -r "$src_path" "${STAGE_DIR}/middleware/${p}/${rel}"
         fi
       elif [ -f "$src_path" ]; then
-        echo "    - ${p}/:${src} (config file)"
-        mkdir -p "${STAGE_DIR}/middleware/${p}/$(dirname "$src")"
-        cp "$src_path" "${STAGE_DIR}/middleware/${p}/${src}"
+        echo "    - ${p}:${src} (config file)"
+        mkdir -p "${STAGE_DIR}/middleware/${p}/$(dirname "$rel")"
+        cp "$src_path" "${STAGE_DIR}/middleware/${p}/${rel}"
       fi
     done
   fi
