@@ -21,6 +21,14 @@ set -euo pipefail
 TARBALL="${1:?Usage: $0 <pack.tar.gz>}"
 TARGET_ROOT="/opt"
 
+# Resolve the tarball to an absolute path so the script works regardless of the
+# current working directory (e.g. run from /opt/N4-monitor/deploy while the pack
+# sits in /opt).
+case "$TARBALL" in
+  /*) ;;
+  *)  TARBALL="$(cd "$(dirname "$TARBALL")" && pwd)/$(basename "$TARBALL")" ;;
+esac
+
 if [ ! -f "$TARBALL" ]; then
   echo "ERROR: $TARBALL not found" >&2
   exit 1

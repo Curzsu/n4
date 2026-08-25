@@ -235,10 +235,38 @@ sudo ./pack.sh                 # 生成 n4-monitor-pack-<时间戳>.tar.gz
 
 ### 测试机：一键还原
 
+**步骤 0：把 tar.gz 传到测试机**（方式任选，详见上节"传输"）：
+
 ```bash
-# 把 tar.gz 传到测试机后
+# 测试机上执行（从开发机拉取，最简单；也可在开发机 scp 推送）
 cd /opt
-sudo ./unpack.sh n4-monitor-pack-<时间戳>.tar.gz
+rsync -avP root@47.121.30.136:/opt/N4-monitor/n4-monitor-pack-<时间戳>.tar.gz ./
+# 确认传到了
+ls -lh /opt/n4-monitor-pack-<时间戳>.tar.gz
+```
+
+**步骤 1：完整解压包**（unpack.sh 在包里，必须先解压才能拿到它）：
+
+```bash
+cd /opt
+sudo tar -xzf n4-monitor-pack-<时间戳>.tar.gz
+# 解压后生成 N4-monitor/ 与 middleware/（若已存在会合并/覆盖）
+ls -la /opt/N4-monitor/deploy/          # 应能看到 unpack.sh、pack.sh
+```
+
+> 若提示文件已存在或想彻底干净，可先 `sudo rm -rf /opt/N4-monitor /opt/middleware` 再解压（谨慎：会清掉已装的 N4-monitor）。
+
+**步骤 2：给脚本加执行权限**（git 检出可能丢失执行位，务必执行）：
+
+```bash
+sudo chmod +x /opt/N4-monitor/deploy/unpack.sh /opt/N4-monitor/deploy/pack.sh
+```
+
+**步骤 3：运行还原**（从 deploy 目录运行，包用绝对路径）：
+
+```bash
+cd /opt/N4-monitor/deploy
+sudo ./unpack.sh /opt/n4-monitor-pack-<时间戳>.tar.gz
 ```
 
 脚本会：
@@ -276,8 +304,12 @@ git pull                          # 或直接在开发机改
 docker compose build              # 重建镜像
 sudo ./deploy/pack.sh             # 重新打包（含最新镜像+代码）
 
-# 测试机
-sudo ./unpack.sh n4-monitor-pack-<时间戳>.tar.gz   # 重新还原
+# 测试机：把新包传到 /opt 后
+cd /opt
+sudo tar -xzf n4-monitor-pack-<时间戳>.tar.gz      # 重新解压（覆盖旧 N4-monitor/ 与 middleware/）
+sudo chmod +x /opt/N4-monitor/deploy/unpack.sh
+cd /opt/N4-monitor/deploy
+sudo ./unpack.sh /opt/n4-monitor-pack-<时间戳>.tar.gz   # 重新还原
 ```
 
 注意：重复 `unpack.sh` 会**覆盖** `/opt/N4-monitor` 和中间件 compose 定义，但**不会清掉已存在的数据卷**（`docker compose up` 对已存在卷直接复用）。所以：
