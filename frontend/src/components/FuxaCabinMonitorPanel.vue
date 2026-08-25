@@ -33,8 +33,8 @@
       </div>
       <iframe
         v-else-if="monitoring && session?.iframeUrl"
-        :key="session.iframeUrl"
-        :src="session.iframeUrl"
+        :key="iframeUrl"
+        :src="iframeUrl"
         :style="frameStyle"
         title="FUXA cabin graphical monitor"
         @load="frameLoaded = true"
@@ -80,6 +80,15 @@ const frameStyle = computed(() => ({
   left: `${frameOffsetX.value}px`,
   transform: `scale(${frameScale.value})`,
 }))
+const iframeUrl = computed(() => {
+  if (!session.value?.iframeUrl) return ''
+  const url = new URL(session.value.iframeUrl, window.location.origin)
+  // The FUXA bridge uses this exact origin instead of a wildcard when it
+  // builds the device-point iframe inside an opened FUXA detail card.
+  url.searchParams.set('n4ParentOrigin', window.location.origin)
+  url.searchParams.set('n4DeviceListUrl', new URL('/fuxa-device-points', window.location.origin).toString())
+  return url.toString()
+})
 
 function updateFrameScale() {
   const availableWidth = frameShell.value?.clientWidth || viewWidth.value

@@ -52,8 +52,9 @@ tdengine:
 alarm:
   flink:
     enabled: true
-    topic: obix-mqtt-points
-    # topic: mqtt-push-kafka
+#    topic: obix-mqtt-points
+    topic: mqtt-push-kafka
+    # topic: kafka-test
     group-id: n4-flink-alarm-processor
     parallelism: 4 # Parallel alarm tasks. Must be <= min(CPU cores, Kafka topic partitions). keyBy(path) routes same-path messages to one task so concurrent tasks never race on alarm:active state.
   # Redis keys and channels used by alarm processing
