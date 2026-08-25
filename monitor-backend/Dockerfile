@@ -13,17 +13,20 @@ COPY pom.xml .
 COPY monitor-common/pom.xml monitor-common/
 COPY monitor-flink-job/pom.xml monitor-flink-job/
 COPY monitor-backend/pom.xml monitor-backend/
-
-# Copy the source trees and build (skip tests; the CI/runtime env has no MySQL/Kafka).
-# NOTE: no Aliyun mirror and no `dependency:go-offline` step here. go-offline
-# tries to resolve every declared (even unused) artifact and hits
+# Aliyun mirror settings for Maven Central (mirrorOf=central). Kept under
+# monitor-backend/ (NOT deploy/) because .dockerignore excludes deploy/ from the
+# build context. NOTE: `dependency:go-offline` is intentionally NOT used - it
+# over-resolves every declared (even unused) artifact and hits
 # org.codehaus.jackson:jackson-mapper-asl:1.9.14.jdk17-redhat-00001, which does
-# not exist on Maven Central/Aliyun - a plain `clean package` resolves only the
-# artifacts actually needed for compilation and succeeds without it.
+# not exist on Central/Aliyun. `clean package` resolves only artifacts actually
+# needed for compilation and succeeds with this mirror.
+COPY monitor-backend/maven-settings-aliyun.xml ./maven-settings.xml
+
+# Copy the source trees and build (skip tests; the CI/runtime env has no MySQL/Kafka)
 COPY monitor-common/src monitor-common/src
 COPY monitor-flink-job/src monitor-flink-job/src
 COPY monitor-backend/src monitor-backend/src
-RUN mvn -B clean package -DskipTests
+RUN mvn -s ./maven-settings.xml -B clean package -DskipTests
 
 # Extract the fat jar into a directory layout here (the JDK 'jar' tool is available
 # in this builder stage). The runtime stage (JRE only) has no 'jar' command, so we
