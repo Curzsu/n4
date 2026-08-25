@@ -155,6 +155,64 @@ curl -I http://47.121.30.136/                   # 前端页面应返回 200
 
 开发机（`/opt` 下的中间件 + N4-monitor）要复制一份到测试机作为测试环境，用 `deploy/pack.sh`（开发机打包） + `deploy/unpack.sh`（测试机还原）两个脚本完成。
 
+### 测试环境准备：安装 Docker 官方版
+
+测试机必须装 **Docker 官方版（Engine + Compose v2 插件）**。脚本依赖 `docker compose`（v2 语法）、`docker load`、host 网络、HEALTHCHECK，官方最新版最稳。**不要用 `apt install podman-docker` 或 `docker.io`**：podman-docker 只是把 podman 伪装成 docker 的兼容层（compose 兼容差）；docker.io 是 Ubuntu 打包的老版 Moby，不带 compose v2 插件。
+
+**若误装了 `podman-docker`，先回退**（若安装还在进行，先 `Ctrl+C` 中断）：
+
+```bash
+# 卸载 podman-docker 及其依赖（不影响系统）
+sudo apt-get remove -y podman-docker podman
+sudo apt-get autoremove -y
+docker -v        # 应提示 command not found（正常）
+```
+
+**安装 Docker 官方版（Ubuntu/Debian）**：
+
+```bash
+# 1. 卸载可能存在的旧 docker 包
+sudo apt-get remove -y docker docker-engine docker.io containerd runc
+
+# 2. 依赖
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl gnupg
+
+# 3. 添加 Docker 官方 GPG key + 仓库（Debian 请把 URL 的 ubuntu 换成 debian）
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# 4. 安装 Engine + Compose 插件
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# 5. 验证（两个都应有输出）
+sudo docker --version
+sudo docker compose version
+```
+
+**国内服务器（如阿里云）下载慢时，用阿里云镜像源**，把第 3、4 步的 `download.docker.com` 换成 `mirrors.aliyun.com/docker-ce`：
+
+```bash
+curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://mirrors.aliyun.com/docker-ce/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+```
+
+装完建议确认系统是 Ubuntu 还是 Debian（`cat /etc/os-release`），源地址要对应。
+
+### 开发机：一键打包
+
 **迁移范围（设计约定）**：
 - **迁移**：代码、compose 配置、N4-monitor 自建镜像、`.env` 配置、中间件**配置文件/配置目录**（如 emqx `./etc`）、FUXA 等自定义镜像、以及**数据挂载目录的结构**（空目录，保证容器启动时挂载点存在）。
 - **不迁移（业务数据）**：MySQL 表数据、TDengine 时序数据、Redis 缓存、Kafka 消息、以及 EMQX **数据目录**（`./data` / named volume）里保存的运行时配置（Dashboard 里改的认证、规则、桥接等）。测试机以空库/默认状态启动，可用种子数据或 SQL 脚本初始化。
