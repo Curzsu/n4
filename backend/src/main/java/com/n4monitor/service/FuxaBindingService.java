@@ -2,7 +2,6 @@ package com.n4monitor.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.n4monitor.config.FuxaProperties;
 import com.n4monitor.dto.FuxaBindingDto;
@@ -23,15 +22,16 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
 @Service
 public class FuxaBindingService {
     private static final String SCRIPT_ID = "s_n4_dynamic_device_selector";
+    private static final String CABIN_PANEL_BRIDGE_SCRIPT_ID = "s_n4_cabin_device_panel_bridge";
     private static final String SOURCE_DEVICE_STYLE_START = "/* N4 source-device page begin */";
     private static final String SOURCE_DEVICE_STYLE_END = "/* N4 source-device page end */";
+    private volatile boolean cabinPanelBridgeInstalled;
 
     private final FuxaProperties properties;
     private final FuxaBindingRepository repository;
@@ -204,6 +204,32 @@ public class FuxaBindingService {
         );
     }
 
+    /**
+     * Installs a small client-side bridge used only by N4-embedded cabin
+     * views. It observes existing slot-pool openers and sends their real
+     * from-to mappings to the outer Vue page with postMessage.
+     */
+    public synchronized void ensureCabinPanelBridgeInstalled() {
+        if (cabinPanelBridgeInstalled) {
+            return;
+        }
+        ObjectNode script = objectMapper.createObjectNode();
+        script.put("id", CABIN_PANEL_BRIDGE_SCRIPT_ID);
+        script.put("name", "n4CabinDevicePanelBridge");
+        script.put("mode", "CLIENT");
+        script.put("sync", false);
+        script.put("permission", 0);
+        script.set("parameters", objectMapper.createArrayNode());
+        script.set("permissionRoles", objectMapper.createObjectNode().set("enabled", objectMapper.createArrayNode()));
+        script.set("scheduling", objectMapper.createObjectNode()
+            .put("mode", "interval")
+            .put("interval", 0.2)
+            .set("schedules", objectMapper.createArrayNode()));
+        script.put("code", loadResource("fuxa/cabin-device-panel-bridge.js"));
+        setClientScript(script);
+        cabinPanelBridgeInstalled = true;
+    }
+
     private Device resolveDevice(FuxaDiscoveryRequest request) {
         if (request.getDeviceId() != null) {
             return deviceMapper.findByDeviceId(request.getDeviceId());
@@ -372,47 +398,18 @@ public class FuxaBindingService {
     }
 
     private void setClientScript(ObjectNode script) {
-        ObjectNode project = getProject();
-        ArrayNode scripts = objectMapper.createArrayNode();
-        JsonNode existingScripts = project.get("scripts");
+        // FUXA projects with high-resolution cabin layouts easily exceed the
+        // /api/project request limit. set-script updates exactly one script
+        // and preserves every view, image, device and existing script.
+        setProjectData("set-script", script);
+    }
 
-        if (existingScripts != null && existingScripts.isArray()) {
-            existingScripts.forEach(existing -> {
-                if (!SCRIPT_ID.equals(existing.path("id").asText())) {
-                    scripts.add(existing.deepCopy());
-                }
-            });
-        } else if (existingScripts != null
-            && existingScripts.isObject()
-            && !SCRIPT_ID.equals(existingScripts.path("id").asText())) {
-            scripts.add(existingScripts.deepCopy());
-        }
-        scripts.add(script);
-        project.set("scripts", scripts);
-
-        ObjectNode clientAccess = project.path("client-access").isObject()
-            ? ((ObjectNode) project.path("client-access")).deepCopy()
-            : objectMapper.createObjectNode();
-        Set<String> allowedFunctions = new LinkedHashSet<>();
-        JsonNode existingFunctions = clientAccess.path("scriptSystemFunctions");
-        if (existingFunctions.isArray()) {
-            existingFunctions.forEach(function -> allowedFunctions.add(function.asText()));
-        }
-        allowedFunctions.add("$openCard");
-        ArrayNode functions = objectMapper.createArrayNode();
-        allowedFunctions.forEach(functions::add);
-        clientAccess.set("scriptSystemFunctions", functions);
-        project.set("client-access", clientAccess);
-
-        try {
-            fuxaClient.post()
-                .uri("/api/project")
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(objectMapper.writeValueAsString(project))
-                .retrieve()
-                .toBodilessEntity();
-        } catch (Exception ex) {
-            throw new IllegalStateException("Cannot update FUXA client scripts: " + ex.getMessage(), ex);
+    /** Load a bundled FUXA client-side helper from the application classpath. */
+    private String loadResource(String path) {
+        try (var input = new org.springframework.core.io.ClassPathResource(path).getInputStream()) {
+            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (java.io.IOException ex) {
+            throw new IllegalStateException("Missing bundled FUXA resource: " + path, ex);
         }
     }
 

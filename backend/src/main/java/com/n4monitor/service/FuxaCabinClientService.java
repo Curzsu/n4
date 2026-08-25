@@ -31,13 +31,15 @@ public class FuxaCabinClientService {
     private static final Logger LOGGER = LoggerFactory.getLogger(FuxaCabinClientService.class);
     private final FuxaProperties properties;
     private final RestClient fuxaClient;
+    private final FuxaBindingService bindingService;
     private final Map<String, Object> cabinLocks = new ConcurrentHashMap<>();
     private final Map<String, Set<String>> sessionsByCabin = new ConcurrentHashMap<>();
     private final Map<String, Instant> idleSinceByCabin = new ConcurrentHashMap<>();
     private final Set<String> enabledCabins = ConcurrentHashMap.newKeySet();
 
-    public FuxaCabinClientService(FuxaProperties properties) {
+    public FuxaCabinClientService(FuxaProperties properties, FuxaBindingService bindingService) {
         this.properties = properties;
+        this.bindingService = bindingService;
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Duration.ofSeconds(5));
         requestFactory.setReadTimeout(Duration.ofSeconds(15));
@@ -57,6 +59,13 @@ public class FuxaCabinClientService {
         LOGGER.info("Opening FUXA cabin session: cabin='{}', session='{}'", cabinName, sessionId);
         return withCabinLock(cabinName, () -> {
             FuxaProperties.CabinClient cabin = getCabin(cabinName);
+            try {
+                bindingService.ensureCabinPanelBridgeInstalled();
+            } catch (Exception ex) {
+                // The HMI itself must remain usable if the optional outer-page
+                // bridge cannot be refreshed (for example, while FUXA is restarting).
+                LOGGER.warn("Could not install the FUXA device-panel bridge: {}", ex.getMessage());
+            }
             Set<String> sessions = getSessions(cabinName);
             if (!enabledCabins.contains(normalize(cabinName))) {
                 enableDevice(cabin, true);

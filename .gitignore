@@ -7,6 +7,13 @@
 backend/target/
 node_modules/
 frontend/dist/
+.m2/
+.npm-cache/
+.vite-cache/
+monitor-backend/target/
+monitor-backend/logs/
+monitor-common/target/
+monitor-flink-job/target/
 
 # Environment
 *.env

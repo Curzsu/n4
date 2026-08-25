@@ -43,6 +43,12 @@ const router = createRouter({
       name: 'dashboard-nav-device',
       component: () => import('@/views/DeviceMonitorView.vue'),
     },
+    {
+      path: '/fuxa-device-points',
+      name: 'fuxa-device-points',
+      component: () => import('@/views/FuxaDevicePointFrameView.vue'),
+      meta: { bare: true },
+    },
   ],
 })
 
