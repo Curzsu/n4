@@ -93,10 +93,27 @@ for name in emqx fuxa kafka mysql redis tdengine; do
   fi
 done
 
-# ---- 5. Build & start N4-monitor ------------------------------------------
-echo "==> Building and starting N4-monitor ..."
+# ---- 5. Start N4-monitor --------------------------------------------------
+# Prefer the images already loaded from the pack (docker load in step 1) so a
+# test server never rebuilds (Maven central / npm downloads are slow or blocked
+# on restricted networks). Only build when an image is missing - e.g. a pack
+# produced without that image, or a local source change the operator wants.
+echo "==> Starting N4-monitor ..."
 cd "${TARGET_ROOT}/N4-monitor"
-docker compose build n4-monitor-backend n4-monitor-frontend 2>/dev/null || true
+
+NEED_BUILD=0
+for img in "n4-monitor-backend:latest" "n4-monitor-frontend:latest"; do
+  if ! docker image inspect "$img" >/dev/null 2>&1; then
+    echo "    - image $img not present locally, will build"
+    NEED_BUILD=1
+  fi
+done
+
+if [ "$NEED_BUILD" = "1" ]; then
+  echo "==> Building missing N4-monitor images ..."
+  docker compose build n4-monitor-backend n4-monitor-frontend 2>/dev/null || true
+fi
+
 docker compose up -d
 
 echo ""

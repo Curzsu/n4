@@ -274,7 +274,7 @@ sudo ./unpack.sh /opt/n4-monitor-pack-<时间戳>.tar.gz
 2. 把 N4-monitor 代码 + `.env` 放到 `/opt/N4-monitor`；
 3. 把各中间件的 compose 定义 + 配置目录 + 空数据目录放到 `/opt/<name>`（bind-mount 挂载点已就绪）；
 4. 逐个 `docker compose up -d` 启动中间件（镜像已本地加载；数据卷全新/空目录初始化）；
-5. `docker compose up -d` 启动 N4-monitor。
+5. 启动 N4-monitor：镜像已从包加载则**直接 `docker compose up -d`**（不重新构建，避免测试机 Maven/npm 下载慢或超时）；仅当镜像缺失时才 `docker compose build`。
 
 ### 各中间件迁移策略（基于开发机实际 compose 核实）
 
