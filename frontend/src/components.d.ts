@@ -56,6 +56,7 @@ declare module 'vue' {
     ElUpload: typeof import('element-plus/es')['ElUpload']
     EnergyTrendChart: typeof import('./components/charts/EnergyTrendChart.vue')['default']
     FuxaCabinMonitorPanel: typeof import('./components/FuxaCabinMonitorPanel.vue')['default']
+    FuxaDevicePointList: typeof import('./components/FuxaDevicePointList.vue')['default']
     FuxaMonitorPanel: typeof import('./components/FuxaMonitorPanel.vue')['default']
     KpiCardsRow: typeof import('./components/KpiCardsRow.vue')['default']
     LeftSidebar: typeof import('./components/LeftSidebar.vue')['default']
