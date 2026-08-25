@@ -378,15 +378,6 @@ public class FuxaBindingService {
         setProjectData("set-script", script);
     }
 
-    /** Load a bundled FUXA client-side helper from the application classpath. */
-    private String loadResource(String path) {
-        try (var input = new org.springframework.core.io.ClassPathResource(path).getInputStream()) {
-            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (java.io.IOException ex) {
-            throw new IllegalStateException("Missing bundled FUXA resource: " + path, ex);
-        }
-    }
-
     private FuxaBindingDto toDto(FuxaDeviceBinding binding) {
         String iframeUrl = UriComponentsBuilder.fromUriString(properties.getBaseUrl())
             .path("/home")
