@@ -60,6 +60,7 @@ public class FuxaCabinClientService {
         return withCabinLock(cabinName, () -> {
             FuxaProperties.CabinClient cabin = getCabin(cabinName);
             try {
+                bindingService.ensureCabinRuntimeBridgeInstalled();
                 bindingService.ensureCabinPanelBridgeInstalled();
             } catch (Exception ex) {
                 // The HMI itself must remain usable if the optional outer-page
@@ -75,6 +76,20 @@ public class FuxaCabinClientService {
             idleSinceByCabin.remove(normalize(cabinName));
             LOGGER.info("Opened FUXA cabin session: cabin='{}', activeSessions={}", cabinName, sessions.size());
             return toDto(cabinName, cabin, sessionId, true, sessions.size());
+        });
+    }
+
+    /**
+     * Loads the reusable FUXA runtime without enabling the cabin MQTT client.
+     * N4 calls this once while its dashboard is starting, so the first cabin
+     * click can switch an already running FUXA single-page application.
+     */
+    public FuxaCabinSessionDto preloadRuntime(String cabinName) {
+        return withCabinLock(cabinName, () -> {
+            FuxaProperties.CabinClient cabin = getCabin(cabinName);
+            bindingService.ensureCabinRuntimeBridgeInstalled();
+            bindingService.ensureCabinPanelBridgeInstalled();
+            return toDto(cabinName, cabin, null, false, getSessions(cabinName).size());
         });
     }
 

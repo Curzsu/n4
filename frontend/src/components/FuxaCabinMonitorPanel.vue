@@ -32,26 +32,28 @@
         {{ errorMessage }}
       </div>
       <iframe
-        v-else-if="monitoring && session?.iframeUrl"
-        :key="iframeUrl"
-        :src="iframeUrl"
+        v-if="iframeSrc"
+        ref="frame"
+        v-show="monitoring && !errorMessage"
+        :src="iframeSrc"
         :style="frameStyle"
         title="FUXA cabin graphical monitor"
-        @load="frameLoaded = true"
+        @load="handleFrameLoad"
       />
-      <div v-else class="monitor-idle">The cabin MQTT client is stopped for this monitor session.</div>
+      <div v-else-if="!errorMessage" class="monitor-idle">The cabin MQTT client is stopped for this monitor session.</div>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Monitor, RefreshRight, SwitchButton } from '@element-plus/icons-vue'
 import { deviceApi } from '@/api/device'
 import type { FuxaCabinSession } from '@/api/types'
 
 const props = defineProps<{
   cabinName: string
+  active?: boolean
 }>()
 
 const loading = ref(true)
@@ -61,6 +63,7 @@ const session = ref<FuxaCabinSession | null>(null)
 const errorMessage = ref('')
 const monitoring = ref(false)
 const frameShell = ref<HTMLElement | null>(null)
+const frame = ref<HTMLIFrameElement | null>(null)
 const frameScale = ref(1)
 const frameOffsetX = ref(0)
 const sessionId = typeof crypto !== 'undefined' && crypto.randomUUID
@@ -68,10 +71,13 @@ const sessionId = typeof crypto !== 'undefined' && crypto.randomUUID
   : `cabin-${Date.now()}-${Math.random().toString(36).slice(2)}`
 let releaseRequested = false
 let resizeObserver: ResizeObserver | null = null
+let frameLoadedTimer: ReturnType<typeof setTimeout> | null = null
+let currentCabinName = ''
+const iframeSrc = ref('')
 
 const viewWidth = computed(() => Math.max(1, session.value?.viewWidth || 1780))
 const viewHeight = computed(() => Math.max(1, session.value?.viewHeight || 980))
-const frameHeight = computed(() => monitoring.value && session.value?.iframeUrl
+const frameHeight = computed(() => monitoring.value && iframeSrc.value
   ? Math.ceil(viewHeight.value * frameScale.value)
   : 320)
 const frameStyle = computed(() => ({
@@ -80,15 +86,53 @@ const frameStyle = computed(() => ({
   left: `${frameOffsetX.value}px`,
   transform: `scale(${frameScale.value})`,
 }))
-const iframeUrl = computed(() => {
-  if (!session.value?.iframeUrl) return ''
-  const url = new URL(session.value.iframeUrl, window.location.origin)
+function buildIframeUrl(cabinSession: FuxaCabinSession) {
+  if (!cabinSession.iframeUrl) return ''
+  const url = new URL(cabinSession.iframeUrl, window.location.origin)
   // The FUXA bridge uses this exact origin instead of a wildcard when it
   // builds the device-point iframe inside an opened FUXA detail card.
   url.searchParams.set('n4ParentOrigin', window.location.origin)
   url.searchParams.set('n4DeviceListUrl', new URL('/fuxa-device-points', window.location.origin).toString())
   return url.toString()
-})
+}
+
+function getFuxaOrigin() {
+  return iframeSrc.value ? new URL(iframeSrc.value, window.location.origin).origin : window.location.origin
+}
+
+function requestCabinSwitch(cabinSession: FuxaCabinSession) {
+  if (!frame.value?.contentWindow || !cabinSession.fuxaDeviceName || !cabinSession.viewName) {
+    return
+  }
+  frame.value.contentWindow.postMessage({
+    type: 'n4-cabin-runtime:open',
+    mqttDeviceName: cabinSession.fuxaDeviceName,
+    cabinViewName: cabinSession.viewName,
+  }, getFuxaOrigin())
+}
+
+function handleFrameLoad() {
+  frameLoaded.value = true
+  if (frameLoadedTimer) clearTimeout(frameLoadedTimer)
+  frameLoadedTimer = setTimeout(() => {
+    if (session.value) requestCabinSwitch(session.value)
+    frameLoadedTimer = null
+  }, 250)
+}
+
+function handleRuntimeMessage(event: MessageEvent) {
+  if (event.origin !== getFuxaOrigin()) return
+  const message = event.data
+  if (!message || typeof message !== 'object') return
+  if (message.type === 'n4-cabin-runtime:opened') {
+    loading.value = false
+    errorMessage.value = ''
+  }
+  if (message.type === 'n4-cabin-runtime:error') {
+    loading.value = false
+    errorMessage.value = message.message || 'Unable to switch the FUXA cabin view.'
+  }
+}
 
 function updateFrameScale() {
   const availableWidth = frameShell.value?.clientWidth || viewWidth.value
@@ -97,16 +141,25 @@ function updateFrameScale() {
   frameOffsetX.value = Math.max(0, (availableWidth - viewWidth.value * frameScale.value) / 2)
 }
 
-async function openCabin() {
+async function openCabin(cabinName = props.cabinName) {
   loading.value = true
-  frameLoaded.value = false
   errorMessage.value = ''
   try {
-    session.value = await deviceApi.openFuxaCabinSession(props.cabinName, sessionId)
+    if (currentCabinName && currentCabinName !== cabinName && monitoring.value) {
+      await deviceApi.releaseFuxaCabinSession(currentCabinName, sessionId)
+    }
+    session.value = await deviceApi.openFuxaCabinSession(cabinName, sessionId)
+    currentCabinName = cabinName
     monitoring.value = true
     releaseRequested = false
     await nextTick()
     updateFrameScale()
+    if (!iframeSrc.value) {
+      frameLoaded.value = false
+      iframeSrc.value = buildIframeUrl(session.value)
+    } else if (frameLoaded.value) {
+      requestCabinSwitch(session.value)
+    }
   } catch (error) {
     console.error(`Failed to open FUXA cabin ${props.cabinName}`, error)
     errorMessage.value = error instanceof Error
@@ -123,11 +176,7 @@ async function toggleCabin() {
     if (monitoring.value) {
       await releaseCabin()
     } else {
-      session.value = await deviceApi.openFuxaCabinSession(props.cabinName, sessionId)
-      monitoring.value = true
-      releaseRequested = false
-      await nextTick()
-      updateFrameScale()
+      await openCabin()
     }
   } catch (error) {
     console.error(`Failed to toggle FUXA cabin ${props.cabinName}`, error)
@@ -136,11 +185,11 @@ async function toggleCabin() {
   }
 }
 
-async function releaseCabin() {
+async function releaseCabin(cabinName = currentCabinName || props.cabinName) {
   if (!monitoring.value || releaseRequested) return
   releaseRequested = true
   try {
-    session.value = await deviceApi.releaseFuxaCabinSession(props.cabinName, sessionId)
+    session.value = await deviceApi.releaseFuxaCabinSession(cabinName, sessionId)
     monitoring.value = false
   } finally {
     releaseRequested = false
@@ -151,7 +200,7 @@ function releaseOnPageExit() {
   if (!monitoring.value || releaseRequested) return
   releaseRequested = true
   monitoring.value = false
-  const cabin = encodeURIComponent(props.cabinName)
+  const cabin = encodeURIComponent(currentCabinName || props.cabinName)
   const viewer = encodeURIComponent(sessionId)
   void fetch(`/api/fuxa/cabins/${cabin}/sessions/${viewer}`, {
     method: 'DELETE',
@@ -162,17 +211,53 @@ function releaseOnPageExit() {
 
 onMounted(() => {
   window.addEventListener('pagehide', releaseOnPageExit)
+  window.addEventListener('message', handleRuntimeMessage)
   resizeObserver = new ResizeObserver(updateFrameScale)
   if (frameShell.value) resizeObserver.observe(frameShell.value)
   updateFrameScale()
-  void openCabin()
+  if (props.active === false) {
+    void preloadCabin()
+  } else {
+    void openCabin()
+  }
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('pagehide', releaseOnPageExit)
+  window.removeEventListener('message', handleRuntimeMessage)
+  if (frameLoadedTimer) clearTimeout(frameLoadedTimer)
   resizeObserver?.disconnect()
   releaseOnPageExit()
 })
+
+watch(() => props.cabinName, cabinName => {
+  if (props.active !== false && cabinName !== currentCabinName) {
+    void openCabin(cabinName)
+  }
+})
+
+watch(() => props.active, active => {
+  if (active === false) {
+    void releaseCabin()
+  } else if (!monitoring.value) {
+    void openCabin()
+  }
+})
+
+async function preloadCabin() {
+  try {
+    const runtime = await deviceApi.preloadFuxaCabinRuntime(props.cabinName)
+    if (iframeSrc.value) return
+    const url = new URL(buildIframeUrl(runtime), window.location.origin)
+    url.searchParams.delete('mqttDeviceName')
+    url.searchParams.delete('cabinViewName')
+    iframeSrc.value = url.toString()
+  } catch (error) {
+    console.warn('FUXA runtime preloading is unavailable; it will load on first cabin open.', error)
+  } finally {
+    loading.value = false
+  }
+}
 </script>
 
 <style scoped lang="scss">

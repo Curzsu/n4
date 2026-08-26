@@ -54,6 +54,17 @@ public class FuxaBindingController {
         return ApiResponse.success(cabinClientService.getConfiguredCabins());
     }
 
+    @PostMapping("/cabins/{cabinName}/runtime/preload")
+    public ApiResponse<FuxaCabinSessionDto> preloadCabinRuntime(@PathVariable String cabinName) {
+        try {
+            return ApiResponse.success(cabinClientService.preloadRuntime(cabinName));
+        } catch (IllegalArgumentException ex) {
+            return ApiResponse.error(404, ex.getMessage());
+        } catch (IllegalStateException ex) {
+            return ApiResponse.error(502, ex.getMessage());
+        }
+    }
+
     @PostMapping("/cabins/{cabinName}/sessions/{sessionId}")
     public ApiResponse<FuxaCabinSessionDto> openCabinSession(
         @PathVariable String cabinName,

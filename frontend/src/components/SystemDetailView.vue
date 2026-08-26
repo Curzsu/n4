@@ -65,7 +65,6 @@
 
     <FuxaCabinMonitorPanel
       v-if="isConfiguredCabin"
-      :key="currentNodeName"
       :cabin-name="currentNodeName"
     />
 

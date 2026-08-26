@@ -1,6 +1,12 @@
 <template>
   <div class="dashboard-view" v-loading="store.loading">
     <!-- 未选导航节点：显示首页数据总览 -->
+    <FuxaCabinMonitorPanel
+      v-if="mountedCabinName"
+      v-show="isConfiguredCabin"
+      :cabin-name="mountedCabinName"
+      :active="isConfiguredCabin"
+    />
     <template v-if="!store.currentNavNode">
       <KpiCardsRow />
       <BuildingPlaceholder />
@@ -8,11 +14,6 @@
     </template>
     <!-- 选了导航节点：显示该节点下设备列表 -->
     <template v-else>
-      <FuxaCabinMonitorPanel
-        v-if="isConfiguredCabin"
-        :key="store.currentNavNode.nodeName"
-        :cabin-name="store.currentNavNode.nodeName"
-      />
       <DeviceListView
         :devices="store.currentDevices"
         :title="currentTitle"
@@ -24,7 +25,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import KpiCardsRow from '@/components/KpiCardsRow.vue'
 import BuildingPlaceholder from '@/components/BuildingPlaceholder.vue'
@@ -38,6 +39,7 @@ import type { DeviceDeployItem } from '@/api/types'
 const store = useDashboardStore()
 const router = useRouter()
 const configuredCabins = ref<string[]>([])
+const mountedCabinName = ref('')
 
 const currentTitle = computed(() => {
   if (!store.currentNavNode) return '设备列表'
@@ -63,7 +65,22 @@ async function loadConfiguredCabins() {
     console.warn('Failed to load FUXA cabin-client mappings', error)
     configuredCabins.value = []
   }
+  if (!mountedCabinName.value && configuredCabins.value.length) {
+    mountedCabinName.value = configuredCabins.value[0]
+  }
 }
+
+watch(
+  [() => store.currentNavNode?.nodeName, configuredCabins],
+  ([nodeName]) => {
+    const candidate = nodeName?.trim()
+    if (!candidate) return
+    if (configuredCabins.value.some(cabin => cabin.trim().toLowerCase() === candidate.toLowerCase())) {
+      mountedCabinName.value = candidate
+    }
+  },
+  { immediate: true },
+)
 
 function goMonitor(device: DeviceDeployItem) {
   router.push(`/dashboard-nav/device/${device.deviceDeployId}`)

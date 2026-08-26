@@ -29,9 +29,11 @@ import java.util.Set;
 public class FuxaBindingService {
     private static final String SCRIPT_ID = "s_n4_dynamic_device_selector";
     private static final String CABIN_PANEL_BRIDGE_SCRIPT_ID = "s_n4_cabin_device_panel_bridge";
+    private static final String CABIN_RUNTIME_BRIDGE_SCRIPT_ID = "s_n4_cabin_runtime_mapper";
     private static final String SOURCE_DEVICE_STYLE_START = "/* N4 source-device page begin */";
     private static final String SOURCE_DEVICE_STYLE_END = "/* N4 source-device page end */";
     private volatile boolean cabinPanelBridgeInstalled;
+    private volatile boolean cabinRuntimeBridgeInstalled;
 
     private final FuxaProperties properties;
     private final FuxaBindingRepository repository;
@@ -228,6 +230,32 @@ public class FuxaBindingService {
         script.put("code", loadResource("fuxa/cabin-device-panel-bridge.js"));
         setClientScript(script);
         cabinPanelBridgeInstalled = true;
+    }
+
+    /**
+     * Keeps the embedded FUXA client alive while N4 switches between cabin
+     * views. The first iframe load still uses URL parameters; later changes
+     * arrive through postMessage and do not reload the Angular application.
+     */
+    public synchronized void ensureCabinRuntimeBridgeInstalled() {
+        if (cabinRuntimeBridgeInstalled) {
+            return;
+        }
+        ObjectNode script = objectMapper.createObjectNode();
+        script.put("id", CABIN_RUNTIME_BRIDGE_SCRIPT_ID);
+        script.put("name", "n4OpenReusableCabinView");
+        script.put("mode", "CLIENT");
+        script.put("sync", false);
+        script.put("permission", 0);
+        script.set("parameters", objectMapper.createArrayNode());
+        script.set("permissionRoles", objectMapper.createObjectNode().set("enabled", objectMapper.createArrayNode()));
+        script.set("scheduling", objectMapper.createObjectNode()
+            .put("mode", "start")
+            .put("interval", 0)
+            .set("schedules", objectMapper.createArrayNode()));
+        script.put("code", loadResource("fuxa/cabin-runtime-bridge.js"));
+        setClientScript(script);
+        cabinRuntimeBridgeInstalled = true;
     }
 
     private Device resolveDevice(FuxaDiscoveryRequest request) {
