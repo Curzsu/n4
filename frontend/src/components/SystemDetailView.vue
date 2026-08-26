@@ -110,7 +110,7 @@
               type="primary" 
               size="small" 
               plain
-              @click="viewMonitorPoints(row)"
+              @click="viewMonitorPoints(row as DeviceTreeNode)"
               class="action-btn"
             >
               View Points
@@ -200,7 +200,7 @@ const currentNodeType = computed(() => {
 // Recursively gather all devices under the selected node
 const devicesList = computed(() => {
   if (!store.selectedNode) return []
-  return getDevicesRec(store.selectedNode)
+  return getDevicesRec(store.selectedNode as unknown as DeviceTreeNode)
 })
 
 function getDevicesRec(node: DeviceTreeNode): DeviceTreeNode[] {
@@ -228,7 +228,7 @@ const filteredDevices = computed(() => {
 // Calculate statistics
 const deviceStats = computed(() => {
   const list = devicesList.value
-  let total = list.length
+  const total = list.length
   let online = 0
   let offline = 0
   let fault = 0 // Including maintenance(3) and fault(4)

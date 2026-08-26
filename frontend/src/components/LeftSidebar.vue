@@ -4,20 +4,20 @@
     <div class="sidebar-header">
       <div class="site-selector">
         <el-icon><Location /></el-icon>
-        <span v-if="!isCollapsed" class="site-title">设备导航</span>
+        <span v-if="!isCollapsed" class="site-title">Device Navigation</span>
       </div>
-      
+
       <div v-if="!isCollapsed" class="header-actions">
         <el-input
           v-model="searchText"
-          placeholder="搜索系统或真实设备..."
+          placeholder="Search systems or devices..."
           size="small"
           :prefix-icon="Search"
           clearable
           class="sidebar-search"
         />
         <div class="quick-tools">
-          <el-tooltip v-if="mode !== 'nav'" content="刷新真实设备树" placement="top">
+          <el-tooltip v-if="mode !== 'nav'" content="Refresh Device Tree" placement="top">
             <el-button type="info" size="small" circle :icon="RefreshRight" @click="refreshTreeData" />
           </el-tooltip>
         </div>
@@ -45,12 +45,12 @@
                 v-if="data.type === 'device'" 
                 :class="['status-dot', getStatusClass(data.status)]"
               ></span>
-              
+
               <!-- Node Icon based on type -->
               <el-icon class="node-icon" :class="{ 'real-data-icon': data.hasRealData }" v-if="getNodeIcon(data)">
                 <component :is="getNodeIcon(data)" />
               </el-icon>
-              
+
               <span class="label-text" :title="data.label">{{ data.label }}</span>
             </span>
 
@@ -67,7 +67,7 @@
     <div class="sidebar-footer">
       <span class="collapse-btn" @click="toggleCollapse">
         <el-icon><Expand v-if="isCollapsed" /><Fold v-else /></el-icon>
-        <span v-if="!isCollapsed">折叠导航栏</span>
+        <span v-if="!isCollapsed">Collapse Sidebar</span>
       </span>
     </div>
   </div>
@@ -91,9 +91,10 @@ import {
   DataLine,
   DataAnalysis
 } from '@element-plus/icons-vue'
+import type { TreeNodeData } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { useDashboardStore } from '@/stores/dashboard'
-import type { DeviceTreeNode, NavTreeNode } from '@/api/types'
+import type { NavTreeNode, UiTreeNode } from '@/api/types'
 import type ElTree from 'element-plus/es/components/tree/index'
 
 const route = useRoute()
@@ -103,43 +104,52 @@ const props = defineProps<{
   mode?: 'default' | 'nav'
   navTree?: NavTreeNode[]
   loading?: boolean
+  // Collapse state when this sidebar first mounts or the route changes.
+  defaultCollapsed?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'node-click', node: NavTreeNode): void
 }>()
 
-const isCollapsed = ref(false)
+const isCollapsed = ref(props.defaultCollapsed ?? false)
 const searchText = ref('')
 const treeRef = ref<InstanceType<typeof ElTree>>()
+
+// Reset to the route's default collapse state whenever it changes.
+watch(() => props.defaultCollapsed, (val) => {
+  isCollapsed.value = val ?? false
+})
 
 const treeProps = {
   children: 'children',
   label: 'label',
 }
 
-/**
- * Option A: Pure 100% Real Database Tree
- * Renders devices, systems, and product templates fetched directly from the MySQL database.
- */
+const isNavBasedRoute = computed(() =>
+  props.mode === 'nav' || route.path === '/device-deployment' || route.path === '/system-deployment'
+)
+
 const visibleTreeData = computed(() => {
-  if (props.mode === 'nav') {
-    // 顶部加一个"数据总览"虚拟节点，点击回到首页数据图
-    const overviewNode = {
-      id: 'overview',
-      label: '数据总览',
-      type: 'site',
-      status: 1,
-      raw: null,
-      children: []
+  if (isNavBasedRoute.value) {
+    if (route.path === '/') {
+      const overviewNode: UiTreeNode = {
+        id: 'overview',
+        label: 'Data Overview',
+        type: 'site',
+        status: 1,
+        raw: null,
+        children: []
+      }
+      return [overviewNode, ...(props.navTree || store.navTree || []).map(n => toTreeNode(n))]
     }
-    return [overviewNode, ...(props.navTree || []).map(n => toTreeNode(n))]
+    return (props.navTree || store.navTree || []).map(n => toTreeNode(n))
   }
   if (route.path === '/device-template') {
     return [
       {
         id: 'root_tmpl',
-        label: '全部设备模板 (数据库真实表)',
+        label: 'All Device Templates',
         type: 'site',
         status: 1,
         children: store.allTemplates.map(t => ({
@@ -154,12 +164,11 @@ const visibleTreeData = computed(() => {
     ]
   }
 
-  // Pure 100% Real Device Tree from MySQL DB via backend API
   return store.deviceTree
 })
 
-// NavTreeNode 转 el-tree 节点
-function toTreeNode(n: NavTreeNode): any {
+// Convert NavTreeNode to el-tree node
+function toTreeNode(n: NavTreeNode): UiTreeNode {
   const isLeafGroup = !n.children || n.children.length === 0
   return {
     id: n.nodeId,
@@ -175,12 +184,12 @@ function toTreeNode(n: NavTreeNode): any {
   }
 }
 
-function refreshTreeData() {
-  store.fetchAllDashboardData()
-  ElMessage.success('已从本地数据库刷新最新设备数据树')
+async function refreshTreeData() {
+  await store.loadNavTree()
+  ElMessage.success('Device tree refreshed successfully')
 }
 
-function getNodeIcon(data: any) {
+function getNodeIcon(data: UiTreeNode) {
   if (data.id === 'overview') return DataAnalysis
   if (data.type === 'site') return Location
   if (data.type === 'device') return Monitor
@@ -192,9 +201,9 @@ function getNodeIcon(data: any) {
   return OfficeBuilding
 }
 
-function handleNodeClick(data: any) {
-  if (props.mode === 'nav') {
-    // 点击"数据总览"虚拟节点：清空选中，回到首页数据图
+function handleNodeClick(data: UiTreeNode) {
+  if (isNavBasedRoute.value) {
+    // Clicking "Data Overview" virtual node: reset selection to return to home overview
     if (data.id === 'overview') {
       store.currentNavNode = null
       store.currentDevices = []
@@ -202,11 +211,18 @@ function handleNodeClick(data: any) {
     }
     if (data.raw) {
       emit('node-click', data.raw)
+      store.currentNavNode = data.raw
       return
     }
   }
   store.selectedNode = data
 }
+
+watch(() => store.currentNavNode, (node) => {
+  if (isNavBasedRoute.value && node && treeRef.value) {
+    treeRef.value.setCurrentKey(node.nodeId)
+  }
+})
 
 function toggleCollapse() {
   isCollapsed.value = !isCollapsed.value
@@ -222,11 +238,12 @@ function getStatusClass(status: number): string {
   }
 }
 
-function filterNode(value: string, data: DeviceTreeNode): boolean {
+function filterNode(value: string, data: TreeNodeData): boolean {
   if (!value) return true
   const query = value.toLowerCase()
-  const labelMatch = data.label ? data.label.toLowerCase().includes(query) : false
-  const codeMatch = data.deviceCode ? data.deviceCode.toLowerCase().includes(query) : false
+  const node = data as UiTreeNode
+  const labelMatch = node.label ? node.label.toLowerCase().includes(query) : false
+  const codeMatch = node.deviceCode ? node.deviceCode.toLowerCase().includes(query) : false
   return labelMatch || codeMatch
 }
 
@@ -238,8 +255,8 @@ watch(searchText, (val) => {
 <style scoped lang="scss">
 .left-sidebar {
   width: $sidebar-width;
-  background-color: $bg-card;
-  border-right: 1px solid $border-color;
+  background-color: #111827;
+  border-right: 1px solid #1f2937;
   display: flex;
   flex-direction: column;
   transition: width 0.3s;
@@ -252,20 +269,20 @@ watch(searchText, (val) => {
 }
 
 .sidebar-header {
-  padding: 12px;
-  border-bottom: 1px solid $border-color;
+  padding: 8px 12px;
+  border-bottom: 1px solid #1f2937;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .site-selector {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   color: $accent-green;
-  font-weight: 700;
-  font-size: 14px;
+  font-weight: 600;
+  font-size: 11px;
 
   .site-title {
     letter-spacing: 0.5px;
@@ -275,50 +292,69 @@ watch(searchText, (val) => {
 .header-actions {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 
   .sidebar-search {
     :deep(.el-input__wrapper) {
-      background-color: $bg-dark !important;
+      background-color: #0b1119 !important;
       box-shadow: none !important;
-      border: 1px solid $border-color;
+      border: 1px solid #1f2937;
+      height: 22px !important;
+      padding: 0 6px !important;
+
       &:hover, &.is-focus {
         border-color: $accent-green;
       }
+    }
+
+    :deep(.el-input__inner) {
+      font-size: 10px !important;
+      height: 22px !important;
+      line-height: 22px !important;
     }
   }
 
   .quick-tools {
     display: flex;
     justify-content: flex-end;
-    gap: 6px;
+    gap: 4px;
+
+    :deep(.el-button) {
+      height: 18px !important;
+      width: 18px !important;
+      padding: 0 !important;
+      font-size: 10px !important;
+    }
   }
 }
 
 .sidebar-tree {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 4px;
+  padding: 6px;
 }
 
 /* Custom Tree Styling */
 .custom-nav-tree {
   background: transparent !important;
-  color: $text-primary;
+  color: #e5e7eb;
+  font-size: 10px !important;
 
   :deep(.el-tree-node__content) {
-    height: 32px;
+    height: 22px !important;
     border-radius: 4px;
     margin: 1px 0;
+    padding: 0 4px !important;
+
     &:hover {
-      background-color: rgba(255, 255, 255, 0.06) !important;
+      background-color: #1a2332 !important;
     }
   }
 
   :deep(.el-tree-node.is-current > .el-tree-node__content) {
-    background-color: rgba(0, 230, 118, 0.15) !important;
-    color: $accent-green !important;
-    font-weight: 600;
+    background-color: rgba(16, 185, 129, 0.16) !important;
+    color: #34d399 !important;
+    font-weight: 500;
   }
 }
 
@@ -327,21 +363,21 @@ watch(searchText, (val) => {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding-right: 6px;
+  padding-right: 4px;
   overflow: hidden;
 }
 
 .tree-node-label {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
+  gap: 5px;
+  font-size: 10px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 
   .node-icon {
-    font-size: 14px;
+    font-size: 12px;
     color: $text-secondary;
   }
 
@@ -353,28 +389,30 @@ watch(searchText, (val) => {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-size: 10px;
   }
 }
 
 .device-code-badge {
-  font-size: 10px;
+  font-size: 9px;
   color: $text-secondary;
   background-color: rgba(255, 255, 255, 0.05);
-  padding: 1px 4px;
-  border-radius: 3px;
+  padding: 0 3px;
+  border-radius: 2px;
   font-family: monospace;
+  line-height: 14px;
 }
 
 .status-dot {
-  width: 7px;
-  height: 7px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   display: inline-block;
   flex-shrink: 0;
-  &.online { background-color: $accent-green; box-shadow: 0 0 6px rgba(0,230,118,0.6); }
+  &.online { background-color: $accent-green; box-shadow: 0 0 4px rgba(0,230,118,0.6); }
   &.offline { background-color: $text-muted; }
-  &.maintenance { background-color: $accent-yellow; box-shadow: 0 0 6px rgba(255,213,79,0.6); }
-  &.fault { background-color: $accent-red; box-shadow: 0 0 6px rgba(255,82,82,0.6); }
+  &.maintenance { background-color: $accent-yellow; box-shadow: 0 0 4px rgba(255,213,79,0.6); }
+  &.fault { background-color: $accent-red; box-shadow: 0 0 4px rgba(255,82,82,0.6); }
 }
 
 .node-system-group {
@@ -388,25 +426,25 @@ watch(searchText, (val) => {
 .node-system-sub-deep {
   color: $text-primary;
   font-weight: 400;
-  padding-left: 4px;
+  padding-left: 2px;
 }
 .node-device {
   color: $text-muted;
-  font-size: 12px;
+  font-size: 10px;
 }
 
 .sidebar-footer {
-  padding: 10px;
-  border-top: 1px solid $border-color;
+  padding: 6px 10px;
+  border-top: 1px solid #1f2937;
   text-align: center;
 }
 
 .collapse-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   color: $text-secondary;
-  font-size: 12px;
+  font-size: 10px;
   cursor: pointer;
   transition: color 0.2s;
   &:hover { color: $text-primary; }

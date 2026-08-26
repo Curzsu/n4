@@ -202,11 +202,13 @@ function releaseOnPageExit() {
   monitoring.value = false
   const cabin = encodeURIComponent(currentCabinName || props.cabinName)
   const viewer = encodeURIComponent(sessionId)
+  // Deliberately a bare fetch: keepalive survives page unload (axios does
+  // not support keepalive); nothing can be done about failures here anyway.
   void fetch(`/api/fuxa/cabins/${cabin}/sessions/${viewer}`, {
     method: 'DELETE',
     credentials: 'same-origin',
     keepalive: true,
-  })
+  }).catch(() => { /* page is unloading; nothing to recover */ })
 }
 
 onMounted(() => {

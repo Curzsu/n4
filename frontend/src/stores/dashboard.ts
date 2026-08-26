@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { dashboardApi } from '@/api/dashboard'
 import { dashboardNavApi } from '@/api/dashboardNav'
 import { templateApi } from '@/api/template'
-import type { KpiMetrics, AlarmSummary, AlarmItem, SystemStatusItem, TrendData, DeviceTreeNode, Product, NavTreeNode, DeviceDeployItem, DeviceTemplate } from '@/api/types'
+import type { KpiMetrics, AlarmSummary, AlarmItem, SystemStatusItem, TrendData, DeviceTreeNode, Product, NavTreeNode, DeviceDeployItem, DeviceTemplate, UiTreeNode } from '@/api/types'
 
 export const useDashboardStore = defineStore('dashboard', () => {
   const kpiMetrics = ref<KpiMetrics | null>(null)
@@ -17,29 +17,44 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const deviceTree = ref<DeviceTreeNode[]>([])
   const allProducts = ref<Product[]>([])
   const allTemplates = ref<DeviceTemplate[]>([])
-  const selectedNode = ref<any | null>(null)
+  const selectedNode = ref<UiTreeNode | null>(null)
   const loading = ref(false)
   const isRightCollapsed = ref(true)
 
-  // ===== Dashboard Nav (两级导航) =====
+  // ===== Dashboard Nav (Two-level Navigation) =====
   const navTree = ref<NavTreeNode[]>([])
   const navLoading = ref(false)
   const currentDevices = ref<DeviceDeployItem[]>([])
   const devicesLoading = ref(false)
   const currentNavNode = ref<NavTreeNode | null>(null)
 
+  function findNavNodeById(nodes: NavTreeNode[], id: number): NavTreeNode | null {
+    for (const n of nodes) {
+      if (n.nodeId === id) return n
+      if (n.children) {
+        const found = findNavNodeById(n.children, id)
+        if (found) return found
+      }
+    }
+    return null
+  }
+
   async function loadNavTree() {
     navLoading.value = true
     try {
       navTree.value = await dashboardNavApi.getNavTree()
+      if (currentNavNode.value) {
+        const refreshed = findNavNodeById(navTree.value, currentNavNode.value.nodeId)
+        currentNavNode.value = refreshed
+      }
     } catch (e) {
-      console.error('加载导航树失败', e)
+      console.error('Failed to load navigation tree', e)
     } finally {
       navLoading.value = false
     }
   }
 
-  /** 收集节点下所有叶子分组节点ID：叶子返回自身，非叶子递归聚合后代叶子 */
+  /** Collect all leaf group node IDs: leaf returns itself, non-leaf recursively aggregates */
   function collectLeafGroupIds(node: NavTreeNode): number[] {
     if (!node.children || node.children.length === 0) {
       return [node.nodeId]
@@ -57,7 +72,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
       )
       currentDevices.value = results.flat()
     } catch (e) {
-      console.error('加载设备列表失败', e)
+      console.error('Failed to load device list', e)
       currentDevices.value = []
     } finally {
       devicesLoading.value = false
@@ -93,12 +108,21 @@ export const useDashboardStore = defineStore('dashboard', () => {
     }
   }
 
-  /** 加载设备模板列表（device_template 表，含真实/Mock 标识） */
+  /**
+   * Narrow refresh after deploy-view mutations (create/update/delete of
+   * products, templates, devices): only template list and nav tree change,
+   * so skip the 8 dashboard KPI/trend calls the old full refresh made.
+   */
+  async function refreshAfterMutation() {
+    await Promise.all([loadTemplates(), loadNavTree()])
+  }
+
+  /** Load device template list from device_template table */
   async function loadTemplates() {
     try {
       allTemplates.value = await templateApi.listTemplates()
     } catch (e) {
-      console.error('加载设备模板列表失败', e)
+      console.error('Failed to load device templates', e)
     }
   }
 
@@ -118,6 +142,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     loading,
     isRightCollapsed,
     fetchAllDashboardData,
+    refreshAfterMutation,
     loadTemplates,
     navTree,
     navLoading,

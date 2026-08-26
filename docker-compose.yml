@@ -1,39 +1,53 @@
 # N4 Monitor - Docker Compose deployment
 # Deploys the backend (Spring Boot + embedded Flink) and frontend (Nginx) containers.
 # External middleware (MySQL/Redis/Kafka/TDengine) and FUXA are assumed to already
-# be running on the host; connection addresses are injected via environment below.
+# be running on the host; connection addresses are interpolated from the .env file
+# next to this compose file (template: .env.example).
 #
 # Usage:
+#   cp .env.example .env    # then fill in real endpoints/credentials
 #   docker compose build
 #   docker compose up -d
 #   docker compose logs -f
 
 services:
   n4-monitor-backend:
-    build: ./backend
+    # Build context is the repo root: the Maven reactor needs all three modules
+    # (monitor-common, monitor-flink-job, monitor-backend) to build the fat jar.
+    build:
+      context: .
+      dockerfile: monitor-backend/Dockerfile
     image: n4-monitor-backend:latest
     container_name: n4-monitor-backend
     restart: unless-stopped
-    ports:
-      - "8089:8089"
+    # Host network: share the host network stack so container-localhost == host
+    # loopback. Redis/MQTT/Kafka on the same machine are reached via the loopback
+    # (no docker bridge/NAT hop). No ports mapping needed - the JVM binds the
+    # host port directly.
+    network_mode: host
     environment:
       TZ: Asia/Shanghai
+      # Backend HTTP port - single global switch (see .env.example SERVER_PORT).
+      # Aligns container-internal Spring Boot port with compose mapping and the
+      # frontend nginx upstream (BACKEND_PORT), so one edit reconfigures all.
+      SERVER_PORT: ${SERVER_PORT:-8088}
       # JVM options (heap, encoding). Adjust -Xmx to fit the host memory.
       JAVA_OPTS: "-Xms512m -Xmx1024m -Dfile.encoding=UTF-8"
-      # ---- External middleware connection (override defaults in application.yaml) ----
-      # All default to 47.121.30.136. Change the host/port here if middleware moves.
-      MYSQL_URL: jdbc:mysql://47.121.30.136:3306/n4_monitor?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
-      MYSQL_USERNAME: root
-      MYSQL_PASSWORD: Password@mysql
-      KAFKA_BOOTSTRAP_SERVERS: 47.121.30.136:9092
-      REDIS_HOST: 47.121.30.136
-      REDIS_PORT: "6379"
-      REDIS_PASSWORD: Password@redis
-      TDENGINE_URL: jdbc:TAOS-RS://47.121.30.136:6041/n4
-      TDENGINE_USERNAME: root
-      TDENGINE_PASSWORD: taosdata
+      # ---- External middleware connection ----
+      # Interpolated from the .env file (see .env.example). application.yaml
+      # defaults are localhost-only, so a missing .env fails fast at startup.
+      MYSQL_URL: ${MYSQL_URL}
+      MYSQL_USERNAME: ${MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      TDENGINE_URL: ${TDENGINE_URL}
+      TDENGINE_USERNAME: ${TDENGINE_USERNAME}
+      TDENGINE_PASSWORD: ${TDENGINE_PASSWORD}
       # FUXA is already running on the host; backend calls it for template provisioning
-      FUXA_BASE_URL: http://47.121.30.136:1881
+      FUXA_BASE_URL: ${FUXA_BASE_URL}
       # Alarm Flink job toggle (set false to disable embedded Flink processing)
       ALARM_FLINK_ENABLED: "true"
     # Flink embedded execution benefits from ample file descriptors
@@ -50,6 +64,13 @@ services:
     # volume so they survive container restarts and can be inspected on the host.
     volumes:
       - n4-monitor-logs:/app/logs
+    # Container resource cap + privilege hardening. The JVM heap (-Xmx1024m in
+    # JAVA_OPTS) plus Flink/Spring native overhead stays well under the cap; the
+    # cap prevents a runaway process from OOM-killing co-located middleware.
+    mem_limit: 2048m
+    mem_reservation: 1024m
+    security_opt:
+      - no-new-privileges:true
 
   n4-monitor-frontend:
     build:
@@ -57,22 +78,112 @@ services:
       args:
         # Build-time FUXA URL baked into the SPA bundle (iframe src).
         # Browser loads it directly, so it must be reachable from the client.
-        VITE_FUXA_URL: http://47.121.30.136:1881/home?viewName=H1_EMSB_A4_03_EM
+        VITE_FUXA_URL: ${FUXA_BASE_URL}/home?viewName=H1_EMSB_A4_03_EM
     image: n4-monitor-frontend:latest
     container_name: n4-monitor-frontend
     restart: unless-stopped
-    ports:
-      - "80:80"
+    # Host network: share the host network stack. Nginx binds the host's :80
+    # directly and proxies to the backend via loopback (127.0.0.1), so the
+    # compose service-name DNS is NOT available in host mode - nginx.conf uses
+    # 127.0.0.1 as the upstream host.
+    network_mode: host
     depends_on:
       - n4-monitor-backend
     environment:
       TZ: Asia/Shanghai
+      # Nginx upstream port, derived from the single SERVER_PORT switch. The
+      # image renders nginx.conf via envsubst using this value (default 8088).
+      BACKEND_PORT: ${SERVER_PORT:-8088}
     logging:
       driver: json-file
       options:
         max-size: "20m"
         max-file: "5"
+    mem_limit: 256m
+    mem_reservation: 64m
+    security_opt:
+      - no-new-privileges:true
+
+  # ---- Flink standalone cluster (Application Mode) ----
+  # Guarded by the "flink" profile: these services start ONLY with
+  #   docker compose --profile flink up -d
+  # so a plain `docker compose up -d` never runs this cluster in parallel with
+  # the backend's embedded job (both consume the same Kafka topic; running both
+  # splits partitions between them and drops alarms randomly).
+  # Cutover order: set ALARM_FLINK_ENABLED=false on the backend and recreate it
+  # FIRST, then start this profile.
+  flink-jobmanager:
+    profiles: ["flink"]
+    build:
+      context: .
+      dockerfile: monitor-flink-job/Dockerfile
+    image: n4-monitor-flink-job:latest
+    container_name: flink-jobmanager
+    # Application Mode: the container IS the job. Args after the entrypoint
+    # options map 1:1 onto AlarmProcessingJob main() parameters.
+    command: >
+      standalone-job
+      --job-classname com.n4monitor.flink.AlarmProcessingJob
+      --kafka-broker ${KAFKA_BOOTSTRAP_SERVERS}
+      --kafka-topic mqtt-push-kafka
+      --group-id n4-flink-alarm-processor-prod
+      --redis-host ${REDIS_HOST}
+      --redis-port ${REDIS_PORT}
+      --redis-password ${REDIS_PASSWORD}
+      --persistence-channel alarm:persist
+      --parallelism 4
+    environment:
+      TZ: Asia/Shanghai
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+        execution.checkpointing.interval: 60s
+        execution.checkpointing.mode: EXACTLY_ONCE
+        state.checkpoints.dir: file:///opt/flink/checkpoints
+        state.savepoints.dir: file:///opt/flink/savepoints
+        restart-strategy.type: fixed-delay
+        restart-strategy.fixed-delay.attempts: 5
+        restart-strategy.fixed-delay.delay: 10s
+        jobmanager.memory.process.size: 1600m
+    volumes:
+      - flink-checkpoints:/opt/flink/checkpoints
+      - flink-savepoints:/opt/flink/savepoints
+      - flink-logs:/opt/flink/log
+    ports:
+      - "127.0.0.1:8081:8081"    # Web UI has NO auth: bind local-only, use an SSH tunnel for remote access
+    restart: unless-stopped
+    # Flink already runs as the non-root `flink` user (uid 999) in the base
+    # image; this caps memory above jobmanager.memory.process.size and blocks
+    # privilege escalation.
+    mem_limit: 2048m
+    mem_reservation: 1024m
+    security_opt:
+      - no-new-privileges:true
+
+  flink-taskmanager:
+    profiles: ["flink"]
+    image: flink:2.2.1-scala_2.12-java21
+    container_name: flink-taskmanager
+    command: taskmanager
+    depends_on:
+      - flink-jobmanager
+    environment:
+      TZ: Asia/Shanghai
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.numberOfTaskSlots: 4
+        taskmanager.memory.process.size: 1728m
+    volumes:
+      - flink-logs:/opt/flink/log
+    restart: unless-stopped
+    mem_limit: 2200m
+    mem_reservation: 1024m
+    security_opt:
+      - no-new-privileges:true
 
 # Named volume for backend logback file output (logs/n4-monitor.log).
 volumes:
   n4-monitor-logs:
+  # Flink checkpoint / savepoint / log persistence (survive container rebuilds)
+  flink-checkpoints:
+  flink-savepoints:
+  flink-logs:

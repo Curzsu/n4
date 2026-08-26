@@ -47,7 +47,7 @@
           <el-checkbox
             :model-value="selectedIds.has(row.id)"
             :disabled="row.status === 'Ack'"
-            @change="(val: boolean) => toggleSelection(row.id, val)"
+            @change="(val: string | number | boolean) => toggleSelection(row.id, Boolean(val))"
           />
         </template>
       </el-table-column>
@@ -55,9 +55,12 @@
         <template #default="{ $index }">{{ filteredData.length - $index }}</template>
       </el-table-column>
       <el-table-column prop="time" label="Time" width="105" show-overflow-tooltip>
+        <template #default="{ row }">
+          {{ formatTimeOnly(row.time) }}
+        </template>
         <template #header>
           <div class="header-cell">
-            <el-popover v-model:visible="filterPopover.time" trigger="manual"  placement="bottom" :width="320" popper-class="alarm-filter-popper" @show="syncTimeDraft">
+            <el-popover v-model:visible="filterPopover.time" :trigger="'manual' as never"  placement="bottom" :width="320" popper-class="alarm-filter-popper" @show="syncTimeDraft">
               <template #reference>
                 <span class="header-label" :class="{ 'filter-active': hasFilter('time') }" @click.stop="filterPopover.time = !filterPopover.time">Time
                   <el-icon v-if="hasFilter('time')" class="filter-icon active"><Filter /></el-icon>
@@ -92,7 +95,7 @@
       <el-table-column prop="severity" label="Severity" width="65">
         <template #header>
           <div class="header-cell">
-            <el-popover v-model:visible="filterPopover.severity" trigger="manual"  placement="bottom" :width="140" popper-class="alarm-filter-popper" @show="syncDraft('severity')">
+            <el-popover v-model:visible="filterPopover.severity" :trigger="'manual' as never"  placement="bottom" :width="140" popper-class="alarm-filter-popper" @show="syncDraft('severity')">
               <template #reference>
                 <span class="header-label" :class="{ 'filter-active': hasFilter('severity') }" @click.stop="filterPopover.severity = !filterPopover.severity">Severity
                   <el-icon v-if="hasFilter('severity')" class="filter-icon active"><Filter /></el-icon>
@@ -118,7 +121,7 @@
         <template #default="{ row }">
           <span
             class="severity-tag"
-            :style="severityStyle(row)"
+            :style="severityStyle(row as AlarmRecord)"
           >
             {{ row.severity }}
           </span>
@@ -126,7 +129,7 @@
       </el-table-column>
       <el-table-column prop="source" label="Source" min-width="200" show-overflow-tooltip>
         <template #header>
-          <el-popover v-model:visible="filterPopover.source" trigger="manual"  placement="bottom" :width="180" popper-class="alarm-filter-popper" @show="syncDraft('source')">
+          <el-popover v-model:visible="filterPopover.source" :trigger="'manual' as never"  placement="bottom" :width="180" popper-class="alarm-filter-popper" @show="syncDraft('source')">
             <template #reference>
               <span class="header-label" :class="{ 'filter-active': hasFilter('source') }" @click.stop="filterPopover.source = !filterPopover.source">Source
                 <el-icon v-if="hasFilter('source')" class="filter-icon active"><Filter /></el-icon>
@@ -146,7 +149,7 @@
       <el-table-column prop="message" label="Message" min-width="200" show-overflow-tooltip />
       <el-table-column prop="location" label="Location" width="150" show-overflow-tooltip>
         <template #header>
-          <el-popover v-model:visible="filterPopover.location" trigger="manual"  placement="bottom" :width="180" popper-class="alarm-filter-popper" @show="syncDraft('location')">
+          <el-popover v-model:visible="filterPopover.location" :trigger="'manual' as never"  placement="bottom" :width="180" popper-class="alarm-filter-popper" @show="syncDraft('location')">
             <template #reference>
               <span class="header-label" :class="{ 'filter-active': hasFilter('location') }" @click.stop="filterPopover.location = !filterPopover.location">Location
                 <el-icon v-if="hasFilter('location')" class="filter-icon active"><Filter /></el-icon>
@@ -166,7 +169,7 @@
       <el-table-column prop="status" label="Status" width="110">
         <template #header>
           <div class="header-cell">
-            <el-popover v-model:visible="filterPopover.status" trigger="manual"  placement="bottom" :width="140" popper-class="alarm-filter-popper" @show="syncDraft('status')">
+            <el-popover v-model:visible="filterPopover.status" :trigger="'manual' as never"  placement="bottom" :width="140" popper-class="alarm-filter-popper" @show="syncDraft('status')">
               <template #reference>
                 <span class="header-label" :class="{ 'filter-active': hasFilter('status') }" @click.stop="filterPopover.status = !filterPopover.status">Status
                   <el-icon v-if="hasFilter('status')" class="filter-icon active"><Filter /></el-icon>
@@ -219,6 +222,7 @@ import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
 import { normalizeRecord } from '@/utils/alarm'
 import { getSeverityColor } from '@/config/severityColors'
 import { Filter, CaretTop, CaretBottom } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import ElapsedDuration from '@/components/ElapsedDuration.vue'
 import type { AlarmRecord } from '@/api/types'
 
@@ -240,6 +244,42 @@ const tablePanelRef = ref<HTMLDivElement>()
 const tableRef = ref<any>()
 const tableHeight = ref(400)
 const visibleRowIds = ref<Set<string>>(new Set())
+
+/** Display-only formatter for the Time column: strip the date, keep HH:mm:ss.
+ *  Sorting and the time-range filter still operate on the full
+ *  "yyyy-MM-dd HH:mm:ss" value, so this only changes what is rendered. */
+function formatTimeOnly(time: string): string {
+  if (!time || time === '-') return time
+  // time is "yyyy-MM-dd HH:mm:ss"; keep the part after the first space.
+  const spaceIdx = time.indexOf(' ')
+  return spaceIdx >= 0 ? time.substring(spaceIdx + 1) : time
+}
+
+/** Time-key comparison for sorting: prefer the raw epoch-millis timestamp when
+ *  present (live WebSocket records) so same-second rows keep their true
+ *  sub-second order; fall back to the formatted string otherwise (API-loaded
+ *  records, which only carry "yyyy-MM-dd HH:mm:ss"). */
+function compareByTime(a: AlarmRecord, b: AlarmRecord): number {
+  if (a.timestampMs !== undefined && b.timestampMs !== undefined) {
+    return a.timestampMs - b.timestampMs
+  }
+  return (a.time || '').localeCompare(b.time || '')
+}
+
+/** Binary-search the insertion index for `rec` in a newest-first sorted list
+ *  (list[i] is never older than list[i+1]). Keeps every WebSocket push an
+ *  O(log n) locate instead of a full O(n log n) re-sort of the whole table. */
+function binarySearchInsert(list: AlarmRecord[], rec: AlarmRecord): number {
+  let lo = 0
+  let hi = list.length
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    // list[mid] is not older than rec -> rec goes further right; else insert before mid
+    if (compareByTime(list[mid], rec) >= 0) lo = mid + 1
+    else hi = mid
+  }
+  return lo
+}
 
 // ── Popover visibility (manual trigger to prevent closing on internal clicks) ──
 const filterPopover = ref({
@@ -497,7 +537,19 @@ function getScrollBody(): HTMLElement | null {
   return wrapper.querySelector('.el-scrollbar__wrap') ?? wrapper
 }
 
+// rAF-throttle the visible-row computation. It reads every rendered row's
+// bounding rect (forcing layout), so under a burst of WebSocket pushes we only
+// want one pass per animation frame instead of one per message.
+let visibleRowsRaf = 0
 function updateVisibleRows() {
+  if (visibleRowsRaf) return
+  visibleRowsRaf = requestAnimationFrame(() => {
+    visibleRowsRaf = 0
+    computeVisibleRows()
+  })
+}
+
+function computeVisibleRows() {
   const scrollBody = getScrollBody()
   if (!scrollBody) {
     visibleRowIds.value = new Set()
@@ -601,7 +653,7 @@ const filteredData = computed(() => {
     result = [...result].sort((a, b) => {
       let cmp = 0
       if (field === 'time') {
-        cmp = (a.time || '').localeCompare(b.time || '')
+        cmp = compareByTime(a, b)
       } else if (field === 'severity') {
         cmp = severityWeight(a.severity) - severityWeight(b.severity)
       } else if (field === 'status') {
@@ -627,7 +679,14 @@ async function ackSelected() {
   if (paths.length === 0) return
 
   try {
-    await alarmApi.ackAlarms(paths, 'admin')
+    const updated = await alarmApi.ackAlarms(paths, 'admin')
+    // Partial match: some selected alarms no longer exist in alarm:active (e.g.
+    // recovered between fetch and click). Skip the optimistic update so the UI
+    // stays consistent with the backend; the user can refresh and retry.
+    if (updated < paths.length) {
+      ElMessage.warning(`Only acknowledged ${updated}/${paths.length} alarms; some may have recovered, please refresh and retry`)
+      return
+    }
     selectedRows.forEach(row => {
       row.status = 'Ack'
       row.ackBy = 'admin'
@@ -638,6 +697,7 @@ async function ackSelected() {
     // would re-select acked (disabled) rows and re-enable the Ack button.
     nextTick(updateVisibleRows)
   } catch (e) {
+    // The response interceptor already toasted the backend error message.
     console.error('Failed to acknowledge alarms:', e)
   }
 }
@@ -686,7 +746,6 @@ onUpdate((data: any) => {
 
   const newRecord = normalizeRecord(data.alarm)
 
-  //TODO: 这个代码是否多余？
   // When scoped to a device, skip records that don't belong to it — but still
   // process cleared signals so a device's removed alarm disappears.
   if (props.deviceName && !matchesDevice(newRecord)) {
@@ -729,7 +788,11 @@ onUpdate((data: any) => {
     return
   }
 
-  // Normal alarm update: remove existing record (to re-insert)
+  // Normal alarm update: upsert the record. If it already exists with the same
+  // timestamp (Ack, continue refresh), update it in place and keep its position
+  // so we don't re-sort the whole table on every push. If it is new or its time
+  // changed (level escalation, re-armed alarm), binary-insert it to preserve the
+  // newest-first order in O(log n) instead of re-sorting the full list.
   const existingIndex = tableData.value.findIndex(r => r.source === newRecord.source)
   if (existingIndex >= 0) {
     const replaced = tableData.value[existingIndex]
@@ -737,12 +800,20 @@ onUpdate((data: any) => {
     // occurrence (e.g. High escalates to High-High), drop the stale selection
     // so the new record is not silently treated as the one the user picked.
     selectedIds.value.delete(replaced.id)
+    const timeUnchanged =
+      replaced.time === newRecord.time &&
+      replaced.timestampMs === newRecord.timestampMs
+    if (timeUnchanged) {
+      // Same occurrence: keep the row in place (Ack / stage refresh).
+      tableData.value[existingIndex] = newRecord
+      nextTick(updateVisibleRows)
+      return
+    }
     tableData.value.splice(existingIndex, 1)
   }
 
-  // Insert and re-sort by time descending (newest first)
-  tableData.value.push(newRecord)
-  tableData.value.sort((a, b) => b.time.localeCompare(a.time))
+  // New occurrence or timestamp changed: insert at the correct position.
+  tableData.value.splice(binarySearchInsert(tableData.value, newRecord), 0, newRecord)
 
   // All active alarms are shown; no row cap so operators see the full picture.
 
@@ -771,6 +842,10 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
+  if (visibleRowsRaf) {
+    cancelAnimationFrame(visibleRowsRaf)
+    visibleRowsRaf = 0
+  }
   const scrollBody = getScrollBody()
   if (scrollBody) {
     scrollBody.removeEventListener('scroll', updateVisibleRows)

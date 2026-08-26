@@ -3,15 +3,15 @@
     <header class="monitor-card-header">
       <div class="header-title">
         <el-icon><Monitor /></el-icon>
-        <h3>图形监控</h3>
+        <h3>Graphical Monitor</h3>
       </div>
 
-      <el-tooltip content="全屏查看" placement="top">
+      <el-tooltip content="View Fullscreen" placement="top">
         <el-button
           circle
           :icon="FullScreen"
           class="fullscreen-btn"
-          aria-label="全屏查看图形监控"
+          aria-label="View Graphical Monitor Fullscreen"
           @click="openFullscreen"
         />
       </el-tooltip>
@@ -28,7 +28,7 @@
           :key="fuxaUrl"
           :src="fuxaUrl"
           :class="{ 'is-ready': frameReady }"
-          title="FUXA 图形监控"
+          title="FUXA Graphical Monitor"
           allow="fullscreen"
           @load="handleFrameLoad"
         />

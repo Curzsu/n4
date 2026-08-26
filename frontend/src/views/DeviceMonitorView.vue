@@ -1,16 +1,16 @@
 <template>
   <div class="device-monitor-view">
     <header class="monitor-header">
-      <el-button :icon="ArrowLeft" link @click="$router.back()">返回</el-button>
+      <el-button :icon="ArrowLeft" link @click="$router.back()">Back</el-button>
       <h2>{{ deviceName }}</h2>
     </header>
 
     <FuxaMonitorPanel :device="fuxaDeviceProxy" />
 
     <section class="alarm-section">
-      <h3>告警列表</h3>
+      <h3>Alarm List</h3>
       <AlarmTable v-if="deviceName" :device-name="deviceName" />
-      <p v-else class="placeholder">加载设备信息中...</p>
+      <p v-else class="placeholder">Loading device information...</p>
     </section>
   </div>
 </template>
@@ -28,11 +28,9 @@ const route = useRoute()
 const deviceDeployId = computed(() => Number(route.params.deviceDeployId))
 const deviceName = ref('')
 
-// FuxaMonitorPanel 期望 device: DeviceTreeNode，构造代理对象触发其加载绑定逻辑
-// FuxaMonitorPanel 内部调用 deviceApi.getFuxaBinding(device.id)，绑定查不到会降级到默认视图
 const fuxaDeviceProxy = computed<DeviceTreeNode | null>(() => ({
   id: deviceDeployId.value,
-  label: deviceName.value || `设备 ${deviceDeployId.value}`,
+  label: deviceName.value || `Device ${deviceDeployId.value}`,
   type: 'device',
   status: 1,
   children: [],
@@ -44,11 +42,11 @@ onMounted(async () => {
     if (device) {
       deviceName.value = device.deviceDeployName
     } else {
-      deviceName.value = `设备 ${deviceDeployId.value}（未找到）`
+      deviceName.value = `Device ${deviceDeployId.value} (Not found)`
     }
   } catch (e) {
-    console.error('加载设备信息失败', e)
-    deviceName.value = `设备 ${deviceDeployId.value}`
+    console.error('Failed to load device info', e)
+    deviceName.value = `Device ${deviceDeployId.value}`
   }
 })
 </script>
@@ -57,29 +55,30 @@ onMounted(async () => {
 .device-monitor-view {
   height: 100%;
   overflow-y: auto;
-  padding: 16px;
+  padding: 12px;
 }
 .monitor-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 10px;
+  margin-bottom: 12px;
   h2 {
     margin: 0;
-    font-size: 18px;
+    font-size: 14px;
     color: $text-primary;
   }
 }
 .alarm-section {
-  margin-top: 16px;
+  margin-top: 12px;
   h3 {
-    font-size: 14px;
+    font-size: 11px;
+    font-weight: 600;
     color: $text-primary;
-    margin: 0 0 8px;
+    margin: 0 0 6px;
   }
   .placeholder {
     color: $text-secondary;
-    font-size: 13px;
+    font-size: 10px;
   }
 }
 </style>

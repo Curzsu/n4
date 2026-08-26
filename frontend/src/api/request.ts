@@ -7,6 +7,20 @@ const request = axios.create({
   timeout: 10000,
 })
 
+// Identical error messages within this window collapse into one toast, so a
+// Promise.all burst of failures (e.g. dashboard parallel loads) does not spam.
+const TOAST_DEDUPE_MS = 1500
+let lastErrorToast = { msg: '', at: 0 }
+
+function showErrorToast(msg: string) {
+  const now = Date.now()
+  if (msg === lastErrorToast.msg && now - lastErrorToast.at < TOAST_DEDUPE_MS) {
+    return
+  }
+  lastErrorToast = { msg, at: now }
+  ElMessage.error(msg)
+}
+
 request.interceptors.response.use(
   (response) => {
     const data = response.data
@@ -16,8 +30,8 @@ request.interceptors.response.use(
       if (apiResponse.code === 200) {
         return apiResponse.data
       }
-      const errMsg = apiResponse.message || `业务逻辑错误(代码: ${apiResponse.code})`
-      ElMessage.error(errMsg)
+      const errMsg = apiResponse.message || `Business logic error (Code: ${apiResponse.code})`
+      showErrorToast(errMsg)
       return Promise.reject(new Error(errMsg))
     }
     
@@ -25,16 +39,16 @@ request.interceptors.response.use(
     return response.data
   },
   (error) => {
-    let msg = '网络连接异常，请检查后端服务'
+    let msg = 'Network connection error, please check backend service'
     if (error.code === 'ECONNABORTED') {
-      msg = '请求超时，请稍后重试'
+      msg = 'Request timed out, please try again later'
     } else if (error.response) {
       const status = error.response.status
       const data = error.response.data
       if (status === 404) {
-        msg = '接口不存在(404)'
+        msg = 'Endpoint not found (404)'
       } else if (status === 500) {
-        msg = '服务器内部错误(500)'
+        msg = 'Internal server error (500)'
       } else if (data && typeof data === 'object') {
         msg = data.message || data.error || msg
       }
@@ -42,7 +56,7 @@ request.interceptors.response.use(
       msg = error.message
     }
     
-    ElMessage.error(msg)
+    showErrorToast(msg)
     return Promise.reject(new Error(msg))
   }
 )

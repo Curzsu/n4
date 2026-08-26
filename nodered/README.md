@@ -9,7 +9,7 @@ n4/Drivers/ModbusTcpNetwork/LVP_A4/points/+/+
 The penultimate topic segment is treated as `mqttDeviceId`. On first sighting, Node-RED calls:
 
 ```text
-POST http://127.0.0.1:8089/api/fuxa/discover
+POST http://127.0.0.1:${SERVER_PORT:-8088}/api/fuxa/discover
 ```
 
 The Spring backend clones the configured FUXA MQTT template device, replaces only the device segment in every tag topic, and stores the app-device-to-FUXA-device mapping. Telemetry is not relayed through Node-RED; each generated FUXA device subscribes to MQTT directly.

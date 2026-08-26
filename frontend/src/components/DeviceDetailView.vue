@@ -9,16 +9,16 @@
           @click="goBack" 
           class="back-btn"
         >
-          返回
+          Back
         </el-button>
-        <span class="device-title">{{ store.selectedNode?.label || '设备详情' }}</span>
+        <span class="device-title">{{ store.selectedNode?.label || 'Device Details' }}</span>
         <el-tag size="small" type="success" class="status-tag">
           {{ getDeviceStatusText(store.selectedNode?.status) }}
         </el-tag>
       </div>
       <div class="header-right">
         <div class="refresh-control">
-          <span class="refresh-label">实时轮询 (3s)</span>
+          <span class="refresh-label">Realtime Polling (3s)</span>
           <el-switch 
             v-model="autoRefresh" 
             active-color="#10b981" 
@@ -26,7 +26,7 @@
             @change="handleRefreshToggle"
           />
         </div>
-        <span class="update-time">更新时间: {{ lastUpdateTime }}</span>
+        <span class="update-time">Updated: {{ lastUpdateTime }}</span>
       </div>
     </div>
 
@@ -38,7 +38,7 @@
           <el-icon><Cpu /></el-icon>
         </div>
         <div class="stat-info">
-          <span class="stat-label">总测点数</span>
+          <span class="stat-label">Total Points</span>
           <span class="stat-value">{{ pointStats.total }}</span>
         </div>
       </div>
@@ -48,7 +48,7 @@
           <el-icon><CircleCheck /></el-icon>
         </div>
         <div class="stat-info">
-          <span class="stat-label">正常点</span>
+          <span class="stat-label">Normal Points</span>
           <span class="stat-value text-green">{{ pointStats.normal }}</span>
         </div>
       </div>
@@ -58,13 +58,13 @@
           <el-icon><Warning /></el-icon>
         </div>
         <div class="stat-info">
-          <span class="stat-label">告警点</span>
+          <span class="stat-label">Alarm Points</span>
           <span class="stat-value text-red">{{ pointStats.alarm }}</span>
         </div>
       </div>
     </div>
 
-    <FuxaMonitorPanel :device="store.selectedNode" />
+    <FuxaMonitorPanel :device="(store.selectedNode as unknown as DeviceTreeNode)" />
 
     <div class="device-alarm-table">
       <AlarmTable :device-name="store.selectedNode?.label" />
@@ -79,7 +79,7 @@ import AlarmTable from '@/components/AlarmTable.vue'
 import FuxaMonitorPanel from '@/components/FuxaMonitorPanel.vue'
 import { useDashboardStore } from '@/stores/dashboard'
 import { deviceApi } from '@/api/device'
-import type { MonitorPoint } from '@/api/types'
+import type { DeviceTreeNode, MonitorPoint } from '@/api/types'
 
 const store = useDashboardStore()
 const loading = ref(false)
@@ -92,7 +92,7 @@ let refreshIntervalId: number | null = null
 async function fetchPoints() {
   if (!store.selectedNode?.id) return
   try {
-    const data = await deviceApi.getDevicePoints(store.selectedNode.id)
+    const data = await deviceApi.getDevicePoints(Number(store.selectedNode.id))
     points.value = data
     updateTimestamp()
   } catch (err) {
@@ -134,11 +134,11 @@ function goBack() {
 
 function getDeviceStatusText(status: number | undefined): string {
   switch (status) {
-    case 1: return '在线'
-    case 2: return '离线'
-    case 3: return '维护'
-    case 4: return '故障'
-    default: return '在线'
+    case 1: return 'Online'
+    case 2: return 'Offline'
+    case 3: return 'Maintenance'
+    case 4: return 'Fault'
+    default: return 'Online'
   }
 }
 
@@ -183,7 +183,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   flex: 0 0 auto;
-  gap: 16px;
+  gap: 12px;
   width: 100%;
   min-width: 0;
   min-height: 100%;
@@ -194,23 +194,28 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
+  padding: 8px 12px;
   background: rgba($bg-card, 0.6);
   backdrop-filter: blur(10px);
   border: 1px solid $border-color;
-  border-radius: 8px;
+  border-radius: 6px;
 }
 
 .header-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .back-btn {
   background-color: transparent;
   border-color: $border-card;
   color: $text-secondary;
+  border-radius: 9px;
+  font-size: 10px;
+  height: 20px;
+  line-height: 16px;
+  padding: 2px 8px;
   &:hover {
     color: $accent-green;
     border-color: $accent-green;
@@ -219,57 +224,61 @@ onUnmounted(() => {
 }
 
 .device-title {
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 600;
   color: $text-primary;
 }
 
 .status-tag {
-  border-radius: 4px;
+  border-radius: 6px;
+  font-size: 10px;
+  height: 18px;
+  line-height: 18px;
+  padding: 0 6px;
 }
 
 .header-right {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
 }
 
 .refresh-control {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .refresh-label {
-  font-size: 12px;
+  font-size: 10px;
   color: $text-secondary;
 }
 
 .update-time {
-  font-size: 12px;
+  font-size: 10px;
   color: $text-muted;
 }
 
 .stats-row {
   display: flex;
-  gap: 12px;
+  gap: 8px;
 }
 
 .stat-card {
   flex: 1;
   background-color: $bg-card;
   border: 1px solid $border-card;
-  border-radius: 8px;
-  padding: 16px;
+  border-radius: 6px;
+  padding: 10px 12px;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   position: relative;
   overflow: hidden;
   transition: transform 0.2s, border-color 0.2s;
   
   &:hover {
-    transform: translateY(-2px);
+    transform: translateY(-1px);
     border-color: rgba($text-primary, 0.2);
   }
   
@@ -279,13 +288,13 @@ onUnmounted(() => {
 }
 
 .stat-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  font-size: 16px;
   background-color: rgba($text-muted, 0.1);
   color: $text-secondary;
   
@@ -310,12 +319,12 @@ onUnmounted(() => {
 }
 
 .stat-label {
-  font-size: 12px;
+  font-size: 10px;
   color: $text-secondary;
 }
 
 .stat-value {
-  font-size: 24px;
+  font-size: 18px;
   font-weight: 700;
   color: $text-primary;
 }

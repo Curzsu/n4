@@ -5,10 +5,13 @@
 # IDE
 .idea/
 .vscode/
+.zcode/
 *.iml
 
 # Build outputs (rebuilt inside Docker)
-backend/target/
+monitor-backend/target/
+monitor-common/target/
+monitor-flink-job/target/
 frontend/dist/
 frontend/.vite-cache/
 

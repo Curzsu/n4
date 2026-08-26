@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.n4monitor</groupId>
+    <artifactId>n4-monitor-parent</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <name>n4-monitor-parent</name>
+    <description>N4 Monitor aggregator: shared models, Flink alarm job, Spring Boot backend</description>
+
+    <!-- Aggregator only. monitor-backend keeps spring-boot-starter-parent as its own
+         parent, so properties defined here are NOT inherited by it; it redeclares the
+         versions it needs explicitly to stay aligned. -->
+    <modules>
+        <module>monitor-common</module>
+        <module>monitor-flink-job</module>
+        <module>monitor-backend</module>
+    </modules>
+
+    <properties>
+        <java.version>21</java.version>
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <flink.version>2.2.1</flink.version>
+        <flink-connector-kafka.version>5.0.0-2.2</flink-connector-kafka.version>
+        <!-- Must match the versions resolved by monitor-backend through the
+             spring-boot-dependencies BOM (verified via dependency:tree), so the
+             embedded and standalone execution paths share identical library versions. -->
+        <jackson-databind.version>2.21.4</jackson-databind.version>
+        <jedis.version>7.0.0</jedis.version>
+        <lombok.version>1.18.46</lombok.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.n4monitor</groupId>
+                <artifactId>monitor-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.n4monitor</groupId>
+                <artifactId>monitor-flink-job</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.13.0</version>
+                    <configuration>
+                        <release>21</release>
+                        <annotationProcessorPaths>
+                            <path>
+                                <groupId>org.projectlombok</groupId>
+                                <artifactId>lombok</artifactId>
+                                <version>${lombok.version}</version>
+                            </path>
+                        </annotationProcessorPaths>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+</project>

@@ -1,0 +1,143 @@
+package com.n4monitor.flink;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.n4monitor.alarm.model.PointAlarmState;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import redis.clients.jedis.Jedis;
+
+/**
+ * All Redis reads/writes of the alarm pipeline: alarm:latest, alarm:active and
+ * the three pub/sub channels (notifications, realtime, persistence). Extracted
+ * verbatim from AlarmProcessFunction; key names, JSON shapes (including
+ * timestamp overrides) and log messages are unchanged.
+ */
+final class RedisStateStore {
+
+    private static final Logger log = LoggerFactory.getLogger(RedisStateStore.class);
+
+    private final ObjectMapper objectMapper;
+    private final String latestRedisKey;
+    private final String activeRedisKey;
+    private final String notificationChannel;
+    private final String realtimeChannel;
+    private final String persistenceChannel;
+
+    RedisStateStore(ObjectMapper objectMapper, String latestRedisKey, String activeRedisKey,
+                    String notificationChannel, String realtimeChannel, String persistenceChannel) {
+        this.objectMapper = objectMapper;
+        this.latestRedisKey = latestRedisKey;
+        this.activeRedisKey = activeRedisKey;
+        this.notificationChannel = notificationChannel;
+        this.realtimeChannel = realtimeChannel;
+        this.persistenceChannel = persistenceChannel;
+    }
+
+    void writeLatestState(Jedis jedis, PointAlarmState state) {
+        try {
+            String json = objectMapper.writeValueAsString(state);
+            jedis.hset(latestRedisKey, state.getMqttPath(), json);
+            log.debug("LATEST {} value={}", state.getMqttPath(), state.getValue());
+        } catch (Exception e) {
+            log.warn("Failed to write latest state for {}: {}", state.getMqttPath(), e.getMessage());
+        }
+    }
+
+    /**
+     * Publish to the notification channel (frontend WebSocket).
+     * The timestamp is forced to the alarm's historical start time so the
+     * frontend always shows when the alarm began (start/continue/end alike).
+     */
+    void publishNotificationChannel(Jedis jedis, PointAlarmState state) {
+        try {
+            String json = serializeWithTimestamp(state, state.getAlarmStartTime());
+            jedis.publish(notificationChannel, json);
+            log.debug("PUB-NOTIFY {} stage={} -> {}", state.getMqttPath(), state.getStage(), notificationChannel);
+        } catch (Exception e) {
+            log.warn("Failed to publish notification for {}: {}", state.getMqttPath(), e.getMessage());
+        }
+    }
+
+    /**
+     * Publish to the realtime channel (TDengine persistence).
+     * The state's own timestamp is used as the observation time. Callers that
+     * publish a history record (e.g. a recovered alarm's end record) must set
+     * the desired timestamp on the state before publishing, so the event is
+     * recorded at the moment it was observed.
+     */
+    void publishRealTimeChannel(Jedis jedis, PointAlarmState state) {
+        try {
+            String json = objectMapper.writeValueAsString(state);
+            jedis.publish(realtimeChannel, json);
+            log.debug("PUB-REALTIME {} stage={} -> {}", state.getMqttPath(), state.getStage(), realtimeChannel);
+        } catch (Exception e) {
+            log.warn("Failed to publish realtime for {}: {}", state.getMqttPath(), e.getMessage());
+        }
+    }
+
+    /**
+     * Publish a processed data frame to the persistence channel (TDengine
+     * full-detail persistence). The frame's own timestamp is kept. For history
+     * records (e.g. a recovered alarm's end record) the caller must set the
+     * desired observation timestamp on the state before publishing, so the
+     * event lands in TDengine at the same moment as its realtime counterpart.
+     */
+    void publishPersistenceChannel(Jedis jedis, PointAlarmState state) {
+        try {
+            String json = objectMapper.writeValueAsString(state);
+            jedis.publish(persistenceChannel, json);
+            log.debug("PUB-PERSIST {} stage={} -> {}", state.getMqttPath(), state.getStage(), persistenceChannel);
+        } catch (Exception e) {
+            log.warn("Failed to publish persistence for {}: {}", state.getMqttPath(), e.getMessage());
+        }
+    }
+
+    /**
+     * Write a state to alarm:active with its timestamp forced to the alarm's
+     * historical start time (so continue/end records keep the start timestamp).
+     */
+    void writeActiveState(Jedis jedis, PointAlarmState state) {
+        try {
+            String json = serializeWithTimestamp(state, state.getAlarmStartTime());
+            jedis.hset(activeRedisKey, state.getMqttPath(), json);
+            log.debug("ACTIVE {} stage={} level={}", state.getMqttPath(), state.getStage(), state.getLevel());
+        } catch (Exception e) {
+            log.warn("Failed to write active state for {}: {}", state.getMqttPath(), e.getMessage());
+        }
+    }
+
+    void removeActive(Jedis jedis, String path) {
+        try {
+            jedis.hdel(activeRedisKey, path);
+            log.debug("ACTIVE-REMOVE {}", path);
+        } catch (Exception e) {
+            log.warn("Failed to remove active alarm for {}: {}", path, e.getMessage());
+        }
+    }
+
+    PointAlarmState readActive(Jedis jedis, String path) {
+        try {
+            String json = jedis.hget(activeRedisKey, path);
+            if (json == null || json.isBlank()) return null;
+            return objectMapper.readValue(json, PointAlarmState.class);
+        } catch (Exception e) {
+            log.warn("Failed to read active alarm for {}: {}", path, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Serialize a state with a specific timestamp, without mutating the original.
+     * If overrideTs is null, the state's own timestamp is kept.
+     */
+    private String serializeWithTimestamp(PointAlarmState state, Long overrideTs) throws Exception {
+        if (overrideTs == null) {
+            return objectMapper.writeValueAsString(state);
+        }
+        // Clone via JSON round-trip to avoid mutating the shared state object.
+        var node = (com.fasterxml.jackson.databind.node.ObjectNode)
+                objectMapper.readTree(objectMapper.writeValueAsString(state));
+        node.put("timestamp", overrideTs);
+        return objectMapper.writeValueAsString(node);
+    }
+}

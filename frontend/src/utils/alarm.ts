@@ -22,6 +22,8 @@ export function normalizeRecord(alarm: any): AlarmRecord {
   return {
     id: alarm.source,
     time: alarm.timestamp ? formatTime(alarm.timestamp) : (alarm.time || '-'),
+    timestampMs: alarm.timestamp ?? undefined,
+    value: alarm.value || alarm.pointValue || '',
     severity: alarm.severity || '',
     source: alarm.source || '',
     message: alarm.message || '',
@@ -31,7 +33,8 @@ export function normalizeRecord(alarm: any): AlarmRecord {
     duration: alarm.duration || '0',
     stage: alarm.stage || '',
     stageMessage: alarm.stageMessage || '',
-    path: alarm.path || '',
+    // Backend Ack matching uses mqttPath; WS payloads carry it, API DTOs use path=mqttPath
+    path: alarm.mqttPath || alarm.path || '',
   }
 }
 

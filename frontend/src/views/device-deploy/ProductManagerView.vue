@@ -1,198 +1,63 @@
 <template>
   <div class="product-manager-view" v-loading="loading">
     <div class="card-container detail-card">
-      <!-- Case 1: Creating a new template -->
-      <div v-if="isCreating" class="form-container-wrapper">
-        <div class="panel-header">
-          <div class="header-title">
-            <el-icon class="title-icon"><Plus /></el-icon>
-            <span>新增设备模板 (Mock)</span>
-          </div>
-          <el-button size="small" @click="cancelCreate">返回列表</el-button>
-        </div>
-        <div class="detail-body">
-          <el-form 
-            :model="form" 
-            :rules="rules" 
-            ref="formRef" 
-            label-width="100px"
-            label-position="right"
-            class="custom-form"
-          >
-            <el-form-item label="模板名称" prop="deviceTmplName">
-              <el-input v-model="form.deviceTmplName" placeholder="例如：大金列间空调" />
-            </el-form-item>
-            
-            <el-form-item label="模板类型" prop="deviceType">
-              <el-input v-model="form.deviceType" placeholder="例如：AC (空调), UPS, TRANSFORMER" />
-            </el-form-item>
-
-            <el-form-item label="型号规格" prop="model">
-              <el-input v-model="form.model" placeholder="例如：DK-1200XT" />
-            </el-form-item>
-
-            <el-form-item label="制造厂商" prop="manufacturer">
-              <el-input v-model="form.manufacturer" placeholder="例如：大金工业株式会社" />
-            </el-form-item>
-
-            <el-form-item label="制造日期" prop="manuDate">
-              <el-date-picker
-                v-model="form.manuDate"
-                type="date"
-                placeholder="选择出厂日期"
-                format="YYYY-MM-DD"
-                value-format="YYYY-MM-DD"
-                style="width: 100%"
-              />
-            </el-form-item>
-            
-            <el-form-item>
-              <el-button type="primary" @click="submitCreate" :loading="submitting">立即创建</el-button>
-              <el-button @click="cancelCreate">取消</el-button>
-            </el-form-item>
-          </el-form>
-
-          <!-- Local Temp Points Table for New Template -->
-          <div class="point-table-section" style="margin-top: 30px; border-top: 1px dashed #334155; padding-top: 20px;">
-            <div class="points-header">
-              <div class="section-title">
-                <el-icon class="section-icon"><List /></el-icon>
-                <span>配置初始点位表 (共 {{ tempPoints.length }} 个点位，创建模板时将同步保存，均为 Mock)</span>
-              </div>
-              <div class="points-actions">
-                <!-- 批量管理状态 -->
-                <template v-if="isPointBatchManaging">
-                  <el-button 
-                    type="danger" 
-                    size="small" 
-                    :icon="Delete" 
-                    :disabled="selectedPoints.length === 0" 
-                    @click="batchDeletePoints"
-                  >
-                    批量删除 (已选 {{ selectedPoints.length }} 个)
-                  </el-button>
-                  <el-button 
-                    size="small"
-                    @click="exitPointBatchManage"
-                  >
-                    退出管理
-                  </el-button>
-                </template>
-                <!-- 常规状态 -->
-                <template v-else>
-                  <el-button 
-                    size="small" 
-                    :icon="Edit"
-                    @click="enterPointBatchManage"
-                  >
-                    批量管理
-                  </el-button>
-                  <el-button type="primary" size="small" :icon="Plus" @click="openAddPointDialog">新增点位</el-button>
-                </template>
-              </div>
-            </div>
-            
-            <el-table 
-              :data="tempPoints" 
-              style="width: 100%; margin-top: 12px;" 
-              border 
-              size="small"
-              class="custom-table"
-              @selection-change="handleSelectionChange"
-            >
-              <el-table-column type="selection" width="40" align="center" v-if="isPointBatchManaging" :resizable="false" />
-              <el-table-column prop="pointName" label="点位名称" min-width="180" show-overflow-tooltip :resizable="false" />
-              <el-table-column prop="pointType" label="点位类型" min-width="100" align="center" :resizable="false">
-                <template #default="{ row }">
-                  <span :class="['type-badge', getPointTypeClass(row.pointType)]">
-                    {{ row.pointType || '—' }}
-                  </span>
-                </template>
-              </el-table-column>
-              <el-table-column prop="dataType" label="数据类型" min-width="100" align="center" :resizable="false">
-                <template #default="{ row }">
-                  <span :class="['type-badge', getDataTypeClass(row.dataType)]">{{ row.dataType }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column prop="unit" label="单位" width="85" align="center" :resizable="false" />
-              <el-table-column prop="displayPrecision" label="精度" width="75" align="center" :resizable="false" />
-              <el-table-column label="数据来源" width="110" align="center" :resizable="false">
-                <template>
-                  <el-tag size="small" type="warning" effect="dark">Mock</el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column v-if="isPointBatchManaging" label="操作" width="110" fixed="right" align="center" :resizable="false">
-                <template #default="{ row }">
-                  <el-button size="small" type="primary" link :icon="Edit" @click="openEditPointDialog(row)">修改</el-button>
-                  <el-button size="small" type="danger" link :icon="Delete" @click="deletePoint(row)">删除</el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-          </div>
-        </div>
-      </div>
-
-      <!-- Case 2: Editing an existing template -->
-      <div v-else-if="selectedTemplate" class="form-container-wrapper">
+      <!-- Case 1: Template detail view when template selected -->
+      <div v-if="selectedTemplate" class="form-container-wrapper">
         <div class="panel-header">
           <div class="header-title">
             <el-icon class="title-icon"><Edit /></el-icon>
-            <span>设备模板 - {{ selectedTemplate.deviceTmplName }}</span>
-            <el-tag size="small" :type="selectedTemplate.isReal ? 'success' : 'warning'" effect="dark">
-              {{ selectedTemplate.isReal ? '真实数据' : 'Mock' }}
-            </el-tag>
+            <span>Device Template - {{ selectedTemplate.deviceTmplName }}</span>
           </div>
           <div class="action-buttons">
-            <el-button type="primary" plain size="small" @click="goBackToList">返回列表</el-button>
-            <el-button v-if="!isEditing" type="primary" plain size="small" :icon="Edit" @click="startEdit">修改设备模板信息</el-button>
-            <el-button v-else type="primary" plain size="small" :icon="Check" :loading="submitting" @click="submitUpdate">保存</el-button>
+            <el-button size="small" class="btn-secondary" :icon="Odometer" @click="openConfigPanel">
+              Set Faceplate Panel
+            </el-button>
+            <el-button size="small" class="btn-secondary" :icon="Edit" @click="openEditTemplateDialog">Edit Template</el-button>
             <el-button 
-              type="danger" 
               size="small" 
+              class="btn-danger"
               :icon="Delete"
-              plain
               @click="confirmDelete(selectedTemplate)"
             >
-              删除模板
+              Delete Template
             </el-button>
+            <el-button size="small" class="btn-secondary btn-back" @click="goBackToList">Back to List</el-button>
           </div>
         </div>
 
         <div class="detail-body">
           <el-form 
             :model="form" 
-            :rules="rules" 
-            ref="formRef" 
-            label-width="80px"
+            label-width="110px"
             label-position="right"
             class="custom-form-compact"
-            :disabled="!isEditing"
+            disabled
           >
-            <el-row :gutter="20">
+            <el-row :gutter="16">
               <el-col :span="8">
-                <el-form-item label="模板名称" prop="deviceTmplName">
+                <el-form-item label="Template Name" prop="deviceTmplName">
                   <el-input v-model="form.deviceTmplName" />
                 </el-form-item>
               </el-col>
               <el-col :span="8">
-                <el-form-item label="模板类型" prop="deviceType">
+                <el-form-item label="Template Type" prop="deviceType">
                   <el-input v-model="form.deviceType" />
                 </el-form-item>
               </el-col>
               <el-col :span="8">
-                <el-form-item label="型号规格" prop="model">
+                <el-form-item label="Model / Specs" prop="model">
                   <el-input v-model="form.model" />
                 </el-form-item>
               </el-col>
             </el-row>
-            <el-row :gutter="20">
+            <el-row :gutter="16">
               <el-col :span="12">
-                <el-form-item label="制造厂商" prop="manufacturer">
+                <el-form-item label="Manufacturer" prop="manufacturer">
                   <el-input v-model="form.manufacturer" />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item label="制造日期" prop="manuDate">
+                <el-form-item label="Manufacture Date" prop="manuDate">
                   <el-date-picker
                     v-model="form.manuDate"
                     type="date"
@@ -205,93 +70,89 @@
             </el-row>
           </el-form>
 
-          <!-- Extra device-level property buttons -->
-          <div class="extra-property-buttons">
-            <el-button type="primary" plain size="small" :icon="Odometer" @click="openConfigPanel">
-              设备组态面板设置
-            </el-button>
-            <el-button type="primary" plain size="small" :icon="Warning" @click="openDeviceAlarmConfig">
-              设备级报警配置
-            </el-button>
-          </div>
-
           <!-- Device Template Points Table -->
           <div class="point-table-section" v-loading="loadingPoints">
             <div class="points-header">
               <div class="section-title">
                 <el-icon class="section-icon"><List /></el-icon>
-                <span>对应点位表 (共 {{ templatePoints.length }} 个点位)</span>
+                <span>Points Table (Total: {{ templatePoints.length }} points)</span>
               </div>
               <div class="points-actions">
-                <!-- 批量管理状态 -->
+                <!-- Batch manage state -->
                 <template v-if="isPointBatchManaging">
                   <el-button 
                     type="danger" 
                     size="small" 
+                    class="btn-danger"
                     :icon="Delete" 
                     :disabled="selectedPoints.length === 0" 
                     @click="batchDeletePoints"
                   >
-                    批量删除 (已选 {{ selectedPoints.length }} 个)
+                    Batch Delete ({{ selectedPoints.length }} selected)
                   </el-button>
                   <el-button 
                     size="small"
+                    class="btn-secondary"
                     @click="exitPointBatchManage"
                   >
-                    退出管理
+                    Exit Manage
                   </el-button>
                 </template>
-                <!-- 常规状态 -->
+                <!-- Normal state -->
                 <template v-else>
                   <el-button 
-                    type="primary"
-                    plain
                     size="small" 
+                    class="btn-secondary"
                     :icon="Edit"
                     @click="enterPointBatchManage"
                   >
-                    批量管理
+                    Batch Manage
                   </el-button>
-                  <el-button type="primary" plain size="small" :icon="Plus" @click="openAddPointDialog">新增点位</el-button>
+                  <el-button size="small" class="btn-primary" :icon="Plus" @click="openAddPointDialog">Add Point</el-button>
                 </template>
               </div>
             </div>
             
             <el-table 
               :data="templatePoints" 
-              style="width: 100%; margin-top: 12px;" 
+              style="width: 100%; margin-top: 6px;" 
               border 
               size="small"
               class="custom-table"
+              :header-cell-style="headerCellStyle"
+              :cell-style="cellStyle"
               @selection-change="handleSelectionChange"
             >
-              <el-table-column type="selection" width="40" align="center" v-if="isPointBatchManaging" :resizable="false" />
-              <el-table-column prop="pointTmplId" label="点位ID" width="75" align="center" :resizable="false" />
-              <el-table-column prop="pointName" label="点位名称" min-width="180" show-overflow-tooltip :resizable="false" />
-              <el-table-column prop="pointType" label="点位类型" min-width="100" align="center" :resizable="false">
+              <el-table-column type="selection" width="30" v-if="isPointBatchManaging" align="center" header-align="center" :resizable="false" />
+              <el-table-column prop="pointTmplId" label="ID" width="55" align="left" header-align="center" :resizable="false" />
+              <el-table-column prop="pointName" label="Point Name" min-width="180" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+              <el-table-column prop="dataType" label="Data Type" width="110" align="left" header-align="center" :resizable="false" />
+              <el-table-column prop="unit" label="Unit" width="90" align="left" header-align="center" :resizable="false" />
+              <el-table-column prop="displayPrecision" label="Precision" width="90" align="left" header-align="center" :resizable="false" />
+              <el-table-column label="Alarm Rule" min-width="220" align="left" header-align="center" :resizable="false">
                 <template #default="{ row }">
-                  <span :class="['type-badge', getPointTypeClass(row.pointType)]">
-                    {{ row.pointType || '—' }}
-                  </span>
-                </template>
-              </el-table-column>
-              <el-table-column prop="dataType" label="数据类型" min-width="100" align="center" :resizable="false">
-                <template #default="{ row }">
-                  <span :class="['type-badge', getDataTypeClass(row.dataType)]">{{ row.dataType }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column prop="unit" label="单位" width="85" align="center" :resizable="false" />
-              <el-table-column prop="displayPrecision" label="精度" width="75" align="center" :resizable="false" />
-              <el-table-column label="数据来源" width="110" align="center" :resizable="false">
-                <template #default="{ row }">
-                  <el-tag size="small" :type="row.isReal ? 'success' : 'warning'" effect="dark">{{ row.isReal ? '真实数据' : 'Mock' }}</el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column v-if="isPointBatchManaging" label="操作" width="180" fixed="right" align="center" :resizable="false">
-                <template #default="{ row }">
-                  <el-button size="small" type="primary" link :icon="Edit" @click="openEditPointDialog(row)">修改</el-button>
-                  <el-button size="small" type="danger" link :icon="Delete" @click="deletePoint(row)">删除</el-button>
-                  <el-button size="small" type="primary" link :icon="Warning" @click="openPointAlarmConfig(row)">报警设置</el-button>
+                  <div class="alarm-rule-cell">
+                    <span
+                      v-if="row.alarmCode"
+                      class="alarm-code-tag"
+                      title="Click to configure alarm rule"
+                      @click="openPointAlarmConfig(row)"
+                    >
+                      {{ row.alarmCode }}
+                    </span>
+                    <span
+                      v-else
+                      class="alarm-none-tag"
+                      title="Click to configure alarm rule"
+                      @click="openPointAlarmConfig(row)"
+                    >
+                      Unconfigured
+                    </span>
+                    <div class="alarm-btn-group">
+                      <el-button size="small" type="primary" link :icon="Edit" @click="openEditPointDialog(row)">Edit</el-button>
+                      <el-button size="small" type="danger" link :icon="Delete" @click="deletePoint(row)">Delete</el-button>
+                    </div>
+                  </div>
                 </template>
               </el-table-column>
             </el-table>
@@ -304,49 +165,49 @@
         <div class="panel-header">
           <div class="header-title">
             <el-icon class="title-icon"><List /></el-icon>
-            <span>全部设备模板列表 (真实数据 {{ realTemplateCount }} 个 / Mock {{ mockTemplateCount }} 个)</span>
+            <span>Device Templates (Total: {{ templates.length }})</span>
           </div>
           <div class="action-buttons">
-            <!-- 批量管理状态 -->
+            <!-- Batch manage state -->
             <template v-if="isTemplateBatchManaging">
               <el-button 
                 type="danger" 
                 size="small" 
+                class="btn-danger"
                 :icon="Delete"
                 :disabled="selectedTemplates.length === 0"
                 @click="batchDeleteTemplates"
               >
-                批量删除 (已选 {{ selectedTemplates.length }} 个)
+                Batch Delete ({{ selectedTemplates.length }} selected)
               </el-button>
               <el-button 
                 size="small"
+                class="btn-secondary"
                 @click="exitTemplateBatchManage"
               >
-                退出管理
+                Exit Manage
               </el-button>
             </template>
-            <!-- 常规状态 -->
+            <!-- Normal state -->
             <template v-else>
               <el-button 
-                type="primary"
-                plain
                 size="small" 
+                class="btn-secondary"
                 :icon="Edit"
                 @click="enterTemplateBatchManage"
               >
-                批量管理
+                Batch Manage
               </el-button>
               <el-button 
-                type="primary" 
-                plain
                 size="small" 
+                class="btn-primary"
                 :icon="Plus"
-                @click="startCreate"
+                @click="openAddTemplateDialog"
               >
-                新增模板
+                Add Template
               </el-button>
-              <el-button type="primary" plain size="small" :icon="Download" @click="handleImport">导入</el-button>
-              <el-button type="primary" plain size="small" :icon="Upload" @click="handleExport">导出</el-button>
+              <el-button size="small" class="btn-secondary" :icon="Download" @click="handleImport">Import</el-button>
+              <el-button size="small" class="btn-secondary" :icon="Upload" @click="handleExport">Export</el-button>
             </template>
           </div>
         </div>
@@ -355,7 +216,7 @@
           <div class="search-box-table">
             <el-input
               v-model="tableSearchQuery"
-              placeholder="筛选列表中的模板名称..."
+              placeholder="Search template name..."
               size="small"
               :prefix-icon="Search"
               clearable
@@ -368,50 +229,57 @@
             border 
             size="small"
             class="custom-table"
+            :header-cell-style="headerCellStyle"
+            :cell-style="cellStyle"
             @selection-change="handleTemplateSelectionChange"
           >
-            <el-table-column v-if="isTemplateBatchManaging" type="selection" width="40" align="center" :resizable="false" />
-            <el-table-column prop="deviceTmplId" label="ID" width="60" align="center" :resizable="false" />
-            <el-table-column prop="deviceTmplName" label="模板名称" min-width="160" show-overflow-tooltip :resizable="false" />
-            <el-table-column prop="deviceType" label="类型" min-width="110" align="center" show-overflow-tooltip :resizable="false" />
-            <el-table-column label="型号规格" min-width="110" align="center" show-overflow-tooltip :resizable="false">
+            <el-table-column v-if="isTemplateBatchManaging" type="selection" width="30" align="center" header-align="center" :resizable="false" />
+            <el-table-column prop="deviceTmplId" label="ID" width="55" align="left" header-align="center" :resizable="false" />
+            <el-table-column prop="deviceTmplName" label="Template Name" min-width="180" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+            <el-table-column prop="deviceType" label="Type" width="110" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+            <el-table-column label="Model / Specs" min-width="130" align="left" header-align="center" show-overflow-tooltip :resizable="false">
               <template #default="{ row }">
                 <span>{{ row.model || '—' }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="制造厂商" min-width="120" align="center" show-overflow-tooltip :resizable="false">
+            <el-table-column label="Manufacturer" min-width="140" align="left" header-align="center" show-overflow-tooltip :resizable="false">
               <template #default="{ row }">
                 <span>{{ row.manufacturer || '—' }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="出厂日期" width="100" align="center" :resizable="false">
+            <el-table-column label="Manufacture Date" width="110" align="left" header-align="center" :resizable="false">
               <template #default="{ row }">
                 <span>{{ row.manuDate || '—' }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="pointCount" label="点位数" width="75" align="center" :resizable="false" />
-            <el-table-column label="数据来源" width="110" align="center" :resizable="false">
+            <el-table-column prop="pointCount" label="Points" width="70" align="left" header-align="center" :resizable="false" />
+            <el-table-column label="Actions" width="160" align="center" header-align="center" fixed="right" :resizable="false">
               <template #default="{ row }">
-                <el-tag size="small" :type="Boolean(row.isReal) ? 'success' : 'warning'" effect="dark">{{ Boolean(row.isReal) ? '真实数据' : 'Mock' }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column v-if="isTemplateBatchManaging" label="操作" width="100" align="center" :resizable="false">
-              <template #default="{ row }">
+                <el-button 
+                  type="success" 
+                  link 
+                  size="small" 
+                  :icon="Picture" 
+                  @click="openConfigPanelWithTarget(row as DeviceTemplate)"
+                >
+                  Diagram
+                </el-button>
                 <el-button 
                   type="primary" 
                   link 
                   size="small" 
-                  @click="editTemplateFromTable(row)"
+                  @click="editTemplateFromTable(row as DeviceTemplate)"
                 >
-                  编辑
+                  Edit
                 </el-button>
                 <el-button 
+                  v-if="isTemplateBatchManaging"
                   type="danger" 
                   link 
                   size="small" 
-                  @click="deleteTemplateFromTable(row)"
+                  @click="deleteTemplateFromTable(row as DeviceTemplate)"
                 >
-                  删除
+                  Delete
                 </el-button>
               </template>
             </el-table-column>
@@ -420,51 +288,168 @@
       </div>
     </div>
 
+    <!-- ===== Dialog: Add Device Template ===== -->
+    <el-dialog
+      v-model="addTemplateDialogVisible"
+      title="Add Device Template"
+      width="520px"
+      append-to-body
+      class="dark-dialog"
+      destroy-on-close
+    >
+      <el-form
+        :model="addTemplateForm"
+        :rules="addTemplateRules"
+        ref="addTemplateFormRef"
+        label-width="120px"
+        label-position="right"
+        size="small"
+        class="custom-form"
+      >
+        <el-form-item label="Template Name" prop="deviceTmplName">
+          <el-input v-model="addTemplateForm.deviceTmplName" maxlength="64" placeholder="e.g. Row Precision AC" />
+        </el-form-item>
+
+        <el-form-item label="Template Type" prop="deviceType">
+          <el-input v-model="addTemplateForm.deviceType" maxlength="50" placeholder="e.g. AC, UPS, TRANSFORMER" />
+        </el-form-item>
+
+        <el-form-item label="Model / Specs" prop="model">
+          <el-input v-model="addTemplateForm.model" maxlength="50" placeholder="e.g. DK-1200XT" />
+        </el-form-item>
+
+        <el-form-item label="Manufacturer" prop="manufacturer">
+          <el-input v-model="addTemplateForm.manufacturer" maxlength="50" placeholder="e.g. Daikin Industries" />
+        </el-form-item>
+
+        <el-form-item label="Manufacture Date" prop="manuDate">
+          <el-date-picker
+            v-model="addTemplateForm.manuDate"
+            type="date"
+            placeholder="Select date"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button class="btn-secondary" size="small" @click="addTemplateDialogVisible = false">Cancel</el-button>
+        <el-button
+          type="primary"
+          size="small"
+          class="btn-primary"
+          @click="submitAddTemplate"
+          :loading="addTemplateSubmitting"
+        >
+          Create
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- ===== Dialog: Edit Device Template ===== -->
+    <el-dialog
+      v-model="editTemplateDialogVisible"
+      title="Edit Device Template"
+      width="520px"
+      append-to-body
+      class="dark-dialog"
+    >
+      <el-form
+        :model="editTemplateForm"
+        :rules="editTemplateRules"
+        ref="editTemplateFormRef"
+        label-width="120px"
+        label-position="right"
+        size="small"
+        class="custom-form"
+      >
+        <el-form-item label="Template Name" prop="deviceTmplName">
+          <el-input v-model="editTemplateForm.deviceTmplName" maxlength="64" placeholder="e.g. Row Precision AC" />
+        </el-form-item>
+
+        <el-form-item label="Template Type" prop="deviceType">
+          <el-input v-model="editTemplateForm.deviceType" maxlength="50" placeholder="e.g. AC, UPS, TRANSFORMER" />
+        </el-form-item>
+
+        <el-form-item label="Model / Specs" prop="model">
+          <el-input v-model="editTemplateForm.model" maxlength="50" placeholder="e.g. DK-1200XT" />
+        </el-form-item>
+
+        <el-form-item label="Manufacturer" prop="manufacturer">
+          <el-input v-model="editTemplateForm.manufacturer" maxlength="50" placeholder="e.g. Daikin Industries" />
+        </el-form-item>
+
+        <el-form-item label="Manufacture Date" prop="manuDate">
+          <el-date-picker
+            v-model="editTemplateForm.manuDate"
+            type="date"
+            placeholder="Select date"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button class="btn-secondary" size="small" @click="editTemplateDialogVisible = false">Cancel</el-button>
+        <el-button
+          type="primary"
+          size="small"
+          class="btn-primary"
+          @click="submitEditTemplate"
+          :loading="editTemplateSubmitting"
+        >
+          Save
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- Add/Edit Point Dialog -->
     <el-dialog
       v-model="pointDialogVisible"
-      :title="isEditingPoint ? '修改点位' : '新增点位'"
+      :title="isEditingPoint ? 'Edit Point' : 'Add Point'"
       width="500px"
       append-to-body
       class="dark-dialog"
     >
-      <el-form :model="pointForm" :rules="pointRules" ref="pointFormRef" label-width="100px">
-        <el-form-item label="点位名称" prop="pointName">
-          <el-input v-model="pointForm.pointName" placeholder="例如: 温度" />
+      <el-form :model="pointForm" :rules="pointRules" ref="pointFormRef" label-width="120px">
+        <el-form-item label="Point Name" prop="pointName">
+          <el-input v-model="pointForm.pointName" maxlength="50" placeholder="e.g. Temperature" />
         </el-form-item>
-        <el-form-item label="点位类型" prop="pointType">
-          <el-select v-model="pointForm.pointType" placeholder="选择类型" style="width: 100%">
-            <el-option value="DI" label="DI - 数字输入" />
-            <el-option value="DO" label="DO - 数字输出" />
-            <el-option value="AI" label="AI - 模拟输入" />
-            <el-option value="AO" label="AO - 模拟输出" />
+        <el-form-item label="Point Type" prop="pointType">
+          <el-select v-model="pointForm.pointType" placeholder="Select point type" style="width: 100%" clearable>
+            <el-option value="DI" label="DI - Digital Input" />
+            <el-option value="DO" label="DO - Digital Output" />
+            <el-option value="AI" label="AI - Analog Input" />
+            <el-option value="AO" label="AO - Analog Output" />
           </el-select>
         </el-form-item>
-        <el-form-item label="数据类型" prop="dataType">
-          <el-select v-model="pointForm.dataType" placeholder="选择数据类型" style="width: 100%">
-            <el-option value="numeric" label="numeric - 数值" />
-            <el-option value="enum" label="enum - 枚举" />
-            <el-option value="boolean" label="boolean - 布尔" />
-            <el-option value="string" label="string - 字符串" />
+        <el-form-item label="Data Type" prop="dataType">
+          <el-select v-model="pointForm.dataType" placeholder="Select data type" style="width: 100%" clearable>
+            <el-option value="numeric" label="numeric - Number" />
+            <el-option value="enum" label="enum - Enumeration" />
+            <el-option value="boolean" label="boolean - Boolean" />
+            <el-option value="string" label="string - String" />
           </el-select>
         </el-form-item>
-        <el-form-item label="单位" prop="unit">
-          <el-input v-model="pointForm.unit" placeholder="例如: ℃, %, V, 无" />
+        <el-form-item label="Unit" prop="unit">
+          <el-input v-model="pointForm.unit" maxlength="20" placeholder="e.g. ℃, %, V, None" />
         </el-form-item>
-        <el-form-item label="精度" prop="displayPrecision">
+        <el-form-item label="Precision" prop="displayPrecision">
           <el-input-number v-model="pointForm.displayPrecision" :min="0" :max="4" style="width: 100%" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="pointDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitPointForm" :loading="pointSubmitting">确认</el-button>
+        <el-button class="btn-secondary" @click="pointDialogVisible = false">Cancel</el-button>
+        <el-button type="primary" class="btn-primary" @click="submitPointForm" :loading="pointSubmitting">Confirm</el-button>
       </template>
     </el-dialog>
 
     <!-- Import CSV Drag & Drop Dialog -->
     <el-dialog
       v-model="importDialogVisible"
-      title="导入点位数据"
+      title="Import Point Data"
       width="460px"
       append-to-body
       class="dark-dialog"
@@ -480,47 +465,84 @@
       >
         <el-icon class="el-icon--upload" style="font-size: 48px; color: #3b82f6; margin-bottom: 12px;"><UploadFilled /></el-icon>
         <div class="el-upload__text" style="color: #cbd5e1; font-size: 14px;">
-          将 CSV 导入模板文件拖拽到此处，或 <em style="color: #3b82f6; font-style: normal; font-weight: bold; cursor: pointer;">点击上传</em>
+          Drag CSV template file here, or <em style="color: #3b82f6; font-style: normal; font-weight: bold; cursor: pointer;">click to upload</em>
         </div>
         <template #tip>
           <div class="el-upload__tip text-center" style="margin-top: 15px; color: #64748b; font-size: 12px; text-align: center;">
-            仅支持 .csv 格式，导入前请确保数据格式正确。
+            Only .csv format is supported. Please ensure the data format is correct before importing.
           </div>
         </template>
       </el-upload>
       <template #footer>
         <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
           <el-button type="primary" link :icon="Download" @click="downloadImportTemplate">
-            下载导入模板
+            Download Template
           </el-button>
-          <el-button @click="importDialogVisible = false">关闭</el-button>
+          <el-button class="btn-secondary" @click="importDialogVisible = false">Close</el-button>
         </div>
       </template>
     </el-dialog>
+
+    <!-- Device Diagram Modal Dialog -->
+    <TemplateDiagramDialog
+      ref="diagramDialogRef"
+      :fallback-template="selectedTemplate"
+      :fallback-form="form"
+    />
+
+    <!-- Edit Alarm Rule Modal Dialog (identical to Alarm Configuration) -->
+    <AlarmRuleEditModal
+      ref="alarmRuleEditModalRef"
+      @saved="handleAlarmSaved"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
-import { Plus, Edit, Check, Delete, List, Odometer, Warning, Download, Upload, UploadFilled, Search } from '@element-plus/icons-vue'
+import { ref, computed, watch, nextTick, onMounted, type CSSProperties } from 'vue'
+import { Plus, Edit, Delete, List, Odometer, Download, Upload, UploadFilled, Search, Picture } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { templateApi } from '@/api/template'
 import type { DeviceTemplate, PointTemplateItem } from '@/api/types'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useDashboardStore } from '@/stores/dashboard'
+import TemplateDiagramDialog from './dialogs/TemplateDiagramDialog.vue'
+import AlarmRuleEditModal from './dialogs/AlarmRuleEditModal.vue'
+import { triggerFormShake } from '@/utils/formAnimation'
 
 const store = useDashboardStore()
+
+onMounted(async () => {
+  if (!store.allTemplates.length) {
+    await store.loadTemplates()
+  }
+})
+
+// Unified table styling matching AlarmTable.vue exactly
+const headerCellStyle: CSSProperties = {
+  backgroundColor: '#0d1117',
+  color: '#e5e7eb',
+  fontSize: '10px',
+  fontWeight: '600',
+  borderBottom: '1px solid #2d3748',
+  textAlign: 'center',
+}
+
+const cellStyle: CSSProperties = {
+  backgroundColor: '#111827',
+  color: '#e5e7eb',
+  fontSize: '10px',
+  borderBottom: '1px solid #1f2937',
+  textAlign: 'left',
+}
+
 const loading = ref(false)
-const submitting = ref(false)
 const tableSearchQuery = ref('')
-const isCreating = ref(false)
-const isEditing = ref(false)
 const selectedPoints = ref<any[]>([])
 const isPointBatchManaging = ref(false)
 const isTemplateBatchManaging = ref(false)
 const selectedTemplates = ref<any[]>([])
 const importDialogVisible = ref(false)
-const tempPoints = ref<any[]>([])
 
 function handleTemplateSelectionChange(val: any[]) {
   selectedTemplates.value = val
@@ -554,48 +576,91 @@ const pointFormRef = ref<FormInstance>()
 const pointForm = ref<any>({
   pointTmplId: null,
   pointName: '',
-  pointType: 'AI',
-  dataType: 'numeric',
-  unit: '无',
+  pointType: null,
+  dataType: null,
+  unit: '',
   displayPrecision: 0
 })
 
 const validatePointNameUnique = (_rule: any, value: any, callback: any) => {
-  if (!value) {
-    callback(new Error('请输入点位名称'))
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  if (!trimmed) {
+    callback(new Error('Please enter point name'))
     return
   }
-  const list = isCreating.value ? tempPoints.value : templatePoints.value
+  if (trimmed.length < 1 || trimmed.length > 50) {
+    callback(new Error('Point name must be between 1 and 50 characters'))
+    return
+  }
+  if (/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/.test(trimmed) || /[^\x00-\x7F]/.test(trimmed)) {
+    callback(new Error('Point name cannot contain Chinese characters'))
+    return
+  }
+  if (!/^[a-zA-Z0-9_\-\.\s()]+$/.test(trimmed)) {
+    callback(new Error('Point name contains invalid characters'))
+    return
+  }
+  const list = templatePoints.value
   const exists = list.some(p => {
     if (isEditingPoint.value && p.pointTmplId === pointForm.value.pointTmplId) {
       return false
     }
-    return p.pointName === value
+    return (p.pointName || '').trim().toLowerCase() === trimmed.toLowerCase()
   })
   if (exists) {
-    callback(new Error('点位名称已存在，不能重复配置'))
+    callback(new Error('Point name already exists in this template'))
     return
+  }
+  callback()
+}
+
+const validateUnit = (_rule: any, value: any, callback: any) => {
+  if (value !== undefined && value !== null && value !== '') {
+    const trimmed = typeof value === 'string' ? value.trim() : ''
+    if (trimmed.length > 20) {
+      callback(new Error('Unit cannot exceed 20 characters'))
+      return
+    }
+    if (/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/.test(trimmed) || /[^\x00-\x7F]/.test(trimmed)) {
+      callback(new Error('Unit cannot contain Chinese characters'))
+      return
+    }
   }
   callback()
 }
 
 const pointRules = ref<FormRules>({
   pointName: [
+    { required: true, message: 'Please enter point name', trigger: 'blur' },
     { validator: validatePointNameUnique, trigger: 'blur' },
-    { max: 150, message: '点位名称不能超过 150 个字符', trigger: 'blur' }
+    { max: 50, message: 'Point name cannot exceed 50 characters', trigger: 'blur' }
   ],
   pointType: [
-    { required: true, message: '请选择点位类型', trigger: 'change' }
+    { required: true, message: 'Please select point type', trigger: 'change' }
   ],
   dataType: [
-    { required: true, message: '请选择数据类型', trigger: 'change' }
+    { required: true, message: 'Please select data type', trigger: 'change' }
   ],
   unit: [
-    { max: 50, message: '单位名称不能超过 50 个字符', trigger: 'blur' }
+    { validator: validateUnit, trigger: 'blur' },
+    { max: 20, message: 'Unit cannot exceed 20 characters', trigger: 'blur' }
+  ],
+  displayPrecision: [
+    {
+      validator: (_rule: any, value: any, callback: any) => {
+        if (value !== undefined && value !== null && value !== '') {
+          const num = Number(value)
+          if (!Number.isInteger(num) || num < 0 || num > 4) {
+            callback(new Error('Precision must be an integer between 0 and 4'))
+            return
+          }
+        }
+        callback()
+      },
+      trigger: 'change'
+    }
   ]
 })
-
-const formRef = ref<FormInstance>()
 
 const form = ref<DeviceTemplate>({
   deviceTmplName: '',
@@ -605,23 +670,306 @@ const form = ref<DeviceTemplate>({
   manuDate: ''
 })
 
-const rules = ref<FormRules>({
+const validateNoChinese = (fieldName: string, maxLen: number) => (_rule: any, value: any, callback: any) => {
+  if (value !== undefined && value !== null && value !== '') {
+    const trimmed = typeof value === 'string' ? value.trim() : ''
+    if (trimmed.length > maxLen) {
+      callback(new Error(`${fieldName} cannot exceed ${maxLen} characters`))
+      return
+    }
+    if (/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/.test(trimmed) || /[^\x00-\x7F]/.test(trimmed)) {
+      callback(new Error(`${fieldName} cannot contain Chinese characters`))
+      return
+    }
+  }
+  callback()
+}
+
+const validateDeviceType = (_rule: any, value: any, callback: any) => {
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  if (!trimmed) {
+    callback(new Error('Please enter template type'))
+    return
+  }
+  if (trimmed.length < 1 || trimmed.length > 50) {
+    callback(new Error('Template type must be between 1 and 50 characters'))
+    return
+  }
+  if (/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/.test(trimmed) || /[^\x00-\x7F]/.test(trimmed)) {
+    callback(new Error('Template type cannot contain Chinese characters'))
+    return
+  }
+  if (!/^[a-zA-Z0-9_\-]+$/.test(trimmed)) {
+    callback(new Error('Template type must contain only letters, numbers, hyphens or underscores'))
+    return
+  }
+  callback()
+}
+
+// Template Add Dialog states
+const addTemplateDialogVisible = ref(false)
+const addTemplateSubmitting = ref(false)
+const addTemplateFormRef = ref<FormInstance>()
+const addTemplateForm = ref<DeviceTemplate>({
+  deviceTmplName: '',
+  deviceType: '',
+  model: '',
+  manufacturer: '',
+  manuDate: ''
+})
+
+const validateAddTemplateNameUnique = (_rule: any, value: any, callback: any) => {
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  if (!trimmed) {
+    callback(new Error('Please enter template name'))
+    return
+  }
+  if (trimmed.length < 2 || trimmed.length > 64) {
+    callback(new Error('Template name must be between 2 and 64 characters'))
+    return
+  }
+  if (/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/.test(trimmed) || /[^\x00-\x7F]/.test(trimmed)) {
+    callback(new Error('Template name cannot contain Chinese characters'))
+    return
+  }
+  if (!/^[a-zA-Z0-9_\-\.\s()]+$/.test(trimmed)) {
+    callback(new Error('Template name contains invalid characters'))
+    return
+  }
+  const exists = store.allTemplates.some(t => {
+    return (t.deviceTmplName || '').trim().toLowerCase() === trimmed.toLowerCase()
+  })
+  if (exists) {
+    callback(new Error('Template name already exists'))
+    return
+  }
+  callback()
+}
+
+const addTemplateRules = ref<FormRules>({
   deviceTmplName: [
-    { required: true, message: '请输入模板名称', trigger: 'blur' },
-    { min: 2, max: 100, message: '长度在 2 到 100 个字符', trigger: 'blur' }
+    { required: true, message: 'Please enter template name', trigger: 'blur' },
+    { validator: validateAddTemplateNameUnique, trigger: 'blur' },
+    { max: 64, message: 'Template name cannot exceed 64 characters', trigger: 'blur' }
   ],
   deviceType: [
-    { required: true, message: '请输入模板类型', trigger: 'blur' }
+    { required: true, message: 'Please enter template type', trigger: 'blur' },
+    { validator: validateDeviceType, trigger: 'blur' },
+    { max: 50, message: 'Template type cannot exceed 50 characters', trigger: 'blur' }
+  ],
+  model: [
+    { validator: validateNoChinese('Model / specs', 50), trigger: 'blur' },
+    { max: 50, message: 'Model / specs cannot exceed 50 characters', trigger: 'blur' }
+  ],
+  manufacturer: [
+    { validator: validateNoChinese('Manufacturer', 50), trigger: 'blur' },
+    { max: 50, message: 'Manufacturer cannot exceed 50 characters', trigger: 'blur' }
   ]
 })
 
-// Access templates list directly from store's allTemplates (device_template 表)
+function openAddTemplateDialog() {
+  addTemplateForm.value = {
+    deviceTmplName: '',
+    deviceType: '',
+    model: '',
+    manufacturer: '',
+    manuDate: ''
+  }
+  addTemplateDialogVisible.value = true
+  nextTick(() => {
+    if (addTemplateFormRef.value) {
+      addTemplateFormRef.value.clearValidate()
+    }
+  })
+}
+
+async function submitAddTemplate() {
+  if (!addTemplateFormRef.value) return
+  const valid = await addTemplateFormRef.value.validate().catch(() => false)
+  if (!valid) {
+    triggerFormShake(addTemplateFormRef, 'Please check and correct the highlighted template fields')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `Are you sure you want to create device template "${addTemplateForm.value.deviceTmplName}"?`,
+      'Confirm Create',
+      {
+        confirmButtonText: 'Create',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+        customClass: 'dark-message-box'
+      }
+    )
+  } catch {
+    return
+  }
+
+  addTemplateSubmitting.value = true
+  try {
+    const payload: DeviceTemplate = {
+      deviceTmplName: addTemplateForm.value.deviceTmplName.trim(),
+      deviceType: addTemplateForm.value.deviceType.trim(),
+      model: addTemplateForm.value.model ? addTemplateForm.value.model.trim() : '',
+      manufacturer: addTemplateForm.value.manufacturer ? addTemplateForm.value.manufacturer.trim() : '',
+      manuDate: addTemplateForm.value.manuDate || ''
+    }
+    const createdTemplate = await templateApi.createTemplate(payload)
+    ElMessage.success('Device template created successfully')
+    addTemplateDialogVisible.value = false
+    await store.refreshAfterMutation()
+
+    store.selectedNode = {
+      id: createdTemplate.deviceTmplId,
+      label: createdTemplate.deviceTmplName,
+      type: 'product',
+      status: 1,
+      children: []
+    }
+  } catch (err: any) {
+    ElMessage.error(err.message || 'Failed to create template')
+  } finally {
+    addTemplateSubmitting.value = false
+  }
+}
+
+// Template Edit Dialog states
+const editTemplateDialogVisible = ref(false)
+const editTemplateSubmitting = ref(false)
+const editTemplateFormRef = ref<FormInstance>()
+const editTemplateForm = ref<DeviceTemplate>({
+  deviceTmplName: '',
+  deviceType: '',
+  model: '',
+  manufacturer: '',
+  manuDate: ''
+})
+
+const validateEditTemplateNameUnique = (_rule: any, value: any, callback: any) => {
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  if (!trimmed) {
+    callback(new Error('Please enter template name'))
+    return
+  }
+  if (trimmed.length < 2 || trimmed.length > 64) {
+    callback(new Error('Template name must be between 2 and 64 characters'))
+    return
+  }
+  if (/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/.test(trimmed) || /[^\x00-\x7F]/.test(trimmed)) {
+    callback(new Error('Template name cannot contain Chinese characters'))
+    return
+  }
+  if (!/^[a-zA-Z0-9_\-\.\s()]+$/.test(trimmed)) {
+    callback(new Error('Template name contains invalid characters'))
+    return
+  }
+  const currentId = editTemplateForm.value.deviceTmplId
+  const exists = store.allTemplates.some(t => {
+    if (currentId && t.deviceTmplId === currentId) {
+      return false
+    }
+    return (t.deviceTmplName || '').trim().toLowerCase() === trimmed.toLowerCase()
+  })
+  if (exists) {
+    callback(new Error('Template name already exists'))
+    return
+  }
+  callback()
+}
+
+const editTemplateRules = ref<FormRules>({
+  deviceTmplName: [
+    { required: true, message: 'Please enter template name', trigger: 'blur' },
+    { validator: validateEditTemplateNameUnique, trigger: 'blur' },
+    { max: 64, message: 'Template name cannot exceed 64 characters', trigger: 'blur' }
+  ],
+  deviceType: [
+    { required: true, message: 'Please enter template type', trigger: 'blur' },
+    { validator: validateDeviceType, trigger: 'blur' },
+    { max: 50, message: 'Template type cannot exceed 50 characters', trigger: 'blur' }
+  ],
+  model: [
+    { validator: validateNoChinese('Model / specs', 50), trigger: 'blur' },
+    { max: 50, message: 'Model / specs cannot exceed 50 characters', trigger: 'blur' }
+  ],
+  manufacturer: [
+    { validator: validateNoChinese('Manufacturer', 50), trigger: 'blur' },
+    { max: 50, message: 'Manufacturer cannot exceed 50 characters', trigger: 'blur' }
+  ]
+})
+
+function openEditTemplateDialog() {
+  if (!selectedTemplate.value) return
+  editTemplateForm.value = {
+    deviceTmplId: selectedTemplate.value.deviceTmplId,
+    deviceTmplName: selectedTemplate.value.deviceTmplName,
+    deviceType: selectedTemplate.value.deviceType,
+    model: selectedTemplate.value.model,
+    manufacturer: selectedTemplate.value.manufacturer,
+    manuDate: selectedTemplate.value.manuDate
+  }
+  editTemplateDialogVisible.value = true
+  nextTick(() => {
+    if (editTemplateFormRef.value) {
+      editTemplateFormRef.value.clearValidate()
+    }
+  })
+}
+
+async function submitEditTemplate() {
+  if (!editTemplateForm.value.deviceTmplId) {
+    ElMessage.error('Missing template ID')
+    return
+  }
+  if (!editTemplateFormRef.value) return
+  const valid = await editTemplateFormRef.value.validate().catch(() => false)
+  if (!valid) {
+    triggerFormShake(editTemplateFormRef, 'Please check and correct the highlighted template fields')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `Are you sure you want to save changes to template "${editTemplateForm.value.deviceTmplName}"?`,
+      'Confirm Save',
+      {
+        confirmButtonText: 'Save',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+        customClass: 'dark-message-box'
+      }
+    )
+  } catch {
+    return
+  }
+
+  try {
+    editTemplateSubmitting.value = true
+    const payload: DeviceTemplate = {
+      ...editTemplateForm.value,
+      deviceTmplName: editTemplateForm.value.deviceTmplName.trim(),
+      deviceType: editTemplateForm.value.deviceType.trim(),
+      model: editTemplateForm.value.model ? editTemplateForm.value.model.trim() : '',
+      manufacturer: editTemplateForm.value.manufacturer ? editTemplateForm.value.manufacturer.trim() : '',
+      manuDate: editTemplateForm.value.manuDate || ''
+    }
+    await templateApi.updateTemplate(editTemplateForm.value.deviceTmplId, payload)
+    ElMessage.success('Template updated successfully')
+    editTemplateDialogVisible.value = false
+    await store.refreshAfterMutation()
+    if (selectedTemplate.value) {
+      form.value = { ...selectedTemplate.value }
+    }
+  } catch (err: any) {
+    ElMessage.error(err.message || 'Failed to update template')
+  } finally {
+    editTemplateSubmitting.value = false
+  }
+}
+
 const templates = computed<DeviceTemplate[]>(() => store.allTemplates)
 
-const realTemplateCount = computed(() => templates.value.filter(t => t.isReal).length)
-const mockTemplateCount = computed(() => templates.value.filter(t => !t.isReal).length)
-
-// Selected Template based on dashboard store selected node
 const selectedTemplate = computed<DeviceTemplate | null>(() => {
   if (!store.selectedNode || store.selectedNode.id === 'root' || store.selectedNode.id === 'root_tmpl') {
     return null
@@ -633,27 +981,6 @@ const selectedTemplate = computed<DeviceTemplate | null>(() => {
 const templatePoints = ref<PointTemplateItem[]>([])
 const loadingPoints = ref(false)
 
-function getPointTypeClass(type: string): string {
-  switch ((type || '').toUpperCase()) {
-    case 'DI': return 'type-di'
-    case 'DO': return 'type-do'
-    case 'AI': return 'type-ai'
-    case 'AO': return 'type-ao'
-    default: return ''
-  }
-}
-
-function getDataTypeClass(type: string): string {
-  switch ((type || '').toLowerCase()) {
-    case 'numeric': return 'type-ai'
-    case 'enum': return 'type-di'
-    case 'boolean': return 'type-di'
-    case 'string': return 'type-ao'
-    default: return ''
-  }
-}
-
-// Sync form values and load points when selected template changes
 watch(selectedTemplate, async (newVal) => {
   isPointBatchManaging.value = false
   isTemplateBatchManaging.value = false
@@ -661,24 +988,19 @@ watch(selectedTemplate, async (newVal) => {
   selectedTemplates.value = []
   if (newVal) {
     form.value = { ...newVal }
-    isEditing.value = false
     await loadTemplatePoints()
   } else {
-    isCreating.value = false
     templatePoints.value = []
   }
 }, { immediate: true })
 
-// Reactively filter table templates based on table filter query
 const filteredTableTemplates = computed(() => {
   const query = tableSearchQuery.value.trim().toLowerCase()
   if (!query) return templates.value
   return templates.value.filter(t => t.deviceTmplName.toLowerCase().includes(query))
 })
 
-// Click edit action inside the table
 function editTemplateFromTable(row: DeviceTemplate) {
-  isCreating.value = false
   store.selectedNode = {
     id: row.deviceTmplId,
     label: row.deviceTmplName,
@@ -688,131 +1010,39 @@ function editTemplateFromTable(row: DeviceTemplate) {
   }
 }
 
-// Start creation flow
-function startCreate() {
-  isCreating.value = true
-  tempPoints.value = [] // Reset temporary points array on creation
-  store.selectedNode = store.deviceTree[0] || null // back to root node representation
-  form.value = {
-    deviceTmplName: '',
-    deviceType: '',
-    model: '',
-    manufacturer: '',
-    manuDate: ''
-  }
-}
-
-// Cancel creation flow
-function cancelCreate() {
-  isCreating.value = false
-}
-
 function goBackToList() {
   store.selectedNode = null
-}
-
-function startEdit() {
-  isEditing.value = true
 }
 
 function handleSelectionChange(val: any[]) {
   selectedPoints.value = val
 }
 
-// Create Submit
-async function submitCreate() {
-  if (!formRef.value) return
-  await formRef.value.validate(async (valid) => {
-    if (valid) {
-      submitting.value = true
-      try {
-        const createdTemplate = await templateApi.createTemplate(form.value)
-
-        for (const ip of tempPoints.value) {
-          await templateApi.addPoint(createdTemplate.deviceTmplId!, {
-            pointName: ip.pointName,
-            pointType: ip.pointType,
-            dataType: ip.dataType,
-            unit: ip.unit,
-            displayPrecision: ip.displayPrecision
-          })
-        }
-
-        ElMessage.success('创建设备模板并同步配置点位成功')
-        isCreating.value = false
-        // Refresh templates and store state
-        await store.fetchAllDashboardData()
-
-        // Highlight the newly created template node
-        store.selectedNode = {
-          id: createdTemplate.deviceTmplId,
-          label: createdTemplate.deviceTmplName,
-          type: 'product',
-          status: 1,
-          children: []
-        }
-
-        // Force enter edit mode to configure points
-        await nextTick()
-        isEditing.value = true
-      } catch (err: any) {
-        ElMessage.error(err.message || '创建模板失败')
-      } finally {
-        submitting.value = false
-      }
-    }
-  })
-}
-
-// Update Submit
-async function submitUpdate() {
-  if (!formRef.value) return
-  await formRef.value.validate(async (valid) => {
-    if (valid) {
-      submitting.value = true
-      try {
-        if (form.value.deviceTmplId) {
-          await templateApi.updateTemplate(form.value.deviceTmplId, form.value)
-          ElMessage.success('保存模板成功')
-          isEditing.value = false
-          await store.fetchAllDashboardData()
-        } else {
-          ElMessage.error('无法保存: 缺少模板ID')
-        }
-      } catch (err: any) {
-        ElMessage.error(err.message || '保存修改失败')
-      } finally {
-        submitting.value = false
-      }
-    }
-  })
-}
-
-// Common confirm deletion logic
 function confirmDelete(target?: DeviceTemplate | null) {
   const templateToDelete = target || selectedTemplate.value
   if (!templateToDelete?.deviceTmplId) return
   const id = templateToDelete.deviceTmplId
 
   ElMessageBox.confirm(
-    `确认删除设备模板 “${templateToDelete.deviceTmplName}” 吗？该操作不会物理删除已关联此模板的部署设备。`,
-    '删除确认',
+    `Are you sure you want to delete template "${templateToDelete.deviceTmplName}"?`,
+    'Delete Confirmation',
     {
-      confirmButtonText: '确定删除',
-      cancelButtonText: '取消',
+      confirmButtonText: 'Delete',
+      cancelButtonText: 'Cancel',
       type: 'warning',
       confirmButtonClass: 'el-button--danger',
+      customClass: 'dark-message-box',
       boxType: 'confirm'
     }
   ).then(async () => {
     loading.value = true
     try {
       await templateApi.deleteTemplate(id)
-      ElMessage.success('删除成功')
-      await store.fetchAllDashboardData()
+      ElMessage.success('Deleted successfully')
+      await store.refreshAfterMutation()
       store.selectedNode = store.deviceTree[0] || null
     } catch (err: any) {
-      ElMessage.error(err.message || '删除模板失败')
+      ElMessage.error(err.message || 'Failed to delete template')
     } finally {
       loading.value = false
     }
@@ -825,46 +1055,50 @@ function deleteTemplateFromTable(row: DeviceTemplate) {
 
 function batchDeleteTemplates() {
   ElMessageBox.confirm(
-    `确认批量删除选中的 ${selectedTemplates.value.length} 个设备模板吗？该操作将物理删除选中的模板，但不会影响已使用该模板的已部署设备。`,
-    '批量删除确认',
+    `Are you sure you want to delete ${selectedTemplates.value.length} selected template(s)?`,
+    'Batch Delete Confirmation',
     {
-      confirmButtonText: '确定删除',
-      cancelButtonText: '取消',
+      confirmButtonText: 'Delete',
+      cancelButtonText: 'Cancel',
       type: 'warning',
       confirmButtonClass: 'el-button--danger',
+      customClass: 'dark-message-box',
       boxType: 'confirm'
     }
   ).then(async () => {
     loading.value = true
     try {
       for (const t of selectedTemplates.value) {
-        await templateApi.deleteTemplate(t.deviceTmplId)
+        if (t.deviceTmplId) {
+          await templateApi.deleteTemplate(t.deviceTmplId)
+        }
       }
-      ElMessage.success('批量删除模板成功')
-    } catch (err: any) {
-      ElMessage.error(err.message || '批量删除失败')
-    } finally {
+      ElMessage.success('Batch delete completed successfully')
+      await store.refreshAfterMutation()
       selectedTemplates.value = []
       isTemplateBatchManaging.value = false
-      await store.fetchAllDashboardData()
-      store.selectedNode = store.deviceTree[0] || null
+    } catch (err: any) {
+      ElMessage.error(err.message || 'Batch delete failed')
+    } finally {
       loading.value = false
     }
   }).catch(() => {})
 }
 
-// Point operations
 async function loadTemplatePoints() {
-  if (selectedTemplate.value?.deviceTmplId) {
-    loadingPoints.value = true
-    try {
-      templatePoints.value = await templateApi.getPoints(selectedTemplate.value.deviceTmplId)
-    } catch (e: any) {
-      console.error(e)
-      ElMessage.error(e.message || '加载模板点位列表失败')
-    } finally {
-      loadingPoints.value = false
-    }
+  if (!selectedTemplate.value?.deviceTmplId) {
+    templatePoints.value = []
+    return
+  }
+  loadingPoints.value = true
+  try {
+    const list = await templateApi.getPoints(selectedTemplate.value.deviceTmplId)
+    templatePoints.value = list || []
+  } catch (err: any) {
+    ElMessage.error(err.message || 'Failed to load template points')
+    templatePoints.value = []
+  } finally {
+    loadingPoints.value = false
   }
 }
 
@@ -873,9 +1107,9 @@ function openAddPointDialog() {
   pointForm.value = {
     pointTmplId: null,
     pointName: '',
-    pointType: 'AI',
-    dataType: 'numeric',
-    unit: '无',
+    pointType: null,
+    dataType: null,
+    unit: '',
     displayPrecision: 0
   }
   pointDialogVisible.value = true
@@ -891,8 +1125,8 @@ function openEditPointDialog(row: any) {
   pointForm.value = {
     pointTmplId: row.pointTmplId,
     pointName: row.pointName,
-    pointType: row.pointType || 'AI',
-    dataType: row.dataType || 'numeric',
+    pointType: row.pointType || null,
+    dataType: row.dataType || null,
     unit: row.unit || '',
     displayPrecision: row.displayPrecision ?? 0
   }
@@ -906,131 +1140,144 @@ function openEditPointDialog(row: any) {
 
 async function submitPointForm() {
   if (!pointFormRef.value) return
-  await pointFormRef.value.validate(async (valid) => {
-    if (valid) {
-      if (isCreating.value) {
-        // Local temporary storage during creation mode
-        if (isEditingPoint.value) {
-          const index = tempPoints.value.findIndex(p => p.pointTmplId === pointForm.value.pointTmplId)
-          if (index !== -1) {
-            tempPoints.value[index] = { ...pointForm.value }
-          }
-          ElMessage.success('修改成功(暂存)')
-        } else {
-          // Generate a negative unique temporary ID
-          const tempId = Math.floor(Math.random() * -1000000)
-          tempPoints.value.push({
-            ...pointForm.value,
-            pointTmplId: tempId
-          })
-          ElMessage.success('新增点位成功(暂存)')
-        }
-        pointDialogVisible.value = false
-        return
-      }
+  const valid = await pointFormRef.value.validate().catch(() => false)
+  if (!valid) {
+    triggerFormShake(pointFormRef, 'Please check and correct the highlighted point fields')
+    return
+  }
 
-      pointSubmitting.value = true
-      try {
-        const tmplId = selectedTemplate.value?.deviceTmplId
-        if (!tmplId) {
-          throw new Error('未找到当前模板，请刷新页面后重试')
-        }
-
-        if (isEditingPoint.value && pointForm.value.pointTmplId) {
-          await templateApi.updatePoint(pointForm.value.pointTmplId, {
-            pointName: pointForm.value.pointName,
-            pointType: pointForm.value.pointType,
-            dataType: pointForm.value.dataType,
-            unit: pointForm.value.unit,
-            displayPrecision: pointForm.value.displayPrecision
-          })
-          ElMessage.success('修改成功')
-        } else {
-          await templateApi.addPoint(tmplId, {
-            pointName: pointForm.value.pointName,
-            pointType: pointForm.value.pointType,
-            dataType: pointForm.value.dataType,
-            unit: pointForm.value.unit,
-            displayPrecision: pointForm.value.displayPrecision
-          })
-          ElMessage.success('新增点位成功')
-        }
-        pointDialogVisible.value = false
-        await loadTemplatePoints()
-      } catch (err: any) {
-        ElMessage.error(err.message || '操作点位失败')
-      } finally {
-        pointSubmitting.value = false
+  const actionText = isEditingPoint.value
+    ? `save changes to point "${pointForm.value.pointName}"`
+    : `add point "${pointForm.value.pointName}"`
+  
+  try {
+    await ElMessageBox.confirm(
+      `Are you sure you want to ${actionText}?`,
+      isEditingPoint.value ? 'Confirm Save' : 'Confirm Add',
+      {
+        confirmButtonText: 'Confirm',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+        customClass: 'dark-message-box'
       }
+    )
+  } catch {
+    return
+  }
+
+  pointSubmitting.value = true
+  try {
+    const tmplId = selectedTemplate.value?.deviceTmplId
+    if (!tmplId) {
+      throw new Error('Template not found, please refresh')
     }
-  })
+
+    const payload = {
+      pointName: pointForm.value.pointName.trim(),
+      pointType: pointForm.value.pointType,
+      dataType: pointForm.value.dataType,
+      unit: pointForm.value.unit ? pointForm.value.unit.trim() : '',
+      displayPrecision: pointForm.value.displayPrecision ?? 0
+    }
+
+    if (isEditingPoint.value && pointForm.value.pointTmplId) {
+      await templateApi.updatePoint(pointForm.value.pointTmplId, payload)
+      ElMessage.success('Point updated successfully')
+    } else {
+      await templateApi.addPoint(tmplId, payload)
+      ElMessage.success('Point added successfully')
+    }
+    pointDialogVisible.value = false
+    await loadTemplatePoints()
+  } catch (err: any) {
+    ElMessage.error(err.message || 'Failed to save point')
+  } finally {
+    pointSubmitting.value = false
+  }
 }
 
 async function deletePoint(row: any) {
-  if (isCreating.value) {
-    tempPoints.value = tempPoints.value.filter(p => p.pointTmplId !== row.pointTmplId)
-    ElMessage.success('删除成功')
+  try {
+    await ElMessageBox.confirm(
+      `Are you sure you want to delete point "${row.pointName}"?`,
+      'Delete Confirmation',
+      {
+        confirmButtonText: 'Delete',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+        customClass: 'dark-message-box'
+      }
+    )
+  } catch {
     return
   }
 
-  ElMessageBox.confirm(`确认删除点位 “${row.pointName}” 吗？`, '删除确认', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning'
-  }).then(async () => {
-    try {
-      await templateApi.deletePoint(row.pointTmplId)
-      ElMessage.success('删除成功')
-      await loadTemplatePoints()
-    } catch (e) {
-      ElMessage.error('删除点位失败')
-    }
-  }).catch(() => {})
+  try {
+    await templateApi.deletePoint(row.pointTmplId)
+    ElMessage.success('Point deleted successfully')
+    await loadTemplatePoints()
+  } catch {
+    ElMessage.error('Failed to delete point')
+  }
 }
 
 async function batchDeletePoints() {
-  if (isCreating.value) {
-    tempPoints.value = tempPoints.value.filter(p => !selectedPoints.value.includes(p))
-    ElMessage.success('批量删除成功')
-    selectedPoints.value = []
-    isPointBatchManaging.value = false
+  if (!selectedPoints.value.length) return
+
+  try {
+    await ElMessageBox.confirm(
+      `Are you sure you want to delete ${selectedPoints.value.length} selected point(s)?`,
+      'Batch Delete Confirmation',
+      {
+        confirmButtonText: 'Delete',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+        customClass: 'dark-message-box'
+      }
+    )
+  } catch {
     return
   }
 
-  ElMessageBox.confirm('确认删除选中的所有点位吗？', '批量删除确认', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning'
-  }).then(async () => {
-    try {
-      for (const p of selectedPoints.value) {
-        await templateApi.deletePoint(p.pointTmplId)
-      }
-      ElMessage.success('批量删除成功')
-    } catch (e) {
-      ElMessage.error('删除部分点位失败')
-    } finally {
-      selectedPoints.value = []
-      isPointBatchManaging.value = false
-      await loadTemplatePoints()
+  try {
+    for (const p of selectedPoints.value) {
+      await templateApi.deletePoint(p.pointTmplId)
     }
-  }).catch(() => {})
+    ElMessage.success('Selected points deleted successfully')
+  } catch {
+    ElMessage.error('Failed to delete some points')
+  } finally {
+    selectedPoints.value = []
+    isPointBatchManaging.value = false
+    await loadTemplatePoints()
+  }
 }
+
+const diagramDialogRef = ref<InstanceType<typeof TemplateDiagramDialog> | null>(null)
 
 function openConfigPanel() {
-  ElMessage.success('已跳转到组态画图编辑界面')
+  diagramDialogRef.value?.open(selectedTemplate.value || form.value)
 }
 
-function openDeviceAlarmConfig() {
-  ElMessageBox.alert('当前正在为该设备模板配置报警规则：当设备发生断电、通信中断时，下属测点全部报故障状态。', '设备级报警配置', {
-    confirmButtonText: '确定'
-  })
+function openConfigPanelWithTarget(target: DeviceTemplate) {
+  diagramDialogRef.value?.open(target)
+}
+
+const alarmRuleEditModalRef = ref<InstanceType<typeof AlarmRuleEditModal> | null>(null)
+
+function openAlarmRuleEditModal(row: any) {
+  alarmRuleEditModalRef.value?.open(row)
 }
 
 function openPointAlarmConfig(row: any) {
-  ElMessageBox.alert(`当前正在为测点 [${row.pointName}] 配置报警规则：阈值高低限设置、告警延迟及告警级别配置。`, '点位级报警配置', {
-    confirmButtonText: '确定'
-  })
+  openAlarmRuleEditModal(row)
+}
+
+async function handleAlarmSaved() {
+  await loadTemplatePoints()
+  await store.loadTemplates()
 }
 
 function handleExport() {
@@ -1040,17 +1287,16 @@ function handleExport() {
 async function exportAllTemplatesAndPoints() {
   loading.value = true
   try {
-    const headers = ['设备模板名称', '设备类型', '型号规格', '制造厂商', '点位名称', '点位类型', '数据类型', '单位', '精度', '数据来源']
+    const headers = ['Template Name', 'Device Type', 'Model / Specs', 'Manufacturer', 'Point Name', 'Point Type', 'Data Type', 'Unit', 'Precision']
     const rows: any[] = []
 
-    // Fetch points for each template
     for (const tpl of store.allTemplates) {
       if (tpl.deviceTmplId === undefined) continue
       try {
         const points = await templateApi.getPoints(tpl.deviceTmplId)
         if (points.length === 0) {
           rows.push([tpl.deviceTmplName || '', tpl.deviceType || '', tpl.model || '', tpl.manufacturer || '',
-            '', '', '', '', '', tpl.isReal ? '真实数据' : 'Mock'])
+            '', '', '', '', ''])
         }
         for (const p of points) {
           rows.push([
@@ -1062,8 +1308,7 @@ async function exportAllTemplatesAndPoints() {
             p.pointType || '',
             p.dataType || '',
             p.unit || '',
-            p.displayPrecision ?? 0,
-            p.isReal ? '真实数据' : 'Mock'
+            p.displayPrecision ?? 0
           ])
         }
       } catch (e) {
@@ -1071,7 +1316,7 @@ async function exportAllTemplatesAndPoints() {
       }
     }
 
-    let csvContent = "\uFEFF" // Chinese encoding BOM
+    let csvContent = "\uFEFF"
     csvContent += [headers.join(','), ...rows.map(r => r.map((val: any) => {
       const escaped = String(val ?? '').replace(/"/g, '""')
       return `"${escaped}"`
@@ -1081,14 +1326,14 @@ async function exportAllTemplatesAndPoints() {
     const link = document.createElement("a")
     const url = URL.createObjectURL(blob)
     link.setAttribute("href", url)
-    link.setAttribute("download", `全部设备模板及点位表.csv`)
+    link.setAttribute("download", `Device_Templates_and_Points.csv`)
     link.style.visibility = 'hidden'
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    ElMessage.success('全部模板点位表导出成功')
+    ElMessage.success('Export completed successfully')
   } catch (err: any) {
-    ElMessage.error('导出失败: ' + err.message)
+    ElMessage.error('Export failed: ' + err.message)
   } finally {
     loading.value = false
   }
@@ -1107,29 +1352,28 @@ function handleImportFileChange(uploadFile: any) {
 }
 
 function downloadImportTemplate() {
-  const headers = ['设备模板名称', '设备类型', '型号规格', '制造厂商', '点位名称', '点位类型', '数据类型', '单位', '精度']
+  const headers = ['Template Name', 'Device Type', 'Model / Specs', 'Manufacturer', 'Point Name', 'Point Type', 'Data Type', 'Unit', 'Precision']
   const rows = [
-    ['样例电表模板', 'EM', 'DTSD-342', '某某仪表公司', 'A相电压', 'AI', 'numeric', 'V', '1'],
-    ['样例电表模板', 'EM', 'DTSD-342', '某某仪表公司', 'B相电压', 'AI', 'numeric', 'V', '1'],
-    ['样例电表模板', 'EM', 'DTSD-342', '某某仪表公司', '通讯状态', 'DI', 'boolean', '无', '0']
+    ['Sample_Power_Meter', 'EM', 'DTSD-342', 'Instrument Corp', 'Voltage_A', 'AI', 'numeric', 'V', '1'],
+    ['Sample_Power_Meter', 'EM', 'DTSD-342', 'Instrument Corp', 'Voltage_B', 'AI', 'numeric', 'V', '1'],
+    ['Sample_Power_Meter', 'EM', 'DTSD-342', 'Instrument Corp', 'Communication_Status', 'DI', 'enum', 'None', '0']
   ]
 
-  let csvContent = "\uFEFF" // Chinese encoding BOM
+  let csvContent = "\uFEFF"
   csvContent += [headers.join(','), ...rows.map(r => r.map(val => `"${val}"`).join(','))].join('\n')
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement("a")
   const url = URL.createObjectURL(blob)
   link.setAttribute("href", url)
-  link.setAttribute("download", `设备点位导入模板.csv`)
+  link.setAttribute("download", `Device_Point_Import_Template.csv`)
   link.style.visibility = 'hidden'
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
-  ElMessage.success('导入模板下载成功')
+  ElMessage.success('Import template downloaded')
 }
 
-// Import all templates and points from CSV
 function importAllTemplatesAndPoints(file: File) {
   const reader = new FileReader()
   reader.onload = async (e: any) => {
@@ -1138,111 +1382,127 @@ function importAllTemplatesAndPoints(file: File) {
       const text = e.target.result
       const lines = text.split('\n').map((l: string) => l.trim()).filter(Boolean)
       if (lines.length <= 1) {
-        throw new Error('格式错误，请重新导入。（原因：文件为空或没有数据行）')
+        throw new Error('Invalid format: File is empty or has no data rows')
       }
 
-      // Detect delimiter
       let delimiter = ','
       if (lines[1] && lines[1].includes(';')) {
         delimiter = ';'
       }
 
-      // 1. Header validation
       const headerLine = lines[0].split(delimiter).map((s: any) => s.replace(/^"|"$/g, '').trim())
       if (headerLine.length < 9) {
-        throw new Error('格式错误，请重新导入。（原因：表头列数不足，应为 9 列）')
-      }
-      const requiredHeaders = ['设备模板名称', '点位名称', '点位类型']
-      const missingHeaders = requiredHeaders.filter((h: any) => !headerLine.some((col: any) => col.includes(h)))
-      if (missingHeaders.length > 0) {
-        throw new Error(`格式错误，请重新导入。（原因：表头缺少必要列: ${missingHeaders.join(', ')}）`)
+        throw new Error('Invalid format: Header must have at least 9 columns')
       }
 
-      // Map: templateName -> { type, model, manufacturer, points: [] }
-      const groups = new Map<string, { type: string, model: string, manufacturer: string, points: any[] }>()
+      const groups = new Map<string, { type: string, model: string, manufacturer: string, points: any[], seenPointNames: Set<string> }>()
+      const validationErrors: string[] = []
 
       for (let i = 1; i < lines.length; i++) {
         const parts = lines[i].split(delimiter).map((s: any) => s.replace(/^"|"$/g, '').trim())
-
-        // Skip blank lines
         if (parts.every((p: any) => p === '')) continue
 
+        const rowNum = i + 1
         if (parts.length < 9) {
-          throw new Error(`格式错误，请重新导入。（原因：第 ${i + 1} 行数据列数不足 9 列）`)
+          validationErrors.push(`Row ${rowNum}: Insufficient columns (expected 9, got ${parts.length})`)
+          continue
         }
 
         const tplName = parts[0]
-        if (!tplName) {
-          throw new Error(`格式错误，请重新导入。（原因：第 ${i + 1} 行的“设备模板名称”不能为空）`)
+        if (!tplName || tplName.length < 2 || tplName.length > 100) {
+          validationErrors.push(`Row ${rowNum}: Template name must be 2-100 characters`)
         }
 
-        const type = parts[1]
-        const model = parts[2]
-        const manufacturer = parts[3]
+        const type = parts[1] || 'EM'
+        if (type.length > 50) {
+          validationErrors.push(`Row ${rowNum}: Device type cannot exceed 50 characters`)
+        }
+
+        const model = (parts[2] || '').slice(0, 100)
+        const manufacturer = (parts[3] || '').slice(0, 100)
 
         const pointName = parts[4]
-        if (!pointName) {
-          throw new Error(`格式错误，请重新导入。（原因：第 ${i + 1} 行的“点位名称”不能为空）`)
+        if (!pointName || pointName.length < 1 || pointName.length > 150) {
+          validationErrors.push(`Row ${rowNum}: Point name must be 1-150 characters`)
+        } else if (!/^[a-zA-Z0-9_\-\.\s()]+$/.test(pointName)) {
+          validationErrors.push(`Row ${rowNum}: Point name "${pointName}" contains invalid characters`)
         }
 
-        const typeStr = parts[5] || ''
-        let pointType = ''
-        if (typeStr.toUpperCase().includes('DI')) pointType = 'DI'
-        else if (typeStr.toUpperCase().includes('DO')) pointType = 'DO'
-        else if (typeStr.toUpperCase().includes('AI')) pointType = 'AI'
-        else if (typeStr.toUpperCase().includes('AO')) pointType = 'AO'
-        if (!pointType) {
-          throw new Error(`格式错误，请重新导入。（原因：第 ${i + 1} 行的“点位类型”必须包含 DI/DO/AI/AO）`)
+        const typeStr = (parts[5] || '').toUpperCase()
+        let pointType = 'AI'
+        if (typeStr.includes('DI')) pointType = 'DI'
+        else if (typeStr.includes('DO')) pointType = 'DO'
+        else if (typeStr.includes('AI')) pointType = 'AI'
+        else if (typeStr.includes('AO')) pointType = 'AO'
+        else {
+          validationErrors.push(`Row ${rowNum}: Invalid point type "${parts[5]}", must be DI, DO, AI, or AO`)
         }
 
-        let dataType = parts[6] || ''
+        let dataType = (parts[6] || '').toLowerCase()
+        const validDataTypes = ['numeric', 'enum', 'boolean', 'string']
         if (!dataType) {
-          dataType = (pointType === 'DI' || pointType === 'DO') ? 'boolean' : 'numeric'
+          dataType = (pointType === 'DI' || pointType === 'DO') ? 'enum' : 'numeric'
+        } else if (!validDataTypes.includes(dataType)) {
+          validationErrors.push(`Row ${rowNum}: Invalid data type "${parts[6]}", must be numeric, enum, boolean, or string`)
         }
 
-        const unit = parts[7]
+        const unit = (parts[7] || '').slice(0, 50)
         const precisionStr = parts[8]
-        if (precisionStr && !/^\d+$/.test(precisionStr)) {
-          throw new Error(`格式错误，请重新导入。（原因：第 ${i + 1} 行的“精度”必须为非负整数）`)
+        const displayPrecision = parseInt(precisionStr, 10)
+        if (isNaN(displayPrecision) || displayPrecision < 0 || displayPrecision > 4) {
+          validationErrors.push(`Row ${rowNum}: Display precision must be an integer between 0 and 4`)
         }
-        const displayPrecision = parseInt(precisionStr) || 0
 
         if (!groups.has(tplName)) {
           groups.set(tplName, {
             type,
             model,
             manufacturer,
-            points: []
+            points: [],
+            seenPointNames: new Set<string>()
           })
         }
 
-        groups.get(tplName)!.points.push({
+        const group = groups.get(tplName)!
+        const lowerPointName = (pointName || '').toLowerCase()
+        if (group.seenPointNames.has(lowerPointName)) {
+          validationErrors.push(`Row ${rowNum}: Duplicate point name "${pointName}" under template "${tplName}"`)
+        } else {
+          group.seenPointNames.add(lowerPointName)
+        }
+
+        group.points.push({
           pointName,
           pointType,
           dataType,
           unit,
-          displayPrecision
+          displayPrecision: isNaN(displayPrecision) ? 0 : Math.max(0, Math.min(4, displayPrecision))
         })
       }
 
-      if (groups.size === 0) {
-        throw new Error('格式错误，请重新导入。（原因：未解析到任何有效数据行）')
+      if (validationErrors.length > 0) {
+        const errorSummary = validationErrors.slice(0, 5).join('\n') + (validationErrors.length > 5 ? `\n...and ${validationErrors.length - 5} more error(s)` : '')
+        ElMessageBox.alert(errorSummary, 'CSV Validation Failed', {
+          type: 'error',
+          confirmButtonText: 'OK'
+        })
+        loading.value = false
+        return
       }
 
-      await store.fetchAllDashboardData()
+      if (groups.size === 0) {
+        throw new Error('No valid records parsed from CSV')
+      }
 
       let createdCount = 0
       let updatedCount = 0
       let totalPointsCount = 0
-      let addedPointsCount = 0
-      let duplicatePointsCount = 0
 
       for (const [tplName, data] of groups.entries()) {
-        let template = store.allTemplates.find((t: any) => t.deviceTmplName === tplName)
+        const template = store.allTemplates.find((t: any) => t.deviceTmplName === tplName)
         let targetTmplId: number | null = null
 
         if (!template) {
-          // Create template
           const created = await templateApi.createTemplate({
             deviceTmplName: tplName,
             deviceType: data.type || 'EM',
@@ -1258,39 +1518,19 @@ function importAllTemplatesAndPoints(file: File) {
         }
 
         if (targetTmplId) {
-          // Import points for this template
           for (const ip of data.points) {
-            const res = await templateApi.addPoint(targetTmplId, ip)
-            if ((res as any) === '更新点位成功') {
-              duplicatePointsCount++
-            } else {
-              addedPointsCount++
-            }
+            await templateApi.addPoint(targetTmplId, ip)
             totalPointsCount++
           }
         }
       }
 
-      let successMsg = `导入成功: 新建 ${createdCount} 模板，更新 ${updatedCount} 模板。`
-      if (duplicatePointsCount > 0) {
-        successMsg += ` 覆盖了 ${duplicatePointsCount} 个重复点位。`
-      } else {
-        successMsg += ` 共导入 ${totalPointsCount} 个点位。`
-      }
-      ElMessage.success({
-        message: successMsg,
-        showClose: true,
-        duration: 10000
-      })
-      await store.fetchAllDashboardData()
+      ElMessage.success(`Import complete: ${createdCount} created, ${updatedCount} updated, ${totalPointsCount} points total.`)
+      await store.refreshAfterMutation()
 
     } catch (err: any) {
       console.error(err)
-      ElMessage.error({
-        message: err.message || '导入失败',
-        showClose: true,
-        duration: 10000
-      })
+      ElMessage.error(err.message || 'Import failed')
     } finally {
       loading.value = false
     }
@@ -1305,17 +1545,18 @@ $bg-card: #111b27;
 $bg-card-hover: #1e293b;
 $border-color: #1e293b;
 $border-card: #2d3748;
-$text-primary: #f8fafc;
-$text-secondary: #cbd5e1;
+$text-primary: #e5e7eb;
+$text-secondary: #9ca3af;
 $text-muted: #64748b;
 $accent-green: #10b981;
 $accent-blue: #3b82f6;
 $accent-yellow: #f59e0b;
+$accent-red: #ef4444;
 $bg-dark: #0b1119;
 
 .product-manager-view {
   height: 100%;
-  padding: 4px;
+  padding: 0;
 }
 
 .card-container {
@@ -1337,25 +1578,26 @@ $bg-dark: #0b1119;
 }
 
 .panel-header {
-  padding: 16px;
+  padding: 8px 12px;
   border-bottom: 1px solid $border-color;
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-shrink: 0;
+  min-height: 38px;
 }
 
 .header-title {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
+  gap: 6px;
+  font-size: 11px;
   font-weight: 600;
   color: $text-primary;
 
   .title-icon {
     color: $accent-green;
-    font-size: 16px;
+    font-size: 13px;
   }
 }
 
@@ -1364,7 +1606,7 @@ $bg-dark: #0b1119;
 }
 
 .detail-body {
-  padding: 24px;
+  padding: 12px;
   flex: 1;
   overflow-y: auto;
   display: flex;
@@ -1374,47 +1616,143 @@ $bg-dark: #0b1119;
 .custom-form {
   max-width: 600px;
 
+  :deep(.el-form-item) {
+    margin-bottom: 22px;
+
+    &.is-error {
+      margin-bottom: 24px;
+    }
+  }
+
   :deep(.el-form-item__label) {
     color: $text-secondary;
     font-weight: 500;
+    font-size: 10px !important;
+    height: 20px !important;
+    line-height: 20px !important;
+    padding-right: 6px !important;
   }
-  :deep(.el-input__wrapper) {
+  
+  :deep(.el-input__wrapper),
+  :deep(.el-select__wrapper),
+  :deep(.el-date-editor.el-input__wrapper) {
     background-color: $bg-dark !important;
+    height: 20px !important;
+    min-height: 20px !important;
+    line-height: 20px !important;
+    padding: 0 6px !important;
+    border-radius: 4px !important;
+    border: 1px solid $border-color !important;
+    box-shadow: none !important;
+  }
+
+  :deep(.el-input.is-disabled .el-input__wrapper),
+  :deep(.el-select.is-disabled .el-select__wrapper),
+  :deep(.el-select__wrapper.is-disabled),
+  :deep(.el-date-editor.is-disabled) {
+    background-color: rgba(11, 17, 25, 0.85) !important;
+    border-color: rgba(30, 41, 59, 0.8) !important;
+    box-shadow: none !important;
+  }
+
+  :deep(.el-input__inner),
+  :deep(.el-select__selected-item),
+  :deep(.el-select__placeholder) {
+    font-size: 10px !important;
+    height: 20px !important;
+    line-height: 20px !important;
+    color: #e5e7eb !important;
+  }
+
+  :deep(.el-input.is-disabled .el-input__inner),
+  :deep(.el-select.is-disabled .el-select__selected-item),
+  :deep(.el-select__wrapper.is-disabled .el-select__selected-item),
+  :deep(.el-date-editor.is-disabled .el-input__inner) {
+    color: #94a3b8 !important;
+    -webkit-text-fill-color: #94a3b8 !important;
+  }
+
+  :deep(.el-input__prefix), :deep(.el-input__suffix), :deep(.el-select__suffix) {
+    font-size: 10px !important;
   }
 }
 
 .custom-form-compact {
-  background-color: rgba($bg-card-hover, 0.3);
-  border-radius: 8px;
-  padding: 16px;
+  background-color: rgba($bg-card-hover, 0.25);
+  border-radius: 6px;
+  padding: 6px 10px 0;
   border: 1px solid $border-color;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
   flex-shrink: 0;
 
   :deep(.el-form-item) {
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
   
   :deep(.el-form-item__label) {
     color: $text-secondary;
     font-weight: 500;
+    font-size: 10px !important;
+    height: 20px !important;
+    line-height: 20px !important;
+    padding-right: 6px !important;
   }
-  :deep(.el-input__wrapper) {
+  
+  :deep(.el-input__wrapper),
+  :deep(.el-select__wrapper),
+  :deep(.el-date-editor.el-input__wrapper) {
     background-color: $bg-dark !important;
+    height: 20px !important;
+    min-height: 20px !important;
+    line-height: 20px !important;
+    padding: 0 6px !important;
+    border-radius: 4px !important;
+    border: 1px solid $border-color !important;
+    box-shadow: none !important;
+  }
+
+  :deep(.el-input.is-disabled .el-input__wrapper),
+  :deep(.el-select.is-disabled .el-select__wrapper),
+  :deep(.el-select__wrapper.is-disabled),
+  :deep(.el-date-editor.is-disabled) {
+    background-color: rgba(11, 17, 25, 0.85) !important;
+    border-color: rgba(30, 41, 59, 0.8) !important;
+    box-shadow: none !important;
+  }
+
+  :deep(.el-input__inner),
+  :deep(.el-select__selected-item),
+  :deep(.el-select__placeholder) {
+    font-size: 10px !important;
+    height: 20px !important;
+    line-height: 20px !important;
+    color: #e5e7eb !important;
+  }
+
+  :deep(.el-input.is-disabled .el-input__inner),
+  :deep(.el-select.is-disabled .el-select__selected-item),
+  :deep(.el-select__wrapper.is-disabled .el-select__selected-item),
+  :deep(.el-date-editor.is-disabled .el-input__inner) {
+    color: #94a3b8 !important;
+    -webkit-text-fill-color: #94a3b8 !important;
+  }
+
+  :deep(.el-input__prefix), :deep(.el-input__suffix), :deep(.el-select__suffix) {
+    font-size: 10px !important;
   }
 }
 
 .action-buttons {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
 }
 
 .extra-property-buttons {
   display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
   border-bottom: 1px dashed rgba($border-color, 0.6);
   flex-shrink: 0;
 }
@@ -1423,27 +1761,27 @@ $bg-dark: #0b1119;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 6px;
   flex-shrink: 0;
 }
 
 .points-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 
-/* Table styles */
+/* Table styles matching AlarmTable.vue EXACTLY */
 .table-body {
-  padding: 16px;
+  padding: 8px 12px;
   flex: 1;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .search-box-table {
-  width: 320px;
+  width: 240px;
   flex-shrink: 0;
   
   :deep(.el-input__wrapper) {
@@ -1458,33 +1796,96 @@ $bg-dark: #0b1119;
 
 .custom-table {
   --el-table-border-color: #1f2937;
-  --el-table-header-bg-color: #1a2332;
-  --el-table-tr-bg-color: transparent;
+  --el-table-header-bg-color: #0d1117;
+  --el-table-text-color: #e5e7eb;
+  --el-table-header-text-color: #e5e7eb;
   
-  background-color: transparent !important;
-  
-  :deep(tr) {
-    background-color: transparent !important;
-    color: $text-primary;
-    
-    &:hover td {
-      background-color: $bg-card-hover !important;
-    }
+  font-size: 10px !important;
+
+  .el-table .cell {
+    line-height: 20px;
   }
-  
-  :deep(th) {
-    background-color: #182232 !important;
-    color: $text-secondary;
-    font-weight: 600;
+
+  .el-table__inner-wrapper {
+    background-color: #111827;
   }
-  
-  :deep(td) {
+
+  .el-table__body-wrapper {
+    background-color: #111827;
+  }
+
+  .el-table__header-wrapper {
+    background-color: #0d1117;
+  }
+
+  .el-table__row {
+    background-color: #111827;
+  }
+
+  .el-table__row:hover > td {
+    background-color: #1a2332 !important;
+  }
+
+  td, th {
     border-bottom: 1px solid #1f2937;
+  }
+
+  // Exact AlarmTable.vue compact row heights & paddings
+  :deep(.el-table__cell) {
+    padding: 0 0 !important;
+  }
+  :deep(.el-table__cell .cell) {
+    padding: 0 4px !important;
+  }
+  :deep(.el-table__header-cell .cell),
+  :deep(th.el-table__cell .cell) {
+    padding: 0 4px !important;
+    line-height: 20px !important;
+    height: 20px !important;
+    font-size: 10px !important;
+    display: flex;
+    align-items: center;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+  :deep(td.el-table__cell .cell) {
+    padding: 0 4px !important;
+    line-height: 20px !important;
+    height: 20px !important;
+    font-size: 10px !important;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    text-align: left !important;
+  }
+  :deep(td.el-table__cell.is-center .cell) {
+    justify-content: center !important;
+    text-align: center !important;
+  }
+}
+
+.btn-back {
+  margin-left: 20px !important;
+}
+
+.alarm-rule-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 0 4px;
+
+  .alarm-btn-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
   }
 }
 
 .point-table-section {
-  margin-top: 16px;
+  margin-top: 8px;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -1494,118 +1895,146 @@ $bg-dark: #0b1119;
 .section-title {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
+  gap: 6px;
+  font-size: 11px;
   font-weight: 600;
   color: $text-primary;
 
   .section-icon {
     color: $accent-green;
-    font-size: 16px;
+    font-size: 13px;
   }
 }
 
+/* Compact Rounded borderless tags matching data type style */
 .type-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 3px 11px;
-  border-radius: 11px;
-  font-size: 13px;
+  padding: 0 6px;
+  height: 16px;
+  border-radius: 8px;
+  font-size: 10px;
   font-weight: 400;
-  line-height: 1.25;
-  letter-spacing: 0.1px;
-  border: none;
+  line-height: 16px;
+  border: none !important;
   transition: all 0.2s ease-in-out;
 
-  &.type-di {
-    background-color: rgba($accent-blue, 0.14);
-    color: #7dd3fc;
+  &.type-numeric {
+    background-color: rgba($accent-blue, 0.18);
+    color: #93c5fd;
   }
-  &.type-do {
-    background-color: rgba(168, 85, 247, 0.14);
-    color: #c084fc;
+  &.type-enum {
+    background-color: rgba($accent-yellow, 0.18);
+    color: #fde047;
   }
-  &.type-ai {
-    background-color: rgba($accent-green, 0.14);
-    color: #4ade80;
+  &.type-string {
+    background-color: rgba(168, 85, 247, 0.18);
+    color: #d8b4fe;
   }
-  &.type-ao {
-    background-color: rgba($accent-yellow, 0.14);
-    color: #facc15;
-  }
+}
+
+.alarm-code-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  height: 16px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 16px;
+  border: none !important;
+  background-color: rgba($accent-red, 0.22) !important;
+  color: #fca5a5 !important;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
 
   &:hover {
-    filter: brightness(1.1);
+    background-color: rgba($accent-red, 0.35) !important;
+    color: #ffffff !important;
     transform: translateY(-0.5px);
   }
 }
 
-:deep(.el-tag) {
+.alarm-none-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  height: 16px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 16px;
   border: none !important;
-  border-radius: 11px !important;
-  font-size: 13px !important;
-  font-weight: 400 !important;
-  padding: 3px 11px !important;
-  line-height: 1.25 !important;
-  height: auto !important;
+  background-color: rgba(100, 116, 139, 0.14) !important;
+  color: #94a3b8 !important;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
 
-  &.el-tag--success {
-    background-color: rgba($accent-green, 0.14) !important;
-    color: #4ade80 !important;
-  }
-  &.el-tag--warning {
-    background-color: rgba($accent-yellow, 0.14) !important;
-    color: #facc15 !important;
-  }
-  &.el-tag--info {
-    background-color: rgba(100, 116, 139, 0.18) !important;
-    color: #cbd5e1 !important;
+  &:hover {
+    background-color: rgba($accent-blue, 0.20) !important;
+    color: #93c5fd !important;
+    transform: translateY(-0.5px);
   }
 }
 
-// ===== 按钮背景与文字优雅调优 =====
-// 1. 实心 Primary 按钮（深翠绿渐变背景 + 纯白高对比文字）
-:deep(.el-button--primary:not(.is-plain):not(.is-link)) {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
-  border-color: #059669 !important;
-  color: #ffffff !important;
-  font-weight: 500 !important;
-  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25) !important;
+/* ========================================================== */
+/* BORDERLESS TRANSLUCENT CAPSULE BUTTONS                     */
+/* ========================================================== */
+:deep(.el-button) {
+  border-radius: 9px !important;
+  border: none !important;
+  font-size: 10px !important;
+  font-weight: 400 !important;
+  padding: 2px 8px !important;
+  height: 20px !important;
+  line-height: 16px !important;
+  transition: all 0.2s ease-in-out;
 
   &:hover {
-    background: linear-gradient(135deg, #34d399 0%, #10b981 100%) !important;
-    border-color: #10b981 !important;
-    color: #ffffff !important;
-    box-shadow: 0 4px 10px rgba(16, 185, 129, 0.35) !important;
+    transform: translateY(-0.5px);
+  }
+
+  &.is-link {
+    background-color: transparent !important;
+    padding: 0 2px !important;
+    border-radius: 4px !important;
+    height: auto !important;
   }
 }
 
-// 2. 浅亮色 Plain Primary 按钮（浅靓清新绿底 + 沉稳高对比度深绿字）
-:deep(.el-button--primary.is-plain) {
-  background-color: #ecfdf5 !important;
-  border-color: #a7f3d0 !important;
-  color: #047857 !important;
-  font-weight: 400 !important;
+/* Primary / Green buttons */
+.btn-primary, :deep(.el-button--primary:not(.is-link)) {
+  background-color: rgba($accent-green, 0.16) !important;
+  color: #34d399 !important;
 
   &:hover {
-    background-color: #d1fae5 !important;
-    border-color: #6ee7b7 !important;
-    color: #065f46 !important;
+    background-color: rgba($accent-green, 0.28) !important;
+    color: #6ee7b7 !important;
   }
 }
 
-// 3. 浅亮色 Plain Danger 按钮（浅亮浅红底 + 沉稳高对比度深红字）
-:deep(.el-button--danger.is-plain) {
-  background-color: #fef2f2 !important;
-  border-color: #fca5a5 !important;
-  color: #b91c1c !important;
-  font-weight: 400 !important;
+/* Secondary / Default / Blue buttons */
+.btn-secondary, :deep(.el-button--default:not(.is-link)), :deep(.el-button--info:not(.is-link)) {
+  background-color: rgba($accent-blue, 0.16) !important;
+  color: #93c5fd !important;
 
   &:hover {
-    background-color: #fee2e2 !important;
-    border-color: #f87171 !important;
-    color: #991b1b !important;
+    background-color: rgba($accent-blue, 0.28) !important;
+    color: #bfdbfe !important;
+  }
+}
+
+/* Danger / Delete / Red buttons */
+.btn-danger, :deep(.el-button--danger:not(.is-link)) {
+  background-color: rgba($accent-red, 0.16) !important;
+  color: #fca5a5 !important;
+
+  &:hover {
+    background-color: rgba($accent-red, 0.28) !important;
+    color: #fecaca !important;
   }
 }
 </style>

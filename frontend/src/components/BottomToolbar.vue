@@ -17,9 +17,11 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Bell, TrendCharts, Document, Tools, Setting, Clock, Cpu, Operation } from '@element-plus/icons-vue'
-import { useDashboardStore } from '@/stores/dashboard'
+import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
 
-const store = useDashboardStore()
+// Real-time active alarm count (sum of all severities) shared across the app
+// via the WebSocket singleton. Mirrors the Active Alarms table row count.
+const { activeAlarmCount } = useAlarmWebSocket()
 const route = useRoute()
 const router = useRouter()
 
@@ -28,13 +30,15 @@ const router = useRouter()
 const systemPaths = ['/device-template', '/device-deployment', '/system-deployment', '/alarm/config']
 const isSystemRoute = computed(() => systemPaths.includes(route.path))
 const isAlarmRoute = computed(() => route.path.startsWith('/alarm') && !isSystemRoute.value)
+// Event is its own top-level route with no second-level menu.
+const isEventRoute = computed(() => route.path === '/event')
 
 // Items shown on the alarm route: Active Alarms / Alarm History
 const alarmItems = computed(() => [
   {
     label: 'Active Alarms',
     icon: Bell,
-    badge: store.alarmSummary?.critical || 0,
+    badge: activeAlarmCount.value,
     active: route.path === '/alarm',
     to: '/alarm',
   },
@@ -56,7 +60,7 @@ const systemItems = computed(() => [
 
 // Items shown on all other routes
 const defaultItems = computed(() => [
-  { label: 'Alarm Center', icon: Bell, badge: store.alarmSummary?.critical || 0, active: false, to: '/alarm' },
+  { label: 'Alarm Center', icon: Bell, badge: activeAlarmCount.value, active: false, to: '/alarm' },
   { label: 'Trend Viewer', icon: TrendCharts, badge: null, active: false, to: '' },
   { label: 'Report Center', icon: Document, badge: null, active: false, to: '' },
   { label: 'Work Order', icon: Tools, badge: null, active: false, to: '' },
@@ -66,6 +70,8 @@ const defaultItems = computed(() => [
 const toolbarItems = computed(() => {
   if (isSystemRoute.value) return systemItems.value
   if (isAlarmRoute.value) return alarmItems.value
+  // Event route has no second-level menu items.
+  if (isEventRoute.value) return []
   return defaultItems.value
 })
 

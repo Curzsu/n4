@@ -2,8 +2,14 @@
 setlocal
 
 set "ROOT=%~dp0"
-set "BACKEND=%ROOT%backend"
+set "BACKEND=%ROOT%monitor-backend"
 set "FRONTEND=%ROOT%frontend"
+
+if not exist "%ROOT%pom.xml" (
+  echo [ERROR] Root aggregator pom was not found: %ROOT%pom.xml
+  pause
+  exit /b 1
+)
 
 if not exist "%BACKEND%\pom.xml" (
   echo [ERROR] Backend project was not found: %BACKEND%
@@ -35,14 +41,16 @@ where npm.cmd >nul 2>&1 || (
   exit /b 1
 )
 
-echo Checking for an existing N4 Monitor backend on port 8089...
-call :stop_port 8089 "N4 Monitor backend"
+echo Checking for an existing N4 Monitor backend on port 8088...
+call :stop_port 8088 "N4 Monitor backend"
 
 echo Checking for an existing N4 Monitor frontend on port 5173...
 call :stop_port 5173 "N4 Monitor frontend"
 
-echo Starting a fresh N4 Monitor backend on port 8089...
-start "N4 Monitor Backend" cmd.exe /k "cd /d ""%BACKEND%"" && mvn.cmd spring-boot:run"
+echo Starting a fresh N4 Monitor backend on port 8088...
+rem Build the reactor first so monitor-common and monitor-flink-job are available
+rem to monitor-backend after a fresh pull or a clean local Maven repository.
+start "N4 Monitor Backend" cmd.exe /k "cd /d ""%ROOT%"" && mvn.cmd -pl monitor-backend -am install -DskipTests && cd /d ""%BACKEND%"" && mvn.cmd spring-boot:run"
 
 echo Starting a fresh N4 Monitor frontend on port 5173...
 start "N4 Monitor Frontend" cmd.exe /k "cd /d ""%FRONTEND%"" && npm.cmd run dev"

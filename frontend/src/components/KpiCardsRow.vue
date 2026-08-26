@@ -5,18 +5,16 @@
       :key="card.label"
       class="kpi-card"
     >
-      <div class="kpi-card-icon">
-        <el-icon :size="20"><component :is="card.icon" /></el-icon>
+      <div class="kpi-card-header">
+        <el-icon :size="14"><component :is="card.icon" /></el-icon>
+        <span class="kpi-label">{{ card.label }}</span>
       </div>
-      <div class="kpi-card-content">
-        <div class="kpi-label">{{ card.label }}</div>
-        <div :class="['kpi-value', card.valueClass]">{{ card.displayValue }}</div>
-        <div class="kpi-detail">{{ card.detail }}</div>
-      </div>
+      <div :class="['kpi-value', card.valueClass]">{{ card.displayValue }}</div>
+      <div class="kpi-detail">{{ card.detail }}</div>
       <div v-if="card.progress" class="kpi-progress">
         <el-progress
           :percentage="card.progress"
-          :stroke-width="4"
+          :stroke-width="3"
           :color="card.progressColor"
           :show-text="false"
         />
@@ -101,46 +99,53 @@ const kpiCards = computed(() => {
 <style scoped lang="scss">
 .kpi-cards-row {
   display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .kpi-card {
   background-color: $bg-card;
   border: 1px solid $border-card;
   border-radius: 8px;
-  padding: 12px;
+  padding: 8px 8px;
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   transition: border-color 0.2s;
   &:hover { border-color: $accent-green; }
 }
 
-.kpi-card-icon {
+.kpi-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: $text-muted;
 }
 
 .kpi-label {
   font-size: 12px;
   color: $text-secondary;
-  margin-top: 4px;
 }
 
 .kpi-value {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
+  line-height: 1.2;
   &.value-good { color: $accent-green; }
   &.value-warn { color: $accent-orange; }
 }
 
 .kpi-detail {
-  font-size: 12px;
+  font-size: 11px;
   color: $text-muted;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .kpi-progress {
-  margin-top: 4px;
+  margin-top: 2px;
 }
 </style>

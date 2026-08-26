@@ -24,10 +24,23 @@ FROM nginx:stable-alpine
 ENV TZ=Asia/Shanghai
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# Replace the default Nginx config with our reverse-proxy setup
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Replace the default Nginx config with our reverse-proxy setup.
+# Place it as a template so the official nginx entrypoint renders it with
+# envsubst at container start: ${BACKEND_PORT} is resolved from BACKEND_PORT
+# (default 8088, overridable via SERVER_PORT in .env / compose). Keeping the
+# port out of the static config means changing SERVER_PORT reconfigures the
+# proxy without editing this file.
+COPY nginx.conf /etc/nginx/templates/default.conf.template
+
+# Default for the template variable (compose can override via SERVER_PORT).
+ENV BACKEND_PORT=8088
 
 # Copy the built SPA into the Nginx document root
 COPY --from=builder /build/dist /usr/share/nginx/html
 
 EXPOSE 80
+
+# Nginx liveness: HEAD the served root. busybox wget (shipped in the alpine base
+# image) supports --spider. Non-fatal if the binary were unavailable.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD ["wget", "-q", "--spider", "http://localhost/"]

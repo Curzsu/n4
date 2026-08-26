@@ -1,6 +1,10 @@
 <template>
-  <div class="dashboard-view" v-loading="store.loading">
-    <!-- 未选导航节点：显示首页数据总览 -->
+  <div
+    class="dashboard-view"
+    :class="{ 'dashboard-view--overview': !store.currentNavNode }"
+    v-loading="store.loading"
+  >
+    <!-- Keep the FUXA SPA mounted; switching cabins uses postMessage instead of reloading it. -->
     <FuxaCabinMonitorPanel
       v-if="mountedCabinName"
       v-show="isConfiguredCabin"
@@ -12,7 +16,7 @@
       <BuildingPlaceholder />
       <TrendChartsGrid />
     </template>
-    <!-- 选了导航节点：显示该节点下设备列表 -->
+    <!-- Selected navigation node: render device list under the node -->
     <template v-else>
       <DeviceListView
         :devices="store.currentDevices"
@@ -42,11 +46,11 @@ const configuredCabins = ref<string[]>([])
 const mountedCabinName = ref('')
 
 const currentTitle = computed(() => {
-  if (!store.currentNavNode) return '设备列表'
+  if (!store.currentNavNode) return 'Device List'
   const node = store.currentNavNode
   const isLeafGroup = !node.children || node.children.length === 0
   if (!isLeafGroup) {
-    return `${node.nodeName} - 全部设备`
+    return `${node.nodeName} - All Devices`
   }
   return node.nodeName
 })
@@ -86,14 +90,23 @@ function goMonitor(device: DeviceDeployItem) {
   router.push(`/dashboard-nav/device/${device.deviceDeployId}`)
 }
 
-onMounted(loadConfiguredCabins)
+onMounted(() => {
+  store.fetchAllDashboardData()
+  loadConfiguredCabins()
+})
 </script>
 
 <style lang="scss" scoped>
 .dashboard-view {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
   min-height: 100%;
+}
+
+// Overview mode fits the whole dashboard into the viewport without scrolling:
+// children share the available height via flex instead of using fixed sizes.
+.dashboard-view--overview {
+  height: 100%;
 }
 </style>
