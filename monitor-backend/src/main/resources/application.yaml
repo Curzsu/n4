@@ -52,8 +52,8 @@ tdengine:
 alarm:
   flink:
     enabled: true
-    topic: obix-mqtt-points
-    # topic: mqtt-push-kafka
+    topic: mqtt-push-kafka
+    # topic: kafka-test
     group-id: n4-flink-alarm-processor
     parallelism: 4 # Parallel alarm tasks. Must be <= min(CPU cores, Kafka topic partitions). keyBy(path) routes same-path messages to one task so concurrent tasks never race on alarm:active state.
   # Redis keys and channels used by alarm processing
@@ -70,11 +70,7 @@ alarm:
 # Dynamic FUXA template binding. Secrets remain in FUXA's MQTT device configuration.
 fuxa:
   base-url: ${FUXA_BASE_URL:http://localhost:1881}
-  enabled: ${FUXA_PROVISIONING_ENABLED:true}
-  template-device-id: ${FUXA_TEMPLATE_DEVICE_ID:d_f1431d5e-58774643}
-  template-topic-device-id: ${FUXA_TEMPLATE_TOPIC_DEVICE_ID:EMSB_03_EM32}
-  template-view-id: ${FUXA_TEMPLATE_VIEW_ID:v_h1_emsb_a4_03_em}
-  template-view-name: ${FUXA_TEMPLATE_VIEW_NAME:H1_EMSB_A4_03_EM}
+  enabled: ${FUXA_ENABLED:true}
   cabin-idle-shutdown-delay-seconds: ${FUXA_CABIN_IDLE_SHUTDOWN_DELAY_SECONDS:60}
   # One preconfigured FUXA MQTT client represents one cabin. Keep that client
   # disabled in FUXA; the N4 monitor opens it on demand before loading the iframe.

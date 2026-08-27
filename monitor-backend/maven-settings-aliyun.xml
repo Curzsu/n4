@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Maven settings that mirror Maven Central through Aliyun, for builds on
+  restricted/slow networks (e.g. mainland-China test servers where
+  repo.maven.apache.org is extremely slow).
+
+  Used by monitor-backend/Dockerfile (COPY into the Maven builder image and
+  passed via -s to `mvn clean package`).
+
+  mirrorOf=central mirrors ONLY Maven Central through Aliyun. The
+  dependency:go-offline step is intentionally NOT used: it over-resolves every
+  declared (even unused) artifact and hits org.codehaus.jackson:jackson-mapper-asl:
+  1.9.14.jdk17-redhat-00001, which exists only on RedHat repos and 404s on
+  Central/Aliyun. A plain `clean package` resolves only artifacts actually needed
+  for compilation and succeeds with this mirror.
+-->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+
+  <mirrors>
+    <mirror>
+      <id>aliyun-central</id>
+      <name>Aliyun Maven Central Mirror</name>
+      <url>https://maven.aliyun.com/repository/central</url>
+      <mirrorOf>central</mirrorOf>
+    </mirror>
+  </mirrors>
+
+</settings>

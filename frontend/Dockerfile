@@ -24,8 +24,16 @@ FROM nginx:stable-alpine
 ENV TZ=Asia/Shanghai
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# Replace the default Nginx config with our reverse-proxy setup
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Replace the default Nginx config with our reverse-proxy setup.
+# Place it as a template so the official nginx entrypoint renders it with
+# envsubst at container start: ${BACKEND_PORT} is resolved from BACKEND_PORT
+# (default 8088, overridable via SERVER_PORT in .env / compose). Keeping the
+# port out of the static config means changing SERVER_PORT reconfigures the
+# proxy without editing this file.
+COPY nginx.conf /etc/nginx/templates/default.conf.template
+
+# Default for the template variable (compose can override via SERVER_PORT).
+ENV BACKEND_PORT=8088
 
 # Copy the built SPA into the Nginx document root
 COPY --from=builder /build/dist /usr/share/nginx/html

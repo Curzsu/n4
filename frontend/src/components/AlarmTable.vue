@@ -55,6 +55,9 @@
         <template #default="{ $index }">{{ filteredData.length - $index }}</template>
       </el-table-column>
       <el-table-column prop="time" label="Time" width="105" show-overflow-tooltip>
+        <template #default="{ row }">
+          {{ formatTimeOnly(row.time) }}
+        </template>
         <template #header>
           <div class="header-cell">
             <el-popover v-model:visible="filterPopover.time" :trigger="'manual' as never"  placement="bottom" :width="320" popper-class="alarm-filter-popper" @show="syncTimeDraft">
@@ -241,6 +244,42 @@ const tablePanelRef = ref<HTMLDivElement>()
 const tableRef = ref<any>()
 const tableHeight = ref(400)
 const visibleRowIds = ref<Set<string>>(new Set())
+
+/** Display-only formatter for the Time column: strip the date, keep HH:mm:ss.
+ *  Sorting and the time-range filter still operate on the full
+ *  "yyyy-MM-dd HH:mm:ss" value, so this only changes what is rendered. */
+function formatTimeOnly(time: string): string {
+  if (!time || time === '-') return time
+  // time is "yyyy-MM-dd HH:mm:ss"; keep the part after the first space.
+  const spaceIdx = time.indexOf(' ')
+  return spaceIdx >= 0 ? time.substring(spaceIdx + 1) : time
+}
+
+/** Time-key comparison for sorting: prefer the raw epoch-millis timestamp when
+ *  present (live WebSocket records) so same-second rows keep their true
+ *  sub-second order; fall back to the formatted string otherwise (API-loaded
+ *  records, which only carry "yyyy-MM-dd HH:mm:ss"). */
+function compareByTime(a: AlarmRecord, b: AlarmRecord): number {
+  if (a.timestampMs !== undefined && b.timestampMs !== undefined) {
+    return a.timestampMs - b.timestampMs
+  }
+  return (a.time || '').localeCompare(b.time || '')
+}
+
+/** Binary-search the insertion index for `rec` in a newest-first sorted list
+ *  (list[i] is never older than list[i+1]). Keeps every WebSocket push an
+ *  O(log n) locate instead of a full O(n log n) re-sort of the whole table. */
+function binarySearchInsert(list: AlarmRecord[], rec: AlarmRecord): number {
+  let lo = 0
+  let hi = list.length
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    // list[mid] is not older than rec -> rec goes further right; else insert before mid
+    if (compareByTime(list[mid], rec) >= 0) lo = mid + 1
+    else hi = mid
+  }
+  return lo
+}
 
 // ── Popover visibility (manual trigger to prevent closing on internal clicks) ──
 const filterPopover = ref({
@@ -498,7 +537,19 @@ function getScrollBody(): HTMLElement | null {
   return wrapper.querySelector('.el-scrollbar__wrap') ?? wrapper
 }
 
+// rAF-throttle the visible-row computation. It reads every rendered row's
+// bounding rect (forcing layout), so under a burst of WebSocket pushes we only
+// want one pass per animation frame instead of one per message.
+let visibleRowsRaf = 0
 function updateVisibleRows() {
+  if (visibleRowsRaf) return
+  visibleRowsRaf = requestAnimationFrame(() => {
+    visibleRowsRaf = 0
+    computeVisibleRows()
+  })
+}
+
+function computeVisibleRows() {
   const scrollBody = getScrollBody()
   if (!scrollBody) {
     visibleRowIds.value = new Set()
@@ -602,7 +653,7 @@ const filteredData = computed(() => {
     result = [...result].sort((a, b) => {
       let cmp = 0
       if (field === 'time') {
-        cmp = (a.time || '').localeCompare(b.time || '')
+        cmp = compareByTime(a, b)
       } else if (field === 'severity') {
         cmp = severityWeight(a.severity) - severityWeight(b.severity)
       } else if (field === 'status') {
@@ -737,7 +788,11 @@ onUpdate((data: any) => {
     return
   }
 
-  // Normal alarm update: remove existing record (to re-insert)
+  // Normal alarm update: upsert the record. If it already exists with the same
+  // timestamp (Ack, continue refresh), update it in place and keep its position
+  // so we don't re-sort the whole table on every push. If it is new or its time
+  // changed (level escalation, re-armed alarm), binary-insert it to preserve the
+  // newest-first order in O(log n) instead of re-sorting the full list.
   const existingIndex = tableData.value.findIndex(r => r.source === newRecord.source)
   if (existingIndex >= 0) {
     const replaced = tableData.value[existingIndex]
@@ -745,12 +800,20 @@ onUpdate((data: any) => {
     // occurrence (e.g. High escalates to High-High), drop the stale selection
     // so the new record is not silently treated as the one the user picked.
     selectedIds.value.delete(replaced.id)
+    const timeUnchanged =
+      replaced.time === newRecord.time &&
+      replaced.timestampMs === newRecord.timestampMs
+    if (timeUnchanged) {
+      // Same occurrence: keep the row in place (Ack / stage refresh).
+      tableData.value[existingIndex] = newRecord
+      nextTick(updateVisibleRows)
+      return
+    }
     tableData.value.splice(existingIndex, 1)
   }
 
-  // Insert and re-sort by time descending (newest first)
-  tableData.value.push(newRecord)
-  tableData.value.sort((a, b) => b.time.localeCompare(a.time))
+  // New occurrence or timestamp changed: insert at the correct position.
+  tableData.value.splice(binarySearchInsert(tableData.value, newRecord), 0, newRecord)
 
   // All active alarms are shown; no row cap so operators see the full picture.
 
@@ -779,6 +842,10 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
+  if (visibleRowsRaf) {
+    cancelAnimationFrame(visibleRowsRaf)
+    visibleRowsRaf = 0
+  }
   const scrollBody = getScrollBody()
   if (scrollBody) {
     scrollBody.removeEventListener('scroll', updateVisibleRows)
