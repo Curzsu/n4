@@ -48,6 +48,8 @@ Redis
 | TDengine | 告警生命周期历史（`alarm_realtime`）与每帧全量事件明细（`alarm_event`）的时序持久化 |
 | Spring Boot 后端 | 启动时同步规则到 Redis、内嵌启动 Flink、消费 Redis 通知、推送 WebSocket、提供 REST API、ack 操作 |
 
+![N4-Monitor 报警数据流全链路](diagrams/png/flink-alarm-dataflow.png)
+
 ---
 
 ## 二、Kafka 消息格式（输入）
@@ -255,6 +257,8 @@ Low        ≤ 低限     → 报警级别 Low
                                              再次 isAlarm ──────────┘ (重新 start)
 ```
 
+![告警生命周期状态机](diagrams/png/flink-alarm-lifecycle.png)
+
 ### 7.2 各分支的详细行为（processMessage 328–421 行）
 
 | 历史状态 | 当前判定 | 行为 |
@@ -333,6 +337,8 @@ Flink 作业**没有 Kafka sink**。所有结果通过 `RedisStateStore` 以 Red
 
 Spring Boot 通过 `RedisMessageListenerContainer`（`RedisPubSubConfig`）订阅三个通道，
 每个通道一个 `MessageListener`。**后端不消费 Kafka**。
+
+![告警输出分发链路](diagrams/png/flink-alarm-notify-sequence.png)
 
 ### 9.1 alarm:notifications → WebSocket → 前端
 

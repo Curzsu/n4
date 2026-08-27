@@ -1,0 +1,213 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "N4-Monitor 报警数据流全链路",
+    "locale": "zh-CN",
+    "output": "docs/diagrams/flink-alarm-dataflow.html",
+    "viewBox": [
+      1068,
+      820
+    ],
+    "quality_profile": "showcase"
+  },
+  "stages": [
+    {
+      "label": "设备接入"
+    },
+    {
+      "label": "消息缓冲"
+    },
+    {
+      "label": "实时评估"
+    },
+    {
+      "label": "状态与分发"
+    },
+    {
+      "label": "消费落盘"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "devices",
+      "type": "external",
+      "label": "现场设备",
+      "sublabel": "SPM32 等遥测终端",
+      "stage": 0,
+      "row": 0,
+      "tag": "MQTT"
+    },
+    {
+      "id": "emqx",
+      "type": "messagebus",
+      "label": "EMQX",
+      "sublabel": "规则引擎 mqtt_to_kafka",
+      "stage": 0,
+      "row": 2,
+      "tag": "6.2.1"
+    },
+    {
+      "id": "kafka",
+      "type": "messagebus",
+      "label": "mqtt-push-kafka",
+      "sublabel": "Kafka topic",
+      "stage": 1,
+      "row": 1,
+      "tag": "缓冲解耦"
+    },
+    {
+      "id": "flink",
+      "type": "backend",
+      "label": "Flink 评估作业",
+      "sublabel": "AlarmProcessingJob",
+      "stage": 2,
+      "row": 1,
+      "tag": "唯一规则判定者"
+    },
+    {
+      "id": "mysql",
+      "type": "database",
+      "label": "MySQL",
+      "sublabel": "规则与点位元数据",
+      "stage": 2,
+      "row": 3,
+      "tag": "8.4.5"
+    },
+    {
+      "id": "redis",
+      "type": "database",
+      "label": "Redis",
+      "sublabel": "latest / active + 3 通道",
+      "stage": 3,
+      "row": 1,
+      "tag": "6.2.6"
+    },
+    {
+      "id": "frontend",
+      "type": "frontend",
+      "label": "前端大屏",
+      "sublabel": "WebSocket /ws/alarm",
+      "stage": 4,
+      "row": 0,
+      "tag": "Vue 3"
+    },
+    {
+      "id": "tdrt",
+      "type": "database",
+      "label": "alarm_realtime",
+      "sublabel": "TDengine 生命周期事件",
+      "stage": 4,
+      "row": 2,
+      "width": 128,
+      "tag": "_rt"
+    },
+    {
+      "id": "tdev",
+      "type": "database",
+      "label": "alarm_event",
+      "sublabel": "TDengine 每帧全量明细",
+      "stage": 4,
+      "row": 3,
+      "width": 128,
+      "tag": "_ev"
+    }
+  ],
+  "flows": [
+    {
+      "from": "devices",
+      "to": "emqx",
+      "label": "MQTT 上报",
+      "classification": "niagara_send/#",
+      "variant": "emphasis"
+    },
+    {
+      "from": "emqx",
+      "to": "kafka",
+      "label": "桥接 push_kafka",
+      "classification": "规则引擎转发",
+      "variant": "emphasis"
+    },
+    {
+      "from": "kafka",
+      "to": "flink",
+      "label": "消费",
+      "classification": "n4-flink-alarm-processor",
+      "variant": "emphasis",
+      "route": "straight",
+      "labelAt": [
+        423,
+        314
+      ]
+    },
+    {
+      "from": "mysql",
+      "to": "redis",
+      "label": "同步规则到 Redis",
+      "classification": "AlarmRuleSyncService",
+      "variant": "dashed"
+    },
+    {
+      "from": "flink",
+      "to": "redis",
+      "label": "写 latest/active",
+      "classification": "PUBLISH 3 通道",
+      "variant": "emphasis",
+      "route": "straight",
+      "labelDy": -26
+    },
+    {
+      "from": "redis",
+      "to": "frontend",
+      "label": "notifications → WS",
+      "classification": "Spring 监听广播",
+      "variant": "emphasis",
+      "labelDy": -22
+    },
+    {
+      "from": "redis",
+      "to": "tdrt",
+      "label": "realtime 即时写",
+      "classification": "生命周期事件",
+      "variant": "default",
+      "labelDx": -78
+    },
+    {
+      "from": "redis",
+      "to": "tdev",
+      "label": "persist 秒级批量",
+      "classification": "全量明细",
+      "variant": "default",
+      "labelDy": 62
+    }
+  ],
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "中间件职责边界",
+      "items": [
+        "EMQX 只做接入与桥接，不做规则评估",
+        "Kafka 只做缓冲与解耦，Flink 与后端互不直连",
+        "规则评估唯一发生在 Flink 作业内"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Redis 双重角色",
+      "items": [
+        "规则缓存：MySQL 同步而来，60s TTL 生效",
+        "运行状态：latest 每帧覆盖、active 告警记录",
+        "Pub/Sub 三通道把结果分发给后端消费者"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "TDengine 双表落盘",
+      "items": [
+        "alarm_realtime 只记告警生命周期事件（即时写）",
+        "alarm_event 记录每帧全量明细（每秒批量）",
+        "后端不消费 Kafka，只订阅 Redis 通道"
+      ]
+    }
+  ]
+}
