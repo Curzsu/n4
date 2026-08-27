@@ -1,8 +1,8 @@
 # N4 Monitor
 
 面向 N4（Niagara）设备的监控与告警平台：Spring Boot 后端（内嵌 Flink 告警
-流处理）+ Vue 3 监控大屏。数据链路：MQTT/Kafka → Flink 规则评估（阈值/死区/
-延迟确认/级别升降级）→ Redis 实时状态 + TDengine 时序存储 + MySQL 业务库。
+流处理）+ Vue 3 监控大屏。数据链路：设备 → EMQX(MQTT) → Kafka → Flink 规则评估
+（阈值/死区/延迟确认/级别升降级）→ Redis 实时状态 + TDengine 时序存储 + MySQL 业务库。
 
 ## 模块结构
 
@@ -13,7 +13,7 @@
 | `monitor-common` | 跨模块共享模型 |
 | `frontend` | Vue 3 + Element Plus 监控大屏 |
 | `deploy` | 服务器部署文档 |
-| `nodered` | Node-RED 设备发现流程 |
+| `test-producer` | 开发调试用 Kafka 测试脚本（绕过设备/EMQX 直接发消息） |
 
 ## 快速开始
 

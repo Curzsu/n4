@@ -324,7 +324,7 @@ sudo ./unpack.sh /opt/n4-monitor-pack-<时间戳>.tar.gz   # 重新还原
 
 - **数据挂载目录**：pack.sh 会解析各中间件 compose 的 bind-mount（以 `./` 或 `/` 开头的挂载源），把**配置类目录完整打包**、**数据类目录（`./data` 等）打包为空结构**。unpack.sh 还原时这些目录会重建，保证容器启动时挂载点存在。若实际中间件的数据目录名不在脚本 `DATA_DIRS` 列表里，会按配置目录被**完整复制**——若不想复制其内容，在脚本里补一个目录名即可。另外注意 bind-mount 空目录的**权限**问题（容器内以非 root 用户写数据时，需 `chown` 目录属主与容器一致，否则启动报权限错误）。
 - **FUXA（自定义镜像）**：`frangoteam/fuxa:1.3.3` 无法从公共 registry 拉取，pack.sh 已把 `EXTRA_IMAGES` 里的 FUXA 一并 `docker save` 导出，unpack.sh `docker load` 导入，测试机无需联网拉取。若以后有别的自定义镜像，加到 `pack.sh` 的 `EXTRA_IMAGES` 即可。
-- **EMQX 配置**：EMQX 6.x 的配置分两类——**静态配置文件**（`./etc` 下的 `emqx.conf` 等，随配置目录迁移）和**运行时配置**（Dashboard/API 里改的认证、规则引擎、桥接、ACL 等，存储在 `./data` 或 named volume）。**运行时配置不会迁移**，测试机的 EMQX 以全新默认状态启动，需要重新在测试机配置认证/规则/桥接。若希望连运行时配置一起迁，需把 EMQX 的 `./data`（或对应 named volume）也纳入打包（但这就属于"带业务数据"，需调整迁移范围）。
+- **EMQX 配置**：EMQX 6.x 的配置分两类——**静态配置文件**（`./etc` 下的 `emqx.conf` 等，随配置目录迁移）和**运行时配置**（Dashboard/API 里改的认证、规则引擎、桥接、ACL 等，存储在 `./data` 或 named volume）。**运行时配置不会迁移**，测试机的 EMQX 以全新默认状态启动，需要重新在测试机配置认证/规则/桥接。**其中生产数据流依赖的 EMQX→Kafka 桥接（规则 `mqtt_to_kafka` + Kafka 桥接 action `push_kafka`，投递到 topic `mqtt-push-kafka`）必须重建**，否则设备数据进不了 Kafka、Flink 收不到数据。若希望连运行时配置一起迁，需把 EMQX 的 `./data`（或对应 named volume）也纳入打包（但这就属于"带业务数据"，需调整迁移范围）。
 
 ## 八、常用运维命令
 
