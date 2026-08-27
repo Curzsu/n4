@@ -124,11 +124,14 @@ function beginCabinSwitchHandshake(cabinSession: FuxaCabinSession) {
   stopCabinSwitchHandshake()
   requestCabinSwitch(cabinSession)
   cabinSwitchRetryTimer = setInterval(() => requestCabinSwitch(cabinSession), 400)
+  // Give large cabin views up to 60s to become ready before declaring a
+  // timeout - heavy views (many points / graphics) can exceed 20s and would
+  // otherwise flash a false "did not become ready" error.
   cabinSwitchTimeoutTimer = setTimeout(() => {
     stopCabinSwitchHandshake()
     loading.value = false
     errorMessage.value = 'FUXA loaded, but the cabin view did not become ready in time.'
-  }, 20_000)
+  }, 60_000)
 }
 
 function handleFrameLoad() {
