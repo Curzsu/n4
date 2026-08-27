@@ -63,3 +63,6 @@ monitor-backend/materials/
 n4_monitor*.sql
 旧脚本备份/
 构建数据/
+
+# Archify diagram sources/exports (local only, not for the repo)
+docs/diagrams/
