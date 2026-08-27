@@ -72,6 +72,8 @@ const sessionId = typeof crypto !== 'undefined' && crypto.randomUUID
 let releaseRequested = false
 let resizeObserver: ResizeObserver | null = null
 let frameLoadedTimer: ReturnType<typeof setTimeout> | null = null
+let cabinSwitchRetryTimer: ReturnType<typeof setInterval> | null = null
+let cabinSwitchTimeoutTimer: ReturnType<typeof setTimeout> | null = null
 let currentCabinName = ''
 const iframeSrc = ref('')
 
@@ -111,11 +113,29 @@ function requestCabinSwitch(cabinSession: FuxaCabinSession) {
   }, getFuxaOrigin())
 }
 
+function stopCabinSwitchHandshake() {
+  if (cabinSwitchRetryTimer) clearInterval(cabinSwitchRetryTimer)
+  if (cabinSwitchTimeoutTimer) clearTimeout(cabinSwitchTimeoutTimer)
+  cabinSwitchRetryTimer = null
+  cabinSwitchTimeoutTimer = null
+}
+
+function beginCabinSwitchHandshake(cabinSession: FuxaCabinSession) {
+  stopCabinSwitchHandshake()
+  requestCabinSwitch(cabinSession)
+  cabinSwitchRetryTimer = setInterval(() => requestCabinSwitch(cabinSession), 400)
+  cabinSwitchTimeoutTimer = setTimeout(() => {
+    stopCabinSwitchHandshake()
+    loading.value = false
+    errorMessage.value = 'FUXA loaded, but the cabin view did not become ready in time.'
+  }, 20_000)
+}
+
 function handleFrameLoad() {
   frameLoaded.value = true
   if (frameLoadedTimer) clearTimeout(frameLoadedTimer)
   frameLoadedTimer = setTimeout(() => {
-    if (session.value) requestCabinSwitch(session.value)
+    if (session.value && monitoring.value) beginCabinSwitchHandshake(session.value)
     frameLoadedTimer = null
   }, 250)
 }
@@ -125,10 +145,12 @@ function handleRuntimeMessage(event: MessageEvent) {
   const message = event.data
   if (!message || typeof message !== 'object') return
   if (message.type === 'n4-cabin-runtime:opened') {
+    stopCabinSwitchHandshake()
     loading.value = false
     errorMessage.value = ''
   }
   if (message.type === 'n4-cabin-runtime:error') {
+    stopCabinSwitchHandshake()
     loading.value = false
     errorMessage.value = message.message || 'Unable to switch the FUXA cabin view.'
   }
@@ -158,14 +180,13 @@ async function openCabin(cabinName = props.cabinName) {
       frameLoaded.value = false
       iframeSrc.value = buildIframeUrl(session.value)
     } else if (frameLoaded.value) {
-      requestCabinSwitch(session.value)
+      beginCabinSwitchHandshake(session.value)
     }
   } catch (error) {
     console.error(`Failed to open FUXA cabin ${props.cabinName}`, error)
     errorMessage.value = error instanceof Error
       ? error.message
       : 'Unable to start the cabin MQTT client. Check the FUXA cabin-client mapping.'
-  } finally {
     loading.value = false
   }
 }
@@ -228,6 +249,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('pagehide', releaseOnPageExit)
   window.removeEventListener('message', handleRuntimeMessage)
   if (frameLoadedTimer) clearTimeout(frameLoadedTimer)
+  stopCabinSwitchHandshake()
   resizeObserver?.disconnect()
   releaseOnPageExit()
 })

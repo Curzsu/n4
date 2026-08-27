@@ -13,10 +13,6 @@ import java.util.Map;
 public class FuxaProperties {
     private String baseUrl = "http://127.0.0.1:1881";
     private boolean enabled = true;
-    private String templateDeviceId;
-    private String templateTopicDeviceId;
-    private String templateViewId;
-    private String templateViewName;
     /** Keep a client warm briefly after its last viewer leaves. */
     private long cabinIdleShutdownDelaySeconds = 60;
     /**
