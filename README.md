@@ -21,17 +21,10 @@
 - 连接配置：`cp .env.example .env` 后按环境修改（后端与 docker compose 均读取该文件）
 - 服务器部署：见 [deploy/README.md](deploy/README.md)
 
-## ⚠️ 安全约定：仓库公开前必须先处理 .env
+## ⚠️ 安全约定：.env 不入库
 
-本仓库当前托管在**自建私有 Gitea** 上，根目录 `.env`（含 MySQL / Redis /
-TDengine 的真实地址与口令）**随仓库入库**，仅为私有场景下的部署便利。
+根目录 `.env`（含 MySQL / Redis / TDengine 的真实地址与口令）**不纳入版本控制**：`.gitignore` 已忽略 `*.env`（仅放行 `.env.example`），git 历史也已通过 filter-repo 重写清除。每台部署机需自行 `cp .env.example .env` 并按环境填写真实口令。
 
-**如果后续仓库要公开、或共享给更大范围的人员，必须先完成以下步骤，缺一不可：**
+**请勿把 `.env` 加入 git 跟踪或推送**——口令一旦进入 git 历史，仅删除文件无法作废，必须到服务端逐一改密轮换。若误提交，应通过 filter-repo 重写历史并轮换受影响口令。
 
-1. 删除 `.gitignore` 中的 `!.env` 放行行（恢复 `*.env` 对它的忽略）
-2. 执行 `git rm --cached .env` 将其移出版本控制
-3. **轮换 `.env` 中出现过的所有口令**（MySQL / Redis / TDengine）——这些口令
-   已进入 git 历史，仅删除文件不等于作废，必须到服务端逐一改密
-4. 同步更新各部署机上的本地 `.env`
-
-以上步骤同样记录在 `.gitignore` 与 `.env.example` 的注释中，以注释为准。
+以上约定同样记录在 `.gitignore` 与 `.env.example` 的注释中，以注释为准。
