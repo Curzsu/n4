@@ -68,3 +68,18 @@ When generating or modifying code for this project:
 | Documentation (.md reports) | Chinese |
 | Code blocks in docs | English |
 | Technical terms in Chinese text | English (inline) |
+
+## Git Commit Policy
+
+### Rules
+
+1. **Ask before committing**
+   - At the end of a session, if any files were modified (i.e., there are git changes), a commit may be made.
+   - However, **always ask the user first** whether the changes should be committed. Never commit without explicit confirmation for that batch of changes.
+
+2. **Local commits only — never push**
+   - Only commit to the **local** repository (`git commit`).
+   - **Never push to any remote** (`git push` is forbidden unless the user explicitly asks for a push in that specific instance).
+
+3. **Only commit what was asked**
+   - Stage only the files related to the task performed in the session. Do not sweep unrelated working-tree changes into the commit.
