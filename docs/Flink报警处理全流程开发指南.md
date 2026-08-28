@@ -109,6 +109,38 @@ Spring（依赖注入）解耦的关键设计。
   `alarm_code` 为空 = 该点位**无规则**，Flink 会跳过评估（不报警）。
 - `type` 与 `alarm_code` 取自同一行，保证一致性。
 
+### 3.4 Flink 规则加载的本地缓存（TtlCache）
+
+Flink **不直接读 MySQL**，也不每帧都查 Redis：规则与点位元数据在 Redis 前面还有一层 **subtask 本地 TTL 缓存**，由 `TtlCache`（`monitor-flink-job`）实现。完整链路是：
+
+```
+MySQL ──启动/CRUD时同步──> Redis hash ──TTL 到期回源──> subtask 本地 TtlCache ──每帧查询──> 规则评估
+```
+
+**每个 subtask 独立持有三个缓存实例**（在 `open()` 中创建，随 task 生命周期）：
+
+| 缓存 | 所属类 | 缓存内容 | 回源 Redis Key |
+|------|--------|---------|---------------|
+| `pointMetaCache` | `AlarmProcessFunction` | 点位元数据（type + alarm_code） | `alarm:point:rule` |
+| `numericRuleCache` | `RuleEvaluator` | 数值规则对象 | `alarm:rules:numeric` |
+| `enumRuleCache` | `RuleEvaluator` | 枚举规则列表 | `alarm:rules:enum` |
+
+**TTL（缓存过期时间）为可配置项**：通过 `alarm.flink.point-meta-cache-ttl-seconds`（点位元数据）与 `alarm.flink.rule-cache-ttl-seconds`（规则对象）配置——内嵌模式走 `application.yaml` / 环境变量，独立集群模式走 `--point-meta-cache-ttl-seconds` / `--rule-cache-ttl-seconds` 命令行参数，默认均为 60 秒。下文统一以"TTL 窗口"指代该时长，具体数值以实际配置为准。
+
+**工作机制：**
+
+- 命中：条目存在且未过期，直接返回，零 Redis 访问。
+- 回源：条目缺失或过期时，通过加载函数执行一次 `HGET`，结果写入缓存并重置 TTL 窗口。
+- **负缓存**：查不到的规则/路径，`null` 也会被缓存（包装为哨兵对象存入 `ConcurrentHashMap`）。探测一个未知 alarm_code 或未部署的点位，每个 TTL 窗口只花费一次 Redis 往返，而不是每帧一次。
+- **分片效应**：流按 `keyBy(mqttPath)` 分区，一个 subtask 只会加载路由到它的那些点位，所以 `pointMetaCache` 天然是 Redis 映射的"分片副本"，容量上界 = 总点位数 / 并行度。规则缓存本身很小（几百条），无需淘汰策略。
+- **线程模型**：Flink 的 `processElement` 与 `onTimer` 由同一 mailbox 线程调用，缓存按单线程设计；底层仍用 `ConcurrentHashMap` 兜底（防御性并发，无额外成本）。
+
+**对规则变更的影响（运维要点）：**
+
+- 规则编辑后端会即时同步 Redis（原子替换），但 Flink subtask 仍持有最长一个 TTL 窗口的旧缓存 → **规则变更生效延迟最多一个 TTL 窗口（当前默认 60s），无需重启 Flink**。
+- 需要立即生效时调用 `POST /api/alarm-rules/reload` 重新同步 Redis，再等当前 TTL 窗口耗尽（或重启作业）。
+- 注意：TTL 从**加载时刻**起算，不是全局对齐的时钟，不同 subtask/不同 key 的过期时刻各不相同。
+
 ---
 
 ## 四、Flink 作业拓扑（Job Topology）
@@ -147,6 +179,8 @@ alarm:
     topic: mqtt-push-kafka
     group-id: n4-flink-alarm-processor
     parallelism: 4          # 必须 ≤ min(CPU 核数, Kafka topic 分区数)
+    point-meta-cache-ttl-seconds: 60 # 点位元数据本地缓存 TTL
+    rule-cache-ttl-seconds: 60       # 数值/枚举规则本地缓存 TTL
   redis:
     rules-numeric-key: alarm:rules:numeric
     rules-enum-key: alarm:rules:enum
@@ -175,8 +209,7 @@ alarm:
 
 ## 六、阶段 3：规则评估（RuleEvaluator）
 
-`AlarmProcessFunction` 在处理每条消息时，先解析点位元数据（走 per-subtask 的 60s TTL
-缓存），再按类型分发到 `RuleEvaluator`。
+`AlarmProcessFunction` 在处理每条消息时，先解析点位元数据（走 per-subtask 的本地 TTL 缓存，详见 3.4），再按类型分发到 `RuleEvaluator`。
 
 ### 6.1 点位类型分发与过滤
 
@@ -323,8 +356,8 @@ Flink 作业**没有 Kafka sink**。所有结果通过 `RedisStateStore` 以 Red
 - 使用 **Jedis 连接池**（maxTotal=8, testOnBorrow, testWhileIdle, 超时 5s），
   而不是裸连接——裸连接的 2s 默认超时对公网远程 Redis 太紧，且坏连接会被复用导致级联失败。
 - 空密码规范化为 `null`：Jedis 7.x 对任何非空密码都会发 AUTH，在无密码 Redis 上会报错。
-- **每个 subtask 维护 60s TTL 缓存**（规则 + 点位元数据，含负缓存）：
-  规则编辑后无需重启 Flink，60s 内生效。
+- **每个 subtask 维护规则/点位元数据的本地 TTL 缓存**（TTL 可配置，默认 60s，含负缓存）：
+  规则编辑后无需重启 Flink，一个 TTL 窗口内生效（详见 3.4）。
 - `processElement` 永不抛异常逃逸（否则会杀死整个 job）：catch 后打日志并输出 `[SKIP]`。
 
 ---
@@ -473,7 +506,7 @@ Kafka → Flink 评估 → alarm:notifications → AlarmNotificationListener
 | 现象 | 排查方向 |
 |------|---------|
 | 没有报警产生 | ① `alarm.flink.enabled` 是否 true；② 启动日志是否「规则已同步到 Redis」；③ 该点位 `alarm_code` 是否为空；④ `alarm:point:rule` 是否有该 mqttPath 条目 |
-| 规则改了不生效 | Flink per-subtask 60s TTL 缓存，等 60s 或 `POST /api/alarm-rules/reload` |
+| 规则改了不生效 | Flink per-subtask 本地 TTL 缓存（默认 60s，可配置），等 TTL 过期或 `POST /api/alarm-rules/reload` |
 | 报警延迟不确认 | 检查规则 `timeDelay`；pending 期间 `alarm:latest` 应为正常态（无级别） |
 | 前端没实时刷新 | 检查 `alarm:notifications` 订阅是否存活（`PUBSUB NUMSUB`）、WebSocket 是否有客户端连接、Nginx 是否代理 `/ws` |
 | TDengine 时间错 8 小时 | 确认写入走 setLong 毫秒绑定；检查 TDengine 与 JVM 时区配置 |

@@ -43,6 +43,14 @@ public class FlinkJobRunner implements CommandLineRunner {
     @Value("${alarm.flink.parallelism:4}")
     private int parallelism;
 
+    /** Local TTL cache expiry for point metadata (alarm:point:rule entries). */
+    @Value("${alarm.flink.point-meta-cache-ttl-seconds:60}")
+    private long pointMetaCacheTtlSeconds;
+
+    /** Local TTL cache expiry for numeric/enum rule objects. */
+    @Value("${alarm.flink.rule-cache-ttl-seconds:60}")
+    private long ruleCacheTtlSeconds;
+
     @Value("${alarm.redis.rules-numeric-key}")
     private String rulesNumericKey;
 
@@ -88,13 +96,16 @@ public class FlinkJobRunner implements CommandLineRunner {
                 log.info("  Persistence channel: {}", persistenceChannel);
                 log.info("  Point rule map key: {}", pointRuleMapKey);
                 log.info("  Parallelism: {}", parallelism);
+                log.info("  Point metadata cache TTL: {}s", pointMetaCacheTtlSeconds);
+                log.info("  Rule cache TTL: {}s", ruleCacheTtlSeconds);
 
                 AlarmProcessingJob.run(kafkaBroker, kafkaTopic, groupId,
                         redisHost, redisPort, redisPassword,
                         rulesNumericKey, rulesEnumKey,
                         latestRedisKey, activeRedisKey,
                         notificationChannel, realtimeChannel,
-                        persistenceChannel, pointRuleMapKey, parallelism);
+                        persistenceChannel, pointRuleMapKey, parallelism,
+                        pointMetaCacheTtlSeconds, ruleCacheTtlSeconds);
             } catch (InterruptedException e) {
                 log.info("Flink job thread interrupted, stopping...");
                 Thread.currentThread().interrupt();

@@ -56,6 +56,8 @@ alarm:
     # topic: kafka-test
     group-id: n4-flink-alarm-processor
     parallelism: 4 # Parallel alarm tasks. Must be <= min(CPU cores, Kafka topic partitions). keyBy(path) routes same-path messages to one task so concurrent tasks never race on alarm:active state.
+    point-meta-cache-ttl-seconds: 60 # Local per-subtask TTL cache for point metadata (alarm:point:rule entries). Raise to reduce Redis reads on stable deployments; rule/deployment edits take effect within one TTL window.
+    rule-cache-ttl-seconds: 60 # Local per-subtask TTL cache for numeric/enum rule objects. Rule edits take effect within one TTL window without a job restart.
   # Redis keys and channels used by alarm processing
   redis:
     rules-numeric-key: alarm:rules:numeric       # Numeric rules hash (field=alarm_name, value=NumericEntity JSON)
