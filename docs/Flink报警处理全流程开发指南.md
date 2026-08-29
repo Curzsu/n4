@@ -175,10 +175,10 @@ print()                                # 阶段4：仅输出 stdout 日志；真
 ```yaml
 alarm:
   flink:
-    enabled: true
-    topic: mqtt-push-kafka
+    enabled: ${ALARM_FLINK_ENABLED:true} # 报警作业总开关；本地开发不碰报警链路可在 .env 置 false（不连 Kafka、不做评估）
+    topic: ${ALARM_FLINK_TOPIC:mqtt-push-kafka} # 消费 topic；联调可覆盖为 kafka-test，独立集群 --kafka-topic 同读此变量自动保持一致
     group-id: n4-flink-alarm-processor
-    parallelism: 4          # 必须 ≤ min(CPU 核数, Kafka topic 分区数)
+    parallelism: ${ALARM_FLINK_PARALLELISM:4} # 必须 ≤ min(CPU 核数, Kafka topic 分区数)；内嵌与独立集群 --parallelism 同读此变量
     point-meta-cache-ttl-seconds: 60 # 点位元数据本地缓存 TTL
     rule-cache-ttl-seconds: 60       # 数值/枚举规则本地缓存 TTL
   redis:

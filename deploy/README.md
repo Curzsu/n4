@@ -102,8 +102,10 @@ vi .env   # 填入真实的中间件地址与口令
 | `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` | Redis 地址与口令 |
 | `TDENGINE_URL` / `TDENGINE_USERNAME` / `TDENGINE_PASSWORD` | TDengine REST 连接与口令 |
 | `FUXA_BASE_URL` | FUXA 服务地址（后端调模板 provisioning） |
-| `JAVA_OPTS` | JVM 参数（在 docker-compose.yml 中调整） |
-| `ALARM_FLINK_ENABLED` | 是否启动内嵌 Flink 告警作业（docker-compose.yml 中调整） |
+| `ALARM_FLINK_ENABLED` | 是否启动内嵌 Flink 告警作业；本地开发不碰报警链路可置 `false`（后端不连 Kafka、不做评估），默认 `true` |
+| `ALARM_FLINK_TOPIC` | 报警作业消费的 Kafka topic（默认 `mqtt-push-kafka`，可覆盖为 `kafka-test` 联调）；内嵌与独立集群 `--kafka-topic` 同读此变量 |
+| `ALARM_FLINK_PARALLELISM` | 报警作业并行度（默认 `4`，内嵌与独立集群 `--parallelism` 同读）；须 ≤ min(CPU 核数, Kafka 分区数) |
+| `JAVA_OPTS` | 后端 JVM 参数（compose 内固定 `-Xms512m -Xmx1024m -Dfile.encoding=UTF-8`，如需调整改 docker-compose.yml） |
 
 前端 FUXA iframe 构建地址取自同一 `FUXA_BASE_URL`（`n4-monitor-frontend.build.args.VITE_FUXA_URL` 引用）。
 
