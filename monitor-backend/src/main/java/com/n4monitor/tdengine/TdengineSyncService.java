@@ -137,7 +137,11 @@ public class TdengineSyncService {
      */
     private void initDatabase() throws SQLException {
         String database = tdengineConfig.getDatabase();
-        String sql = "CREATE DATABASE IF NOT EXISTS " + database + " KEEP 365 DURATION 10 BUFFER 16";
+        // BUFFER is the per-vnode write memory pool in MB. This CREATE only
+        // applies to a fresh database (IF NOT EXISTS never re-applies to an
+        // existing one - resize those with ALTER DATABASE). KEEP 1095 = 3
+        // years of retention; BUFFER 256 aligns with the TDengine 3.4 default.
+        String sql = "CREATE DATABASE IF NOT EXISTS " + database + " KEEP 1095 DURATION 10 BUFFER 256";
         try (Statement stmt = connection.createStatement()) {
             stmt.execute(sql);
             log.info("Database '{}' created/verified", database);

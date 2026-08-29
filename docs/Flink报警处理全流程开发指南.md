@@ -418,7 +418,9 @@ Spring Boot 通过 `RedisMessageListenerContainer`（`RedisPubSubConfig`）订�
 ## 十、TDengine 存储结构
 
 `TdengineSyncService` 首次连接时自动建库建表（`CREATE DATABASE IF NOT EXISTS n4
-KEEP 365 DURATION 10 BUFFER 16`），两个超表**共享同一套 schema**，仅名字与 subtable 后缀不同。
+KEEP 1095 DURATION 10 BUFFER 256`），两个超表**共享同一套 schema**，仅名字与 subtable 后缀不同。
+注意 `IF NOT EXISTS` 只对**不存在的库**生效：线上已建的库要用 `ALTER DATABASE n4 BUFFER 256`
+在线调整（当前线上库 BUFFER 32 / VGROUPS 4，实际写内存池 = vgroup 数 × BUFFER）。
 
 | 超表 | subtable 后缀 | 内容 | 写入频率 |
 |------|--------------|------|---------|
