@@ -68,9 +68,11 @@ final class TdengineSql {
             StringBuilder group = groups.computeIfAbsent(path, key ->
                     new StringBuilder(subtableName(path, subtableSuffix))
                             .append(" USING ").append(supertable)
-                            .append(" TAGS(").append(escapeLiteral(path)).append(')'));
+                            .append(" TAGS(").append(escapeLiteral(path)).append(") VALUES"));
             String values = valuesFragment(state, System.currentTimeMillis());
-            group.append(" VALUES ").append(values);
+            // TDengine multi-row form: the VALUES keyword appears once per group
+            // and the tuples are juxtaposed - VALUES (a)(b), not VALUES (a) VALUES (b).
+            group.append(' ').append(values);
             pendingRows.add(state);
             pendingChars += values.length() + 8;
 

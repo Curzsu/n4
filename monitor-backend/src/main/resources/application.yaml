@@ -36,7 +36,10 @@ mybatis:
   configuration:
     map-underscore-to-camel-case: true
 
-# TDengine configuration (REST mode, port 6041)
+# TDengine configuration (REST mode, port 6041). WebSocket mode (jdbc:TAOS-WS://)
+# is available by changing the URL only - measured slower for this project's
+# batched-statement workload (WS fetch protocol adds a round trip per query);
+# revisit together with a STMT2 prepared-statement migration.
 tdengine:
   url: ${TDENGINE_URL:jdbc:TAOS-RS://localhost:6041/n4}
   username: ${TDENGINE_USERNAME:root}

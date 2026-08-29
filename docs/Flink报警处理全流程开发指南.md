@@ -394,15 +394,18 @@ Spring Boot 通过 `RedisMessageListenerContainer`（`RedisPubSubConfig`）订�
 ### 9.2 alarm:realtime → TDengine（即时写）
 
 `AlarmRealtimeListener` → `TdengineSyncService.writeRealtimeAlarm(state)`：
-- 异步单线程写 `alarm_realtime` 超表，**立即**写入（不经批量）。
+- 走**独立 realtime 通道**（专属单线程 + 专属长连接）写 `alarm_realtime` 超表，**立即**
+  写入（不经批量）；与 9.3 的批量事件通道完全隔离，大批 flush 再慢也不挤占报警写入。
 - 只含告警生命周期事件（start/continue/升级/end/ack）。
 
 ### 9.3 alarm:persist → TDengine（批量写）
 
 `AlarmPersistenceListener` → `TdengineSyncService.enqueuePersistence(state)`：
 - 入**有界缓冲**（容量 5000，满则丢弃并 warn）。
-- `flushPersistenceBatch()`（`@Scheduled` 每秒）`drainTo` 后，由 `TdengineSql` 按
-  点位路径分组、拼成**多条多表多行 INSERT**（每条最多 300 行 / 250K 字符）一次提交，
+- `flushPersistenceBatch()`（`@Scheduled` 每秒）提交给**独立 event 通道**（专属单线程 +
+  专属长连接，等待队列只有 2——丢帧的缓冲是 persistenceBuffer 本身，不是排队任务）：
+  连接就绪后才 `drainTo`，由 `TdengineSql` 按点位路径分组、拼成**多条多表多行 INSERT**
+  （每条最多 300 行 / 250K 字符，组内 `VALUES (a)(b)` 元组并列）一次提交，
   `alarm_event` 的写入从「每帧一次 HTTP 往返」变为「每秒几次往返」，突发流量下
   写吞吐提升 1~2 个数量级。某条语句失败时仅对该分片回退为逐行写，定位坏行不丢整批。
 - 每帧都写，`alarm_event` 是点位全量明细日志。
@@ -417,10 +420,25 @@ Spring Boot 通过 `RedisMessageListenerContainer`（`RedisPubSubConfig`）订�
 
 ## 十、TDengine 存储结构
 
-`TdengineSyncService` 首次连接时自动建库建表（`CREATE DATABASE IF NOT EXISTS n4
-KEEP 1095 DURATION 10 BUFFER 256`），两个超表**共享同一套 schema**，仅名字与 subtable 后缀不同。
+**驱动**：默认 REST 模式（`jdbc:TAOS-RS`，走 taosAdapter 6041 端口，无需 native 客户端库）。
+对服务器实测（3000 行 / 30 条分片语句写入 + 200 行窗口查询）：REST 写入 320ms vs WS 442ms、
+查询 34ms vs 158ms——WS 的 fetch 协议每次查询多出往返（跨公网 RTT 被放大），而项目走
+`Statement` 文本 SQL，享受不到 WS 二进制绑定的收益，故 REST 更优。可选 WS：把
+`TDENGINE_URL` 改成 `jdbc:TAOS-WS://` 即可，建议与 STMT2 参数绑定改造一起再评估。
+
+**建库建表（引导式）**：`TdengineSyncService` 进程内首次写入前会执行一次 schema 引导——
+先用**不带库名的 URL** 建连接，以全限定名（`n4.alarm_realtime` / `n4.alarm_event`）执行
+幂等 DDL（`CREATE DATABASE IF NOT EXISTS n4 KEEP 1095 DURATION 10 BUFFER 256` + 两张
+`CREATE STABLE IF NOT EXISTS`），再用完整 URL 正式连接。原因：**URL 里的库不存在时，
+WS 模式连接直接失败（auth failure），REST 模式也无法通过该连接完成建库**——旧版
+"先连 URL 再 CREATE + USE"的全新安装流程在两种驱动下都是坏的，引导式建库是修复。
+两个超表**共享同一套 schema**，仅名字与 subtable 后缀不同。
 注意 `IF NOT EXISTS` 只对**不存在的库**生效：线上已建的库要用 `ALTER DATABASE n4 BUFFER 256`
-在线调整（当前线上库 BUFFER 32 / VGROUPS 4，实际写内存池 = vgroup 数 × BUFFER）。
+在线调整（实测线上库曾为 BUFFER 32 / VGROUPS 4，实际写内存池 = vgroup 数 × BUFFER）。
+
+**写通道模型**：`realtime` 与 `event` 两条独立通道，各自专属单线程 + 专属长连接
+（JDBC 连接非线程安全）；event 通道的等待队列只有 2，突发流量的缓冲是 persistenceBuffer
+本身；任一通道连接故障互不影响，查询失败也不会关闭写连接。
 
 | 超表 | subtable 后缀 | 内容 | 写入频率 |
 |------|--------------|------|---------|
@@ -437,12 +455,12 @@ alarm_duration, alarm_start_time`。
   不经过本地时区的 datetime 字符串序列化，TDengine 按绝对 UTC 时刻解析，时区安全。
   `alarm_start_time` 对非告警行为 NULL，避免显示成 1970-01-01。
 - 写入 SQL 由 `TdengineSql` 客户端侧拼接：字符串字面量做转义（单引号/反斜杠/控制字符），
-  REST 驱动无服务端参数绑定。
+  taos-jdbcdriver 的 WS/REST 模式走 `Statement` 文本 SQL，均无服务端参数绑定。
 - 查询走 `openReadConnection()` 从**专用 HikariCP 读连接池**（`tdengine-read`，最多 4 连接）
-  借连接，绝不共享写线程的长连接（JDBC 非线程安全）；查询失败也不会关闭写连接。
+  借连接，绝不共享写通道的长连接（JDBC 非线程安全）。
 - 历史查询按**写入时间戳排序**（`ORDER BY ts DESC, data_timestamp DESC`，ts 是唯一有索引的
   主键时间戳），并带 `WHERE ts > NOW() - N d` 窗口裁剪（`tdengine.query-window-days`，默认 7，
-  0 为关闭），避免对全量 `alarm_event`（KEEP 365）做全表扫描。
+  0 为关闭），避免对全量 `alarm_event`（KEEP 1095）做全表扫描。
 
 ---
 

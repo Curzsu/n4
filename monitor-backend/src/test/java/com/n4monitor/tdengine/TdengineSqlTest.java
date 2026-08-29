@@ -105,9 +105,11 @@ class TdengineSqlTest {
 
         assertThat(chunks).hasSize(1);
         assertThat(chunks.get(0).rows()).hasSize(2);
-        // one group header, two VALUES tuples
+        // one group header with a single VALUES keyword, tuples juxtaposed:
+        // VALUES (a)(b) - not VALUES (a) VALUES (b), which the server rejects
         assertThat(countOccurrences(chunks.get(0).sql(), "TAGS(")).isEqualTo(1);
-        assertThat(countOccurrences(chunks.get(0).sql(), " VALUES ")).isEqualTo(2);
+        assertThat(countOccurrences(chunks.get(0).sql(), " VALUES ")).isEqualTo(1);
+        assertThat(chunks.get(0).sql()).contains(") (");
     }
 
     @Test

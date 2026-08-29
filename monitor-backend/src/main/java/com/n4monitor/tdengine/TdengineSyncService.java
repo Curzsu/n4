@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -37,14 +38,24 @@ import java.util.concurrent.TimeUnit;
  *       supertable {@code alarm_realtime} immediately when Flink publishes them.
  * </ol>
  * <p>
- * Uses REST mode (jdbc:TAOS-RS) so no native TDengine client is required.
- * Connection is established lazily on the first access.
+ * Driver: REST mode ({@code jdbc:TAOS-RS}) via taos-jdbcdriver - no native client
+ * library required. WebSocket mode ({@code jdbc:TAOS-WS}) stays available by URL
+ * change only, but measured slower for this workload (the WS fetch protocol adds
+ * round trips per query and plain text SQL gains nothing from WS binary binding);
+ * revisit it together with a STMT2 prepared-statement migration.
+ * Schema bootstrap: a fresh (or dropped) database cannot be created through a
+ * full-URL connection - WS refuses the connection itself and REST cannot reach
+ * the database through its URL scope - so the database and supertables are
+ * created once per process over a db-less connection with fully qualified DDL
+ * before the first full-URL connect.
  * <p>
- * Concurrency model: JDBC connections are not thread-safe, so the long-lived
- * write connection is owned exclusively by the single writer thread below;
- * read queries borrow connections from a small dedicated HikariCP pool and
- * never touch the writer connection. Read failures deliberately do NOT close
- * the writer connection - reads and writes fail independently.
+ * Concurrency model: two independent write lanes, each a single-writer
+ * executor owning its own long-lived JDBC connection ({@link WriteChannel}).
+ * Bulk event flushes can therefore never delay or displace alarm lifecycle
+ * writes, and one lane's connection failure cannot poison the other. Read
+ * queries borrow connections from a small dedicated HikariCP pool and never
+ * touch either write lane. Read failures deliberately do NOT close write
+ * connections - reads and writes fail independently.
  * <p>
  * Writes are batched: frames are grouped by point subtable into chunked
  * multi-table INSERT statements (see {@link TdengineSql}), so a burst
@@ -62,14 +73,31 @@ public class TdengineSyncService {
     private final TdengineConfig tdengineConfig;
     private final ObjectMapper objectMapper;
 
-    private volatile Connection connection;
-    private volatile boolean initialized = false;
+    /**
+     * Serializes the one-time schema bootstrap (CREATE DATABASE / STABLE) when
+     * both write lanes initialize concurrently; the DDL itself is idempotent.
+     */
+    private static final Object SCHEMA_LOCK = new Object();
 
-    /** Small read pool; created lazily so a missing TDengine does not slow startup. */
-    private volatile HikariDataSource readPool;
+    /**
+     * Schema bootstrap flag. The target database may not exist yet when a lane
+     * first connects (fresh install, dropped database), and both driver modes
+     * refuse to work against a missing URL database: WS fails the connection
+     * itself, REST silently cannot create through a URL-scoped connection. The
+     * bootstrap therefore runs once over a db-less connection with fully
+     * qualified DDL before the first full-URL connect.
+     */
+    private volatile boolean schemaReady;
 
-    /** Bounded so a slow or unreachable TDengine cannot grow the queue without limit. */
-    private static final int WRITE_QUEUE_CAPACITY = 1000;
+    /** Bounded queue of pending realtime alarm writes; overflow drops with an error log. */
+    private static final int REALTIME_QUEUE_CAPACITY = 1000;
+
+    /**
+     * Pending flush tasks. Deliberately tiny: each queued task would re-drain
+     * the buffer into memory, and the frames' true shock absorber is the
+     * bounded {@link #persistenceBuffer}; overflow just skips a tick.
+     */
+    private static final int EVENT_QUEUE_CAPACITY = 2;
 
     /**
      * Bounded buffer of pending full-detail frames awaiting the next batch flush.
@@ -82,72 +110,173 @@ public class TdengineSyncService {
     private final ArrayBlockingQueue<PointAlarmState> persistenceBuffer =
             new ArrayBlockingQueue<>(PERSISTENCE_BUFFER_CAPACITY);
 
-    private final ExecutorService asyncExecutor = new ThreadPoolExecutor(
+    /** Bulk event flushes; slow when TDengine lags, but must not block alarms. */
+    private final ExecutorService eventExecutor = new ThreadPoolExecutor(
             1, 1, 0L, TimeUnit.MILLISECONDS,
-            new ArrayBlockingQueue<>(WRITE_QUEUE_CAPACITY),
-            r -> {
-                Thread t = new Thread(r, "tdengine-async-writer");
-                t.setDaemon(true);
-                return t;
-            },
+            new ArrayBlockingQueue<>(EVENT_QUEUE_CAPACITY),
+            namedDaemonFactory("tdengine-event-writer"),
+            (r, executor) -> log.warn(
+                    "TDengine event flush is still busy, skipping this flush tick; "
+                            + "frames stay buffered (capacity {})", PERSISTENCE_BUFFER_CAPACITY));
+
+    /** Alarm lifecycle writes; small volume, latency-sensitive, must not be displaced. */
+    private final ExecutorService realtimeExecutor = new ThreadPoolExecutor(
+            1, 1, 0L, TimeUnit.MILLISECONDS,
+            new ArrayBlockingQueue<>(REALTIME_QUEUE_CAPACITY),
+            namedDaemonFactory("tdengine-realtime-writer"),
             (r, executor) -> log.error(
-                    "TDengine write queue is full (capacity {}), dropping a write task; "
-                            + "TDengine is falling behind or unreachable", WRITE_QUEUE_CAPACITY));
+                    "TDengine realtime write queue is full (capacity {}), dropping an alarm "
+                            + "lifecycle write; TDengine is falling behind or unreachable",
+                    REALTIME_QUEUE_CAPACITY));
+
+    private final WriteChannel eventChannel = new WriteChannel("event");
+    private final WriteChannel realtimeChannel = new WriteChannel("realtime");
+
+    /** Small read pool; created lazily so a missing TDengine does not slow startup. */
+    private volatile HikariDataSource readPool;
+
+    private static ThreadFactory namedDaemonFactory(String name) {
+        return r -> {
+            Thread t = new Thread(r, name);
+            t.setDaemon(true);
+            return t;
+        };
+    }
 
     /**
-     * Ensure connection is alive; reconnect if needed.
-     *
-     * @return true if connection is usable
+     * One dedicated write lane: a single-writer executor thread owning a
+     * long-lived JDBC connection. JDBC connections are not thread-safe, so the
+     * connection is used exclusively by the lane's own thread.
      */
-    private synchronized boolean ensureConnected() {
-        try {
-            if (connection != null && !connection.isClosed()) {
-                return true;
-            }
-        } catch (SQLException e) {
-            log.warn("TDengine connection check failed, will reconnect", e);
+    private final class WriteChannel {
+        private final String name;
+        private Connection connection;
+
+        private WriteChannel(String name) {
+            this.name = name;
         }
 
-        try {
-            String url = tdengineConfig.getUrl();
-            String username = tdengineConfig.getUsername();
-            String password = tdengineConfig.getPassword();
-
-            log.info("Connecting to TDengine (REST): {}", url);
-            connection = DriverManager.getConnection(url, username, password);
-            log.info("Connected to TDengine successfully");
-
-            if (!initialized) {
-                initDatabase();
-                initSupertable(tdengineConfig.getRealtimeSupertable(), "Realtime");
-                initSupertable(tdengineConfig.getEventSupertable(), "Event");
-                initialized = true;
-                log.info("TDengine database and supertables initialized");
+        /**
+         * Ensure the lane connection is alive; reconnect if needed. Before the
+         * first connect the schema is bootstrapped over a db-less connection
+         * (see {@link #schemaReady}), because both driver modes cannot operate
+         * against the missing URL database.
+         *
+         * @return true if the connection is usable
+         */
+        private synchronized boolean ensureConnected() {
+            try {
+                if (connection != null && !connection.isClosed()) {
+                    return true;
+                }
+            } catch (SQLException e) {
+                log.warn("TDengine connection check failed on lane '{}', will reconnect", name, e);
             }
-            return true;
-        } catch (Exception e) {
-            log.error("Failed to connect to TDengine", e);
-            connection = null;
-            return false;
+
+            try {
+                ensureSchema();
+                log.info("Connecting to TDengine on lane '{}': {}", name, tdengineConfig.getUrl());
+                connection = DriverManager.getConnection(tdengineConfig.getUrl(),
+                        tdengineConfig.getUsername(), tdengineConfig.getPassword());
+                log.info("Connected to TDengine on lane '{}'", name);
+                return true;
+            } catch (Exception e) {
+                log.error("Failed to connect to TDengine on lane '{}'", name, e);
+                connection = null;
+                // A "database not exist" failure means the schema vanished (or was
+                // dropped underneath a running instance); re-bootstrap next attempt.
+                if (String.valueOf(e.getMessage()).toLowerCase().contains("database not exist")) {
+                    schemaReady = false;
+                }
+                return false;
+            }
+        }
+
+        private int executeUpdate(String sql) throws SQLException {
+            try (Statement stmt = connection.createStatement()) {
+                return stmt.executeUpdate(sql);
+            }
+        }
+
+        private synchronized void closeQuietly() {
+            if (connection != null) {
+                try {
+                    connection.close();
+                } catch (SQLException ignored) {
+                }
+                connection = null;
+            }
         }
     }
 
     /**
-     * Create database if not exists.
+     * Create the database and both supertables once per process, over a
+     * db-less connection using fully qualified names. Both driver modes cannot
+     * do this through the full URL while the database is still missing.
      */
-    private void initDatabase() throws SQLException {
+    private void ensureSchema() throws SQLException {
+        synchronized (SCHEMA_LOCK) {
+            if (schemaReady) {
+                return;
+            }
+            String bootstrapUrl = bootstrapUrl(tdengineConfig.getUrl());
+            String database = tdengineConfig.getDatabase();
+            log.info("Bootstrapping TDengine schema for '{}' via {}", database, bootstrapUrl);
+            try (Connection boot = DriverManager.getConnection(bootstrapUrl,
+                    tdengineConfig.getUsername(), tdengineConfig.getPassword())) {
+                initDatabase(boot);
+                initSupertable(boot, database + "." + tdengineConfig.getRealtimeSupertable(), "Realtime");
+                initSupertable(boot, database + "." + tdengineConfig.getEventSupertable(), "Event");
+            }
+            schemaReady = true;
+        }
+    }
+
+    /**
+     * Strip the default-database path segment from a taos-jdbcdriver URL, e.g.
+     * {@code jdbc:TAOS-WS://host:6041/n4?x=1} -> {@code jdbc:TAOS-WS://host:6041?x=1}.
+     * URLs without a database path are returned unchanged.
+     */
+    static String bootstrapUrl(String url) {
+        int schemeEnd = url.indexOf("://");
+        if (schemeEnd < 0) {
+            return url;
+        }
+        String prefix = url.substring(0, schemeEnd + 3);
+        String rest = url.substring(prefix.length());
+        int slash = rest.indexOf('/');
+        if (slash < 0 || slash == rest.length() - 1) {
+            return url;
+        }
+        String query = "";
+        int queryStart = rest.indexOf('?');
+        if (queryStart >= 0) {
+            query = rest.substring(queryStart);
+            rest = rest.substring(0, queryStart);
+            slash = rest.indexOf('/');
+            if (slash < 0 || slash == rest.length() - 1) {
+                return url;
+            }
+        }
+        return prefix + rest.substring(0, slash) + query;
+    }
+
+    /**
+     * Create database if not exists, on the given lane connection.
+     */
+    private void initDatabase(Connection connection) throws SQLException {
         String database = tdengineConfig.getDatabase();
         // BUFFER is the per-vnode write memory pool in MB. This CREATE only
         // applies to a fresh database (IF NOT EXISTS never re-applies to an
         // existing one - resize those with ALTER DATABASE). KEEP 1095 = 3
         // years of retention; BUFFER 256 aligns with the TDengine 3.4 default.
+        // No USE here: the bootstrap runs on a db-less connection with fully
+        // qualified supertable names, and lane connections get the database
+        // context from the URL path.
         String sql = "CREATE DATABASE IF NOT EXISTS " + database + " KEEP 1095 DURATION 10 BUFFER 256";
         try (Statement stmt = connection.createStatement()) {
             stmt.execute(sql);
             log.info("Database '{}' created/verified", database);
-        }
-        try (Statement stmt = connection.createStatement()) {
-            stmt.execute("USE " + database);
         }
     }
 
@@ -162,7 +291,7 @@ public class TdengineSyncService {
      * display_name (path is now the only tag and the unique point key).
      * Added column: alarm_stage_message (alarm state transition label).
      */
-    private void initSupertable(String supertable, String label) throws SQLException {
+    private void initSupertable(Connection connection, String supertable, String label) throws SQLException {
         String sql = "CREATE STABLE IF NOT EXISTS " + supertable + " ("
                 + "ts TIMESTAMP, "
                 + "data_timestamp TIMESTAMP, "
@@ -218,15 +347,18 @@ public class TdengineSyncService {
         if (persistenceBuffer.isEmpty()) {
             return;
         }
-        List<PointAlarmState> batch = new ArrayList<>(PERSISTENCE_BUFFER_CAPACITY);
-        persistenceBuffer.drainTo(batch);
-        if (batch.isEmpty()) {
-            return;
-        }
-        asyncExecutor.submit(() -> {
-            if (!ensureConnected()) {
-                log.error("TDengine not available, dropping a persistence batch of {} frames",
-                        batch.size());
+        // Drain inside the writer task so a skipped tick loses nothing: frames
+        // simply stay in the bounded buffer until a later tick. Connect before
+        // draining so a TDengine outage does not empty the buffer into the void.
+        eventExecutor.submit(() -> {
+            if (!eventChannel.ensureConnected()) {
+                log.error("TDengine not available, leaving {} frame(s) buffered",
+                        persistenceBuffer.size());
+                return;
+            }
+            List<PointAlarmState> batch = new ArrayList<>(PERSISTENCE_BUFFER_CAPACITY);
+            persistenceBuffer.drainTo(batch);
+            if (batch.isEmpty()) {
                 return;
             }
             writeEventBatch(batch, tdengineConfig.getEventSupertable(), "_ev");
@@ -244,8 +376,8 @@ public class TdengineSyncService {
         int written = 0;
         int failed = 0;
         for (TdengineSql.Chunk chunk : chunks) {
-            try (Statement stmt = connection.createStatement()) {
-                written += stmt.executeUpdate(chunk.sql());
+            try {
+                written += eventChannel.executeUpdate(chunk.sql());
             } catch (SQLException e) {
                 log.warn("Batched insert of {} rows failed, falling back to row-by-row: {}",
                         chunk.rows().size(), e.getMessage());
@@ -266,15 +398,15 @@ public class TdengineSyncService {
         int failed = 0;
         for (PointAlarmState state : rows) {
             try {
-                if (!ensureConnected()) {
+                if (!eventChannel.ensureConnected()) {
                     failed++;
                     continue;
                 }
-                writeSingleRow(supertable, subtableSuffix, state);
+                writeSingleRow(eventChannel, supertable, subtableSuffix, state);
             } catch (SQLException e) {
                 failed++;
                 log.error("SQL error writing event path '{}': {}", state.getMqttPath(), e.getMessage());
-                closeConnection();
+                eventChannel.closeQuietly();
             } catch (Exception e) {
                 failed++;
                 log.error("Failed to write event for path: {}", state.getMqttPath(), e);
@@ -288,14 +420,14 @@ public class TdengineSyncService {
      * Called from the Redis pub/sub listener when Flink confirms an alarm.
      */
     public void writeRealtimeAlarm(PointAlarmState state) {
-        asyncExecutor.submit(() -> {
+        realtimeExecutor.submit(() -> {
             try {
-                if (!ensureConnected()) {
+                if (!realtimeChannel.ensureConnected()) {
                     log.error("TDengine not available, dropping realtime alarm: path={}, stage={}",
                             state.getMqttPath(), state.getStage());
                     return;
                 }
-                writeSingleRow(tdengineConfig.getRealtimeSupertable(), "_rt", state);
+                writeSingleRow(realtimeChannel, tdengineConfig.getRealtimeSupertable(), "_rt", state);
                 log.info("Wrote realtime alarm to TDengine: path={}, stage={}, level={}",
                         state.getMqttPath(), state.getStage(), state.getLevel());
             } catch (Exception e) {
@@ -309,11 +441,10 @@ public class TdengineSyncService {
      * Write one row into a supertable as a single-table single-row INSERT
      * (shared SQL builder with the batched path).
      */
-    private void writeSingleRow(String supertable, String subtableSuffix, PointAlarmState state) throws SQLException {
+    private void writeSingleRow(WriteChannel channel, String supertable, String subtableSuffix,
+                                PointAlarmState state) throws SQLException {
         List<TdengineSql.Chunk> chunks = TdengineSql.buildChunks(supertable, subtableSuffix, List.of(state));
-        try (Statement stmt = connection.createStatement()) {
-            stmt.executeUpdate(chunks.get(0).sql());
-        }
+        channel.executeUpdate(chunks.get(0).sql());
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -391,8 +522,8 @@ public class TdengineSyncService {
                 result.add(dto);
             }
         } catch (SQLException e) {
-            // Deliberately no closeConnection() here: reads own their pooled
-            // connections and must never tear down the writer's connection.
+            // Deliberately no write-lane close here: reads own their pooled
+            // connections and must never tear down a writer's connection.
             log.error("Failed to query alarm history from TDengine", e);
         }
 
@@ -451,7 +582,7 @@ public class TdengineSyncService {
                 result.add(dto);
             }
         } catch (SQLException e) {
-            // Same as queryClearedAlarms: never tear down the writer connection.
+            // Same as queryClearedAlarms: never tear down a write lane.
             log.error("Failed to query alarm events from TDengine", e);
         }
 
@@ -461,8 +592,8 @@ public class TdengineSyncService {
 
     /**
      * Borrow a read connection from the dedicated read pool. Reads never share
-     * the writer's long-lived connection: JDBC connections are not thread-safe
-     * and the writer thread owns its connection exclusively.
+     * a write lane's long-lived connection: JDBC connections are not
+     * thread-safe and each writer thread owns its connection exclusively.
      */
     private Connection openReadConnection() throws SQLException {
         HikariDataSource pool = readPool;
@@ -490,7 +621,7 @@ public class TdengineSyncService {
         cfg.setConnectionTimeout(5_000);
         cfg.setIdleTimeout(60_000);
         cfg.setMaxLifetime(300_000);
-        // Avoid isValid() support differences of the REST driver.
+        // Avoid isValid() support differences of the taos-jdbcdriver modes.
         cfg.setConnectionTestQuery("SELECT SERVER_VERSION()");
         // Do not probe TDengine at pool creation; queries fail gracefully instead.
         cfg.setInitializationFailTimeout(-1);
@@ -498,25 +629,14 @@ public class TdengineSyncService {
     }
 
     /**
-     * Close current connection quietly.
-     */
-    private void closeConnection() {
-        if (connection != null) {
-            try {
-                connection.close();
-            } catch (SQLException ignored) {
-            }
-            connection = null;
-        }
-    }
-
-    /**
      * Cleanup resources on shutdown.
      */
     @PreDestroy
     public void destroy() {
-        asyncExecutor.shutdownNow();
-        closeConnection();
+        realtimeExecutor.shutdownNow();
+        eventExecutor.shutdownNow();
+        realtimeChannel.closeQuietly();
+        eventChannel.closeQuietly();
         if (readPool != null) {
             readPool.close();
         }
