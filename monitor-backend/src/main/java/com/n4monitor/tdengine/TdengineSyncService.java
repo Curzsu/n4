@@ -3,6 +3,8 @@ package com.n4monitor.tdengine;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.n4monitor.alarm.dto.AlarmRecordDto;
 import com.n4monitor.alarm.model.PointAlarmState;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,8 +30,9 @@ import java.util.concurrent.TimeUnit;
  * <ol>
  *   <li>Full-detail event persistence: Flink publishes every processed point
  *       frame to Redis channel {@code alarm:persist}; the backend listener
- *       enqueues frames into a bounded buffer which is flushed in batches to
- *       supertable {@code alarm_event} every second.
+ *       enqueues frames into a bounded buffer which is drained every second
+ *       and written as chunked multi-row INSERT statements to supertable
+ *       {@code alarm_event}.
  *   <li>Real-time alarm records: writes confirmed alarm lifecycle events to
  *       supertable {@code alarm_realtime} immediately when Flink publishes them.
  * </ol>
@@ -39,7 +42,15 @@ import java.util.concurrent.TimeUnit;
  * <p>
  * Concurrency model: JDBC connections are not thread-safe, so the long-lived
  * write connection is owned exclusively by the single writer thread below;
- * read queries open short-lived connections of their own and never touch it.
+ * read queries borrow connections from a small dedicated HikariCP pool and
+ * never touch the writer connection. Read failures deliberately do NOT close
+ * the writer connection - reads and writes fail independently.
+ * <p>
+ * Writes are batched: frames are grouped by point subtable into chunked
+ * multi-table INSERT statements (see {@link TdengineSql}), so a burst
+ * translates into a handful of round trips instead of one per frame. A
+ * statement-level failure falls back to row-by-row writes for that chunk only,
+ * so one poison row cannot silently drop the frames around it.
  * <p>
  * Subtable naming: each point has its own subtable named by the sanitized path field.
  */
@@ -53,6 +64,9 @@ public class TdengineSyncService {
 
     private volatile Connection connection;
     private volatile boolean initialized = false;
+
+    /** Small read pool; created lazily so a missing TDengine does not slow startup. */
+    private volatile HikariDataSource readPool;
 
     /** Bounded so a slow or unreachable TDengine cannot grow the queue without limit. */
     private static final int WRITE_QUEUE_CAPACITY = 1000;
@@ -184,7 +198,7 @@ public class TdengineSyncService {
         }
         if (!persistenceBuffer.offer(state)) {
             log.warn("Persistence buffer is full (capacity {}), dropping a frame for path={}; "
-                    + "TDengine is falling behind or unreachable",
+                            + "TDengine is falling behind or unreachable",
                     PERSISTENCE_BUFFER_CAPACITY, state.getMqttPath());
         }
     }
@@ -211,24 +225,58 @@ public class TdengineSyncService {
                         batch.size());
                 return;
             }
-            int successCount = 0;
-            int failCount = 0;
-            for (PointAlarmState state : batch) {
-                try {
-                    writeAlarmRow(tdengineConfig.getEventSupertable(), "_ev", state);
-                    successCount++;
-                } catch (SQLException e) {
-                    failCount++;
-                    log.error("SQL error writing event path '{}': {}", state.getMqttPath(), e.getMessage());
-                    closeConnection();
-                    break;
-                } catch (Exception e) {
-                    failCount++;
-                    log.error("Failed to write event for path: {}", state.getMqttPath(), e);
-                }
-            }
-            log.debug("Flushed persistence batch: {} succeeded, {} failed", successCount, failCount);
+            writeEventBatch(batch, tdengineConfig.getEventSupertable(), "_ev");
         });
+    }
+
+    /**
+     * Write a drained buffer batch to one supertable using chunked multi-row
+     * INSERT statements. On a statement-level SQL failure only that chunk falls
+     * back to row-by-row writes, so one malformed row cannot silently drop the
+     * frames of neighbouring chunks (and already-written chunks are not rewritten).
+     */
+    private void writeEventBatch(List<PointAlarmState> batch, String supertable, String subtableSuffix) {
+        List<TdengineSql.Chunk> chunks = TdengineSql.buildChunks(supertable, subtableSuffix, batch);
+        int written = 0;
+        int failed = 0;
+        for (TdengineSql.Chunk chunk : chunks) {
+            try (Statement stmt = connection.createStatement()) {
+                written += stmt.executeUpdate(chunk.sql());
+            } catch (SQLException e) {
+                log.warn("Batched insert of {} rows failed, falling back to row-by-row: {}",
+                        chunk.rows().size(), e.getMessage());
+                failed += writeRowsIndividually(chunk.rows(), supertable, subtableSuffix);
+            }
+        }
+        log.debug("Flushed persistence batch: {} rows written, {} failed via {} chunk(s)",
+                written, failed, chunks.size());
+    }
+
+    /**
+     * Row-by-row fallback for a failed chunk. Reconnects lazily so a dead
+     * connection does not fail every remaining row.
+     *
+     * @return number of failed rows
+     */
+    private int writeRowsIndividually(List<PointAlarmState> rows, String supertable, String subtableSuffix) {
+        int failed = 0;
+        for (PointAlarmState state : rows) {
+            try {
+                if (!ensureConnected()) {
+                    failed++;
+                    continue;
+                }
+                writeSingleRow(supertable, subtableSuffix, state);
+            } catch (SQLException e) {
+                failed++;
+                log.error("SQL error writing event path '{}': {}", state.getMqttPath(), e.getMessage());
+                closeConnection();
+            } catch (Exception e) {
+                failed++;
+                log.error("Failed to write event for path: {}", state.getMqttPath(), e);
+            }
+        }
+        return failed;
     }
 
     /**
@@ -243,7 +291,7 @@ public class TdengineSyncService {
                             state.getMqttPath(), state.getStage());
                     return;
                 }
-                writeAlarmRow(tdengineConfig.getRealtimeSupertable(), "_rt", state);
+                writeSingleRow(tdengineConfig.getRealtimeSupertable(), "_rt", state);
                 log.info("Wrote realtime alarm to TDengine: path={}, stage={}, level={}",
                         state.getMqttPath(), state.getStage(), state.getLevel());
             } catch (Exception e) {
@@ -254,62 +302,13 @@ public class TdengineSyncService {
     }
 
     /**
-     * Write a single PointAlarmState row into one of the two supertables
-     * (shared schema; they differ only by supertable name and subtable suffix).
-     *
-     * @param supertable     target supertable name
-     * @param subtableSuffix appended to the sanitized path to build the
-     *                       per-point subtable name ("_rt" for realtime,
-     *                       "_ev" for full-detail events)
+     * Write one row into a supertable as a single-table single-row INSERT
+     * (shared SQL builder with the batched path).
      */
-    private void writeAlarmRow(String supertable, String subtableSuffix, PointAlarmState state) throws SQLException {
-        String path = state.getMqttPath();
-        String subtable = sanitizeTableName(path) + subtableSuffix;
-
-        // TAGS(path) + 17 VALUES columns
-        String sql = "INSERT INTO " + subtable + " USING " + supertable
-                + " TAGS (?) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            // TAG
-            pstmt.setString(1, path);
-
-            // VALUES
-            // Timestamps are bound as raw epoch-millis longs (setLong) instead of
-            // java.sql.Timestamp (setTimestamp). Under the REST driver (jdbc:TAOS-RS)
-            // setTimestamp serializes the value to a naive datetime string using the
-            // JVM local timezone, while the TDengine server parses it as UTC - an
-            // 8-hour mismatch when the two zones differ. Passing the millis directly
-            // lets TDengine interpret it as an absolute UTC instant, timezone-safe.
-            pstmt.setLong(2, System.currentTimeMillis());
-            Long dataTimestamp = state.getTimestamp();
-            pstmt.setLong(3, dataTimestamp != null ? dataTimestamp : System.currentTimeMillis());
-            pstmt.setString(4, state.getValue());
-            pstmt.setString(5, state.getType());
-            pstmt.setString(6, state.getLevel());
-            pstmt.setString(7, state.getSeverity());
-            pstmt.setString(8, state.getMessage());
-            pstmt.setString(9, state.getTimeDelay() != null ? String.valueOf(state.getTimeDelay()) : null);
-            pstmt.setString(10, state.getDeadband());
-            pstmt.setString(11, state.getAckBy());
-            pstmt.setString(12, state.getStatus());
-            pstmt.setString(13, state.getSource());
-            pstmt.setString(14, state.getLocation());
-            pstmt.setString(15, state.getStage());
-            pstmt.setString(16, state.getStageMessage());
-            pstmt.setString(17, state.getDuration());
-            Long alarmStart = state.getAlarmStartTime();
-            // alarm_start_time is NULL for non-alarm rows (no alarm has begun).
-            // Use setNull so TDengine stores a true NULL instead of epoch 0
-            // (which displays as 1970-01-01). Non-null values still use setLong
-            // for timezone-safe epoch-millis binding.
-            if (alarmStart != null) {
-                pstmt.setLong(18, alarmStart);
-            } else {
-                pstmt.setNull(18, Types.TIMESTAMP);
-            }
-
-            pstmt.executeUpdate();
+    private void writeSingleRow(String supertable, String subtableSuffix, PointAlarmState state) throws SQLException {
+        List<TdengineSql.Chunk> chunks = TdengineSql.buildChunks(supertable, subtableSuffix, List.of(state));
+        try (Statement stmt = connection.createStatement()) {
+            stmt.executeUpdate(chunks.get(0).sql());
         }
     }
 
@@ -321,21 +320,37 @@ public class TdengineSyncService {
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     /**
+     * Recent-write window filter for history queries. Rows are ordered by the
+     * write timestamp (the indexed primary ts), so pruning by ts keeps the scan
+     * inside the window instead of the full KEEP range. 0 disables the filter.
+     */
+    private String recentWindowClause() {
+        int windowDays = tdengineConfig.getQueryWindowDays();
+        if (windowDays <= 0) {
+            return "";
+        }
+        return " WHERE ts > NOW() - " + windowDays + "d";
+    }
+
+    /**
      * Query all alarm records from the alarm_realtime supertable.
-     * Returns the most recent 200 records, ordered by data_timestamp descending
-     * (newest first), mirroring the Active Alarms default ordering.
+     * Returns the most recent 200 records, ordered by the write timestamp
+     * descending (newest first), mirroring the Active Alarms default ordering.
      */
     public List<AlarmRecordDto> queryClearedAlarms() {
         List<AlarmRecordDto> result = new ArrayList<>();
 
         String sql = "SELECT data_timestamp, alarm_level, alarm_severity, alarm_source, " +
                 "alarm_message, alarm_location, alarm_status, ack_by, alarm_duration, " +
-                "alarm_stage, alarm_stage_message, alarm_start_time, path FROM " + tdengineConfig.getRealtimeSupertable() + " " +
-                // ts (write moment) is a stable tiebreaker: when two records share the same
-                // data_timestamp (e.g. an End + Start written in the same tick during a level
-                // escalation), ts breaks the tie by insertion order so the later-written
-                // Start always sorts above the earlier-written End.
-                "ORDER BY data_timestamp DESC, ts DESC LIMIT 200";
+                "alarm_stage, alarm_stage_message, alarm_start_time, path FROM " + tdengineConfig.getRealtimeSupertable() +
+                recentWindowClause() +
+                // Order by the write timestamp: the indexed primary ts, and the same
+                // insertion-order tiebreaker this query previously used as secondary
+                // key. When two records share the same data_timestamp (e.g. an End +
+                // Start written in the same tick during a level escalation), the
+                // later-written Start always sorts above the earlier-written End.
+                // data_timestamp stays as a secondary key for fully tied rows.
+                " ORDER BY ts DESC, data_timestamp DESC LIMIT 200";
 
         try (Connection readConn = openReadConnection();
              Statement stmt = readConn.createStatement();
@@ -372,8 +387,9 @@ public class TdengineSyncService {
                 result.add(dto);
             }
         } catch (SQLException e) {
+            // Deliberately no closeConnection() here: reads own their pooled
+            // connections and must never tear down the writer's connection.
             log.error("Failed to query alarm history from TDengine", e);
-            closeConnection();
         }
 
         log.info("Queried {} alarm history records from TDengine", result.size());
@@ -391,8 +407,9 @@ public class TdengineSyncService {
 
         String sql = "SELECT data_timestamp, point_value, alarm_level, alarm_severity, alarm_source, " +
                 "alarm_message, alarm_location, alarm_status, ack_by, alarm_duration, " +
-                "alarm_stage, alarm_stage_message, alarm_start_time, path FROM " + tdengineConfig.getEventSupertable() + " " +
-                "ORDER BY data_timestamp DESC, ts DESC LIMIT 200";
+                "alarm_stage, alarm_stage_message, alarm_start_time, path FROM " + tdengineConfig.getEventSupertable() +
+                recentWindowClause() +
+                " ORDER BY ts DESC, data_timestamp DESC LIMIT 200";
 
         try (Connection readConn = openReadConnection();
              Statement stmt = readConn.createStatement();
@@ -430,8 +447,8 @@ public class TdengineSyncService {
                 result.add(dto);
             }
         } catch (SQLException e) {
+            // Same as queryClearedAlarms: never tear down the writer connection.
             log.error("Failed to query alarm events from TDengine", e);
-            closeConnection();
         }
 
         log.info("Queried {} alarm event records from TDengine", result.size());
@@ -439,24 +456,41 @@ public class TdengineSyncService {
     }
 
     /**
-     * Open a short-lived connection for read-only queries. Reads never share
+     * Borrow a read connection from the dedicated read pool. Reads never share
      * the writer's long-lived connection: JDBC connections are not thread-safe
      * and the writer thread owns its connection exclusively.
      */
     private Connection openReadConnection() throws SQLException {
-        return DriverManager.getConnection(
-                tdengineConfig.getUrl(), tdengineConfig.getUsername(), tdengineConfig.getPassword());
+        HikariDataSource pool = readPool;
+        if (pool == null) {
+            synchronized (this) {
+                if (readPool == null) {
+                    readPool = buildReadPool();
+                }
+                pool = readPool;
+            }
+        }
+        return pool.getConnection();
     }
 
-    /**
-     * Sanitize path to create a valid TDengine table name.
-     * Replace special characters with underscores.
-     */
-    private String sanitizeTableName(String path) {
-        if (path == null || path.isEmpty()) {
-            return "unknown_point";
-        }
-        return path.replaceAll("[^a-zA-Z0-9_]", "_");
+    private HikariDataSource buildReadPool() {
+        HikariConfig cfg = new HikariConfig();
+        cfg.setPoolName("tdengine-read");
+        cfg.setJdbcUrl(tdengineConfig.getUrl());
+        cfg.setUsername(tdengineConfig.getUsername());
+        cfg.setPassword(tdengineConfig.getPassword());
+        // Reads come in short bursts from HTTP threads; a small pool caps the
+        // concurrent query load TDengine sees during write bursts.
+        cfg.setMaximumPoolSize(4);
+        cfg.setMinimumIdle(0);
+        cfg.setConnectionTimeout(5_000);
+        cfg.setIdleTimeout(60_000);
+        cfg.setMaxLifetime(300_000);
+        // Avoid isValid() support differences of the REST driver.
+        cfg.setConnectionTestQuery("SELECT SERVER_VERSION()");
+        // Do not probe TDengine at pool creation; queries fail gracefully instead.
+        cfg.setInitializationFailTimeout(-1);
+        return new HikariDataSource(cfg);
     }
 
     /**
@@ -479,6 +513,9 @@ public class TdengineSyncService {
     public void destroy() {
         asyncExecutor.shutdownNow();
         closeConnection();
+        if (readPool != null) {
+            readPool.close();
+        }
         log.info("TDengine sync service shut down");
     }
 }

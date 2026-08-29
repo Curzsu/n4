@@ -32,4 +32,11 @@ public class TdengineConfig {
 
     /** Supertable name for full-detail point event persistence (every processed frame) */
     private String eventSupertable;
+
+    /**
+     * Recent-write window (days) applied to history queries so they prune by
+     * the indexed primary timestamp instead of scanning the full KEEP range.
+     * 0 disables the window filter.
+     */
+    private int queryWindowDays = 7;
 }

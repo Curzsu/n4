@@ -401,7 +401,10 @@ Spring Boot 通过 `RedisMessageListenerContainer`（`RedisPubSubConfig`）订�
 
 `AlarmPersistenceListener` → `TdengineSyncService.enqueuePersistence(state)`：
 - 入**有界缓冲**（容量 5000，满则丢弃并 warn）。
-- `flushPersistenceBatch()`（`@Scheduled` 每秒）`drainTo` 后批量写 `alarm_event` 超表。
+- `flushPersistenceBatch()`（`@Scheduled` 每秒）`drainTo` 后，由 `TdengineSql` 按
+  点位路径分组、拼成**多条多表多行 INSERT**（每条最多 300 行 / 250K 字符）一次提交，
+  `alarm_event` 的写入从「每帧一次 HTTP 往返」变为「每秒几次往返」，突发流量下
+  写吞吐提升 1~2 个数量级。某条语句失败时仅对该分片回退为逐行写，定位坏行不丢整批。
 - 每帧都写，`alarm_event` 是点位全量明细日志。
 
 ### 9.4 订阅健康检查
@@ -428,10 +431,16 @@ alarm_status, alarm_source, alarm_location, alarm_stage, alarm_stage_message,
 alarm_duration, alarm_start_time`。
 
 - subtable 名 = `sanitizeTableName(path) + 后缀`（非字母数字替换为下划线）。
-- 时间戳以**原始毫秒 setLong 绑定**，而非 setTimestamp：REST 驱动下 setTimestamp 用 JVM
-  本地时区序列化成字符串、TDengine 按 UTC 解析，时区不同会产生 8 小时错位。
-  `alarm_start_time` 对非告警行为 NULL（setNull），避免显示成 1970-01-01。
-- 查询用 `openReadConnection()` 开短连接，绝不共享写线程的长连接（JDBC 非线程安全）。
+- 时间戳以**原始毫秒数值**写入 SQL 文本（早期版本用 setLong 绑定，语义相同）：
+  不经过本地时区的 datetime 字符串序列化，TDengine 按绝对 UTC 时刻解析，时区安全。
+  `alarm_start_time` 对非告警行为 NULL，避免显示成 1970-01-01。
+- 写入 SQL 由 `TdengineSql` 客户端侧拼接：字符串字面量做转义（单引号/反斜杠/控制字符），
+  REST 驱动无服务端参数绑定。
+- 查询走 `openReadConnection()` 从**专用 HikariCP 读连接池**（`tdengine-read`，最多 4 连接）
+  借连接，绝不共享写线程的长连接（JDBC 非线程安全）；查询失败也不会关闭写连接。
+- 历史查询按**写入时间戳排序**（`ORDER BY ts DESC, data_timestamp DESC`，ts 是唯一有索引的
+  主键时间戳），并带 `WHERE ts > NOW() - N d` 窗口裁剪（`tdengine.query-window-days`，默认 7，
+  0 为关闭），避免对全量 `alarm_event`（KEEP 365）做全表扫描。
 
 ---
 

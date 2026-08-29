@@ -47,6 +47,9 @@ tdengine:
   # Batch flush interval for full-detail event persistence (alarm_event)
   event-flush-rate-ms: 1000 # Drain buffered frames into alarm_event every second.
   event-flush-initial-delay-ms: 3000 # Initial delay before the first flush.
+  # History queries order by the write timestamp and prune to this recent
+  # window (days) instead of scanning the full KEEP range; 0 disables the filter.
+  query-window-days: 7
 
 # Alarm configuration
 alarm:
