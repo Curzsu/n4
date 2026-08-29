@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.n4monitor.mapper.SysUserMapper">
+
+    <select id="findById" resultType="com.n4monitor.entity.SysUser">
+        SELECT * FROM sys_user WHERE user_id = #{userId} AND is_deleted = 0
+    </select>
+
+    <select id="findByUsername" resultType="com.n4monitor.entity.SysUser">
+        SELECT * FROM sys_user WHERE username = #{username} AND is_deleted = 0
+    </select>
+
+    <select id="countByUsername" resultType="long">
+        SELECT COUNT(*) FROM sys_user WHERE username = #{username}
+    </select>
+
+    <select id="findPage" resultType="com.n4monitor.dto.UserDto">
+        SELECT user_id, username, real_name, email, phone, status, avatar, last_login_time, create_time
+        FROM sys_user
+        WHERE is_deleted = 0
+        <if test="username != null and username != ''">
+            AND username LIKE CONCAT('%', #{username}, '%')
+        </if>
+        <if test="realName != null and realName != ''">
+            AND real_name LIKE CONCAT('%', #{realName}, '%')
+        </if>
+        <if test="status != null">
+            AND status = #{status}
+        </if>
+        ORDER BY user_id DESC
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <select id="countPage" resultType="long">
+        SELECT COUNT(*) FROM sys_user
+        WHERE is_deleted = 0
+        <if test="username != null and username != ''">
+            AND username LIKE CONCAT('%', #{username}, '%')
+        </if>
+        <if test="realName != null and realName != ''">
+            AND real_name LIKE CONCAT('%', #{realName}, '%')
+        </if>
+        <if test="status != null">
+            AND status = #{status}
+        </if>
+    </select>
+
+    <insert id="insert" parameterType="com.n4monitor.entity.SysUser" useGeneratedKeys="true" keyProperty="userId">
+        INSERT INTO sys_user (username, password, real_name, email, phone, status, avatar)
+        VALUES (#{username}, #{password}, #{realName}, #{email}, #{phone}, #{status}, #{avatar})
+    </insert>
+
+    <update id="update" parameterType="com.n4monitor.entity.SysUser">
+        UPDATE sys_user
+        SET real_name = #{realName}, email = #{email}, phone = #{phone}, status = #{status}, avatar = #{avatar}
+        WHERE user_id = #{userId} AND is_deleted = 0
+    </update>
+
+    <update id="logicalDelete">
+        UPDATE sys_user SET is_deleted = 1 WHERE user_id = #{userId}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE sys_user SET status = #{status} WHERE user_id = #{userId} AND is_deleted = 0
+    </update>
+
+    <update id="updatePassword">
+        UPDATE sys_user SET password = #{password} WHERE user_id = #{userId} AND is_deleted = 0
+    </update>
+
+    <update id="updateLastLoginTime">
+        UPDATE sys_user SET last_login_time = NOW() WHERE user_id = #{userId}
+    </update>
+
+    <delete id="deleteUserGroups">
+        DELETE FROM sys_user_group WHERE user_id = #{userId}
+    </delete>
+
+    <insert id="insertUserGroup">
+        INSERT IGNORE INTO sys_user_group (user_id, group_id) VALUES (#{userId}, #{groupId})
+    </insert>
+</mapper>

@@ -16,7 +16,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Bell, TrendCharts, Document, Tools, Setting, Clock, Cpu, Operation } from '@element-plus/icons-vue'
+import { Bell, TrendCharts, Document, Tools, Setting, Clock, Cpu, Operation, User, Key, Lock, Tickets } from '@element-plus/icons-vue'
 import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
 
 // Real-time active alarm count (sum of all severities) shared across the app
@@ -25,10 +25,18 @@ const { activeAlarmCount } = useAlarmWebSocket()
 const route = useRoute()
 const router = useRouter()
 
-// System second-level routes take precedence over the /alarm prefix check,
-// because /alarm/config now belongs to the System menu (not the Alarms menu).
-const systemPaths = ['/device-template', '/device-deployment', '/system-deployment', '/alarm/config']
-const isSystemRoute = computed(() => systemPaths.includes(route.path))
+// System second-level routes take precedence over the /alarm prefix check
+const systemPaths = [
+  '/device-template',
+  '/device-deployment',
+  '/system-deployment',
+  '/alarm/config',
+  '/system/users',
+  '/system/groups',
+  '/system/permissions',
+  '/logs',
+]
+const isSystemRoute = computed(() => systemPaths.some((p) => route.path.startsWith(p)))
 const isAlarmRoute = computed(() => route.path.startsWith('/alarm') && !isSystemRoute.value)
 // Event is its own top-level route with no second-level menu.
 const isEventRoute = computed(() => route.path === '/event')
@@ -51,11 +59,15 @@ const alarmItems = computed(() => [
   },
 ])
 
-// System second-level menu (order as specified by the user).
+// System second-level menu
 const systemItems = computed(() => [
   { label: 'Device Template', icon: Cpu, badge: null, active: route.path === '/device-template', to: '/device-template' },
   { label: 'Device Deployment', icon: Operation, badge: null, active: route.path === '/device-deployment' || route.path === '/system-deployment', to: '/device-deployment' },
   { label: 'Alarm Configuration', icon: Setting, badge: null, active: route.path === '/alarm/config', to: '/alarm/config' },
+  { label: 'User Management', icon: User, badge: null, active: route.path === '/system/users', to: '/system/users' },
+  { label: 'Role Management', icon: Key, badge: null, active: route.path === '/system/groups', to: '/system/groups' },
+  { label: 'Permissions', icon: Lock, badge: null, active: route.path === '/system/permissions', to: '/system/permissions' },
+  { label: 'Audit Logs', icon: Tickets, badge: null, active: route.path === '/logs', to: '/logs' },
 ])
 
 // Items shown on all other routes
@@ -64,7 +76,7 @@ const defaultItems = computed(() => [
   { label: 'Trend Viewer', icon: TrendCharts, badge: null, active: false, to: '' },
   { label: 'Report Center', icon: Document, badge: null, active: false, to: '' },
   { label: 'Work Order', icon: Tools, badge: null, active: false, to: '' },
-  { label: 'System Settings', icon: Setting, badge: null, active: false, to: '' },
+  { label: 'System Settings', icon: Setting, badge: null, active: false, to: '/device-template' },
 ])
 
 const toolbarItems = computed(() => {
@@ -75,7 +87,7 @@ const toolbarItems = computed(() => {
   return defaultItems.value
 })
 
-function onItemClick(item: typeof alarmItems.value[number]) {
+function onItemClick(item: { to?: string }) {
   if (item.to) {
     router.push(item.to)
   }
@@ -90,7 +102,7 @@ function onItemClick(item: typeof alarmItems.value[number]) {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 32px;
+  gap: 24px;
   flex-shrink: 0;
 }
 
@@ -100,7 +112,7 @@ function onItemClick(item: typeof alarmItems.value[number]) {
   gap: 6px;
   color: $text-secondary;
   cursor: pointer;
-  padding: 4px 12px;
+  padding: 4px 10px;
   border-radius: 4px;
   transition: all 0.2s;
   &:hover {

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.n4monitor.mapper.SysDataScopeMapper">
+
+    <select id="findByGroupId" resultType="com.n4monitor.entity.SysDataScope">
+        SELECT * FROM sys_data_scope WHERE group_id = #{groupId} ORDER BY scope_id ASC
+    </select>
+
+    <select id="findByUserId" resultType="com.n4monitor.entity.SysDataScope">
+        SELECT DISTINCT s.*
+        FROM sys_data_scope s
+        JOIN sys_user_group ug ON s.group_id = ug.group_id
+        WHERE ug.user_id = #{userId}
+        ORDER BY s.scope_id ASC
+    </select>
+
+    <insert id="insert" parameterType="com.n4monitor.entity.SysDataScope" useGeneratedKeys="true" keyProperty="scopeId">
+        INSERT INTO sys_data_scope (group_id, scope_type, scope_value)
+        VALUES (#{groupId}, #{scopeType}, #{scopeValue})
+    </insert>
+
+    <update id="update" parameterType="com.n4monitor.entity.SysDataScope">
+        UPDATE sys_data_scope SET group_id = #{groupId}, scope_type = #{scopeType}, scope_value = #{scopeValue}
+        WHERE scope_id = #{scopeId}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM sys_data_scope WHERE scope_id = #{scopeId}
+    </delete>
+</mapper>
