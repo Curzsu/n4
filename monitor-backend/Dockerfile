@@ -13,13 +13,20 @@ COPY pom.xml .
 COPY monitor-common/pom.xml monitor-common/
 COPY monitor-flink-job/pom.xml monitor-flink-job/
 COPY monitor-backend/pom.xml monitor-backend/
-RUN mvn -B dependency:go-offline
+# Aliyun mirror settings for Maven Central (mirrorOf=central). Kept under
+# monitor-backend/ (NOT deploy/) because .dockerignore excludes deploy/ from the
+# build context. NOTE: `dependency:go-offline` is intentionally NOT used - it
+# over-resolves every declared (even unused) artifact and hits
+# org.codehaus.jackson:jackson-mapper-asl:1.9.14.jdk17-redhat-00001, which does
+# not exist on Central/Aliyun. `clean package` resolves only artifacts actually
+# needed for compilation and succeeds with this mirror.
+COPY monitor-backend/maven-settings-aliyun.xml ./maven-settings.xml
 
 # Copy the source trees and build (skip tests; the CI/runtime env has no MySQL/Kafka)
 COPY monitor-common/src monitor-common/src
 COPY monitor-flink-job/src monitor-flink-job/src
 COPY monitor-backend/src monitor-backend/src
-RUN mvn -B clean package -DskipTests
+RUN mvn -s ./maven-settings.xml -B clean package -DskipTests
 
 # Extract the fat jar into a directory layout here (the JDK 'jar' tool is available
 # in this builder stage). The runtime stage (JRE only) has no 'jar' command, so we
@@ -50,15 +57,19 @@ WORKDIR /app
 COPY --from=builder /app-extracted ./app-extracted
 
 # Spring Boot exposes the API + WebSocket on 8089
-EXPOSE 8089
+# Backend port is injected at runtime via SERVER_PORT (default 8088); EXPOSE is
+# informational only and has no effect in host network mode.
+EXPOSE 8088
 
 # Liveness probe: TCP-connect to the API port. Spring Boot has no actuator
 # endpoint, so a port-open check is the cheapest reliable signal that the JVM is
-# up and listening. bash + /dev/tcp avoids installing curl in the runtime image.
+# up and listening. Reads $SERVER_PORT (injected by compose, default 8088) so the
+# probe follows the actual listener instead of a hardcoded port.
+# bash + /dev/tcp avoids installing curl in the runtime image.
 # Non-fatal if the shell feature were unavailable (Docker would only mark the
 # container unhealthy; restart:unless-stopped still handles real crashes).
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD ["bash", "-c", "</dev/tcp/127.0.0.1/8089 || exit 1"]
+    CMD ["bash", "-c", "</dev/tcp/127.0.0.1/${SERVER_PORT:-8088} || exit 1"]
 
 # Build a flat classpath (BOOT-INF/classes + every jar in BOOT-INF/lib) and launch
 # the Spring Boot main class directly with -cp instead of -jar. The nested-jar URL

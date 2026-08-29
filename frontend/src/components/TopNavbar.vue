@@ -121,7 +121,7 @@ const routeMap: Record<string, string> = {
   'Dashboard': '/',
   'Alarms': '/alarm',
   'Event': '/event',
-  'System': '/device-template',
+  'System': '/device-deployment',
 }
 
 function handleTabClick(tab: string) {

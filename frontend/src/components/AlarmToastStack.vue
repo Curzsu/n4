@@ -26,6 +26,7 @@ import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { Close } from '@element-plus/icons-vue'
 import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
 import { alarmAudioConfig } from '@/config/alarmAudio'
+import { alarmToastConfig } from '@/config/alarmToast'
 import { getSeverityColor } from '@/config/severityColors'
 import { normalizeRecord } from '@/utils/alarm'
 import type { AlarmRecord } from '@/api/types'
@@ -99,17 +100,36 @@ const TOAST_GAP = 8
 const BOTTOM_OFFSET = 64
 const TOP_MARGIN = 16
 
-// Maximum number of toasts that fit on screen at the current viewport height.
-const maxToasts = ref(computeMaxToasts())
+// Effective toast capacity: the configured maxToasts, capped by how many toasts
+// physically fit on screen at the current viewport height.
+const maxToasts = ref(effectiveMaxToasts())
 
-function computeMaxToasts() {
+function computeViewportCapacity() {
   const available = window.innerHeight - BOTTOM_OFFSET - TOP_MARGIN
   return Math.max(1, Math.floor(available / (TOAST_HEIGHT + TOAST_GAP)))
 }
 
+function effectiveMaxToasts() {
+  return Math.min(alarmToastConfig.value.maxToasts, computeViewportCapacity())
+}
+
+// Recompute when the configured limit changes or the viewport resizes.
+watch(
+  alarmToastConfig,
+  () => {
+    maxToasts.value = effectiveMaxToasts()
+    trimToasts()
+  },
+  { deep: true }
+)
+
 function handleResize() {
-  maxToasts.value = computeMaxToasts()
-  // Shrink the stack if the viewport got smaller
+  maxToasts.value = effectiveMaxToasts()
+  trimToasts()
+}
+
+function trimToasts() {
+  // Shrink the stack if the capacity got smaller
   while (toasts.value.length > maxToasts.value) {
     toasts.value.shift()
   }
@@ -204,7 +224,10 @@ $toast-height: 48px;
   bottom: 0;
   right: 0;
   pointer-events: none;
-  z-index: 1000;
+  /* Above every overlay: Element Plus loading masks (2000), dialogs (2000) and
+     messages (3000) must never cover an alarm toast, e.g. the FUXA cabin
+     v-loading black mask while a cabin loads. */
+  z-index: 9999;
 }
 
 .alarm-toast {
@@ -222,6 +245,9 @@ $toast-height: 48px;
   padding: 0 12px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   pointer-events: auto;
+  /* Each toast is position:fixed with its own stacking context; keep it above
+     the same overlays independently of the container's z-index. */
+  z-index: 9999;
 }
 
 .toast-time {

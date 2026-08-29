@@ -19,7 +19,7 @@
         </div>
         <div class="right-panel-body" v-else>
           <div class="right-panel-header">
-            <span class="panel-title">{{ isAlarmRoute ? 'Alarm Overview' : 'System Status' }}</span>
+            <span class="panel-title">{{ isAlarmRoute ? 'Alarm Overview' : 'Overview' }}</span>
             <el-icon class="collapse-btn" @click="toggleRightCollapse">
               <Fold />
             </el-icon>
@@ -31,8 +31,7 @@
             <AlarmQuickActions />
           </template>
           <template v-else>
-            <AlarmSummary />
-            <SystemStatus />
+            <AlarmSummaryPlaceholder />
           </template>
         </div>
       </div>
@@ -48,8 +47,7 @@ import { useRoute } from 'vue-router'
 import TopNavbar from '@/components/TopNavbar.vue'
 import LeftSidebar from '@/components/LeftSidebar.vue'
 import BottomToolbar from '@/components/BottomToolbar.vue'
-import AlarmSummary from '@/components/AlarmSummary.vue'
-import SystemStatus from '@/components/SystemStatus.vue'
+import AlarmSummaryPlaceholder from '@/components/AlarmSummaryPlaceholder.vue'
 import AlarmSidebar from '@/components/AlarmSidebar.vue'
 import AlarmSummaryPanel from '@/components/AlarmSummaryPanel.vue'
 import AlarmSystemChart from '@/components/charts/AlarmSystemChart.vue'

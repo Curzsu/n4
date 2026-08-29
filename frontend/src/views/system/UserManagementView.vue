@@ -71,10 +71,10 @@
         class="custom-table"
         v-loading="loading"
       >
-        <el-table-column prop="userId" label="ID" width="55" align="center" header-align="center" />
-        <el-table-column prop="username" label="Username" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="realName" label="Real Name" min-width="120" show-overflow-tooltip />
-        <el-table-column label="Roles" min-width="150" show-overflow-tooltip>
+        <el-table-column prop="userId" label="ID" width="55" align="left" header-align="center" :resizable="false" />
+        <el-table-column prop="username" label="Username" min-width="120" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+        <el-table-column prop="realName" label="Real Name" min-width="120" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+        <el-table-column label="Roles" min-width="150" align="left" header-align="center" show-overflow-tooltip :resizable="false">
           <template #default="{ row }">
             <span v-for="g in (row as User).groups || []" :key="g.groupId" class="role-badge">
               {{ g.groupName }}
@@ -82,18 +82,18 @@
             <span v-if="!row.groups || row.groups.length === 0" class="text-muted">-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="email" label="Email" min-width="170" show-overflow-tooltip />
-        <el-table-column prop="phone" label="Phone" width="110" show-overflow-tooltip />
-        <el-table-column label="Status" width="75" align="center" header-align="center">
+        <el-table-column prop="email" label="Email" min-width="170" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+        <el-table-column prop="phone" label="Phone" width="110" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+        <el-table-column label="Status" width="85" align="left" header-align="center" :resizable="false">
           <template #default="{ row }">
             <span :class="['status-badge', row.status === 1 ? 'active' : 'disabled']">
               {{ row.status === 1 ? 'Active' : 'Disabled' }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="lastLoginTime" label="Last Login" width="145" align="center" header-align="center" show-overflow-tooltip />
-        <el-table-column prop="createTime" label="Created At" width="145" align="center" header-align="center" show-overflow-tooltip />
-        <el-table-column label="Actions" width="180" align="center" header-align="center">
+        <el-table-column prop="lastLoginTime" label="Last Login" width="145" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+        <el-table-column prop="createTime" label="Created At" width="145" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+        <el-table-column label="Actions" width="180" align="center" header-align="center" :resizable="false">
           <template #default="{ row }">
             <div class="action-btn-grid">
               <div class="action-col">
@@ -674,8 +674,17 @@ onMounted(() => {
     align-items: center;
     font-size: 10px !important;
   }
+  th.el-table__cell .cell {
+    justify-content: center !important;
+    text-align: center !important;
+  }
+  td.el-table__cell .cell {
+    justify-content: flex-start !important;
+    text-align: left !important;
+  }
   td.el-table__cell.is-center .cell {
-    justify-content: center;
+    justify-content: center !important;
+    text-align: center !important;
   }
 }
 

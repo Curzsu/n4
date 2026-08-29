@@ -28,6 +28,9 @@ export const deviceApi = {
   getConfiguredFuxaCabins(): Promise<string[]> {
     return request.get('/api/fuxa/cabins')
   },
+  preloadFuxaCabinRuntime(cabinName: string): Promise<FuxaCabinSession> {
+    return request.post(`/api/fuxa/cabins/${encodeURIComponent(cabinName)}/runtime/preload`)
+  },
   openFuxaCabinSession(cabinName: string, sessionId: string): Promise<FuxaCabinSession> {
     return requestCabinSession(
       `/api/fuxa/cabins/${encodeURIComponent(cabinName)}/sessions/${encodeURIComponent(sessionId)}`,

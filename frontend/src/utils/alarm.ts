@@ -22,6 +22,7 @@ export function normalizeRecord(alarm: any): AlarmRecord {
   return {
     id: alarm.source,
     time: alarm.timestamp ? formatTime(alarm.timestamp) : (alarm.time || '-'),
+    timestampMs: alarm.timestamp ?? undefined,
     value: alarm.value || alarm.pointValue || '',
     severity: alarm.severity || '',
     source: alarm.source || '',

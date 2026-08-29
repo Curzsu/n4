@@ -9,6 +9,13 @@ monitor-common/target/
 monitor-flink-job/target/
 node_modules/
 frontend/dist/
+.m2/
+.npm-cache/
+.vite-cache/
+monitor-backend/target/
+monitor-backend/logs/
+monitor-common/target/
+monitor-flink-job/target/
 
 # Environment
 .env
@@ -50,3 +57,9 @@ __pycache__/
 # FUXA backup JSON dumps (multi-GB, never belong in git)
 tools/
 outputs/
+
+# DB dumps / one-off import scripts / local backup artifacts
+monitor-backend/materials/
+n4_monitor*.sql
+旧脚本备份/
+构建数据/

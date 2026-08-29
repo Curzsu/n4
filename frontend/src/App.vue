@@ -1,16 +1,29 @@
 <template>
-  <component :is="isStandalone ? 'div' : MainLayout" :class="{ 'standalone-app': isStandalone }">
+  <div v-if="isStandalone" class="standalone-app">
     <RouterView />
-  </component>
+  </div>
+  <template v-else>
+    <MainLayout>
+      <RouterView />
+    </MainLayout>
+    <!-- Global alarm toast stack: mounted here so alarm popups appear on every page -->
+    <AlarmToastStack />
+  </template>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import MainLayout from '@/layouts/MainLayout.vue'
+import AlarmToastStack from '@/components/AlarmToastStack.vue'
 
 const route = useRoute()
-const isStandalone = computed(() => route.meta.layout === 'blank' || route.path === '/login' || route.path === '/403')
+const isStandalone = computed(() =>
+  route.meta.bare === true ||
+  route.meta.layout === 'blank' ||
+  route.path === '/login' ||
+  route.path === '/403'
+)
 </script>
 
 <style scoped>

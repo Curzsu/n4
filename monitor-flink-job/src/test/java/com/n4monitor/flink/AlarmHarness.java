@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -45,6 +46,8 @@ final class AlarmHarness {
     final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     /** In-memory Redis hashes: key -> (field -> value). */
     final Map<String, Map<String, String>> hashes = new HashMap<>();
+    /** hget call counts per Redis key, to assert cache behavior. */
+    final Map<String, Integer> hgetCounts = new HashMap<>();
     /** Published messages in order: [channel, message]. */
     final List<String[]> published = new ArrayList<>();
     final FakeTimerService timers = new FakeTimerService();
@@ -55,9 +58,11 @@ final class AlarmHarness {
     private final Jedis jedis = mock(Jedis.class);
 
     AlarmHarness() {
-        when(jedis.hget(anyString(), anyString())).thenAnswer(inv ->
-                hashes.getOrDefault(inv.getArgument(0, String.class), Map.of())
-                        .get(inv.getArgument(1, String.class)));
+        when(jedis.hget(anyString(), anyString())).thenAnswer(inv -> {
+            hgetCounts.merge(inv.getArgument(0, String.class), 1, Integer::sum);
+            return hashes.getOrDefault(inv.getArgument(0, String.class), Map.of())
+                    .get(inv.getArgument(1, String.class));
+        });
         when(jedis.hset(anyString(), anyString(), anyString())).thenAnswer(inv -> {
             hashes.computeIfAbsent(inv.getArgument(0, String.class), k -> new HashMap<>())
                     .put(inv.getArgument(1, String.class), inv.getArgument(2, String.class));
@@ -91,6 +96,8 @@ final class AlarmHarness {
         setField(fn, "ruleEvaluator", new RuleEvaluator(mapper, RULES_NUMERIC_KEY, RULES_ENUM_KEY));
         setField(fn, "stateStore", new RedisStateStore(mapper, LATEST_KEY, ACTIVE_KEY,
                 NOTIFY_CHANNEL, REALTIME_CHANNEL, PERSISTENCE_CHANNEL));
+        // Long TTL so tests exercise cache hits rather than expiry.
+        setField(fn, "pointMetaCache", new TtlCache<>(1, TimeUnit.HOURS));
         return fn;
     }
 

@@ -137,15 +137,41 @@
           </header>
 
           <div class="detail-body">
-            <!-- Node Info Card -->
-            <div class="info-card">
-              <div class="info-row" v-if="selectedNode.nodeLevel === 1 && selectedNode.icon">
-                <span class="info-label">Icon</span>
-                <span class="info-value">{{ selectedNode.icon }}</span>
+            <!-- Red Box Area: Interactive Cabin Diagram for Cabin Nodes -->
+            <div class="cabin-diagram-card" v-if="cabinImageUrl">
+              <div class="cabin-diagram-header">
+                <div class="cabin-header-left">
+                  <el-icon class="cabin-icon"><Picture /></el-icon>
+                  <span class="cabin-title">Cabin Diagram - {{ selectedNode.nodeName }}</span>
+                  <span class="zoom-badge">{{ Math.round(cabinZoomScale * 100) }}%</span>
+                </div>
+                <div class="cabin-header-right">
+                  <span class="cabin-hint">💡 Scroll mouse wheel to zoom, drag to pan, double-click to reset</span>
+                  <div class="zoom-actions">
+                    <el-button size="small" class="btn-icon" :icon="ZoomIn" title="Zoom In" @click="zoomInCabin" />
+                    <el-button size="small" class="btn-icon" :icon="ZoomOut" title="Zoom Out" @click="zoomOutCabin" />
+                    <el-button size="small" class="btn-icon" :icon="RefreshRight" title="Reset Zoom" @click="resetCabinZoom" />
+                  </div>
+                </div>
               </div>
-              <div class="info-row" v-else>
-                <span class="info-label">System Node</span>
-                <span class="info-value">{{ selectedNode.nodeName }}</span>
+              <div
+                class="cabin-image-wrapper"
+                :class="{ 'is-dragging': isCabinDragging }"
+                @wheel.prevent="handleCabinWheel"
+                @mousedown="handleCabinMouseDown"
+                @mousemove="handleCabinMouseMove"
+                @mouseup="handleCabinMouseUp"
+                @mouseleave="handleCabinMouseUp"
+                @dblclick="resetCabinZoom"
+              >
+                <div class="cabin-stage" :style="cabinStageStyle">
+                  <img
+                    :src="cabinImageUrl"
+                    alt="Cabin Diagram"
+                    class="cabin-diagram-img"
+                    draggable="false"
+                  />
+                </div>
               </div>
             </div>
 
@@ -456,6 +482,7 @@ import {
   FolderOpened,
   DataLine,
   Connection, Edit, List, Search, Link,
+  ZoomIn, ZoomOut, RefreshRight,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { dashboardNavApi } from '@/api/dashboardNav'
@@ -466,6 +493,94 @@ import NavNodeDialog from '@/views/device-deploy/dialogs/NavNodeDialog.vue'
 import { triggerFormShake } from '@/utils/formAnimation'
 
 const store = useDashboardStore()
+const selectedNode = computed(() => store.currentNavNode)
+
+const cabinImageUrl = computed(() => {
+  if (!selectedNode.value) return ''
+  // Category level nodes (nodeLevel === 1, e.g. A1_MVP, A1_PTU, A1_SLP) represent groupings and do NOT have cabin diagrams
+  if (selectedNode.value.nodeLevel === 1) {
+    return ''
+  }
+  const name = selectedNode.value.nodeName.trim()
+  const normalized = name.replace(/[-_]/g, '').toLowerCase()
+
+  // Match MVP cabin nodes (A1_MVP_A1, A1_MVP_B1, MVP_A1, MVP_B1, etc.)
+  if (normalized.includes('mvpa1') || normalized.includes('mvpb1') || normalized.startsWith('a1mvp') || normalized.startsWith('mvp')) {
+    return '/cabin-images/A1_MVP_A1.png'
+  }
+  return ''
+})
+
+// =====================================================================
+//  Interactive Cabin Diagram Zoom & Pan
+// =====================================================================
+const cabinZoomScale = ref(1.0)
+const cabinPanX = ref(0)
+const cabinPanY = ref(0)
+const isCabinDragging = ref(false)
+let dragStartX = 0
+let dragStartY = 0
+let initialPanX = 0
+let initialPanY = 0
+
+const cabinStageStyle = computed(() => ({
+  transform: `translate(${cabinPanX.value}px, ${cabinPanY.value}px) scale(${cabinZoomScale.value})`,
+  transformOrigin: 'center center',
+  transition: isCabinDragging.value ? 'none' : 'transform 0.08s ease-out',
+}))
+
+function handleCabinWheel(e: WheelEvent) {
+  const delta = e.deltaY < 0 ? 0.15 : -0.15
+  const newScale = Math.min(Math.max(0.5, cabinZoomScale.value + delta), 4.0)
+  cabinZoomScale.value = Number(newScale.toFixed(2))
+  if (cabinZoomScale.value <= 1.0) {
+    cabinPanX.value = 0
+    cabinPanY.value = 0
+  }
+}
+
+function handleCabinMouseDown(e: MouseEvent) {
+  if (e.button !== 0) return
+  isCabinDragging.value = true
+  dragStartX = e.clientX
+  dragStartY = e.clientY
+  initialPanX = cabinPanX.value
+  initialPanY = cabinPanY.value
+}
+
+function handleCabinMouseMove(e: MouseEvent) {
+  if (!isCabinDragging.value) return
+  const dx = e.clientX - dragStartX
+  const dy = e.clientY - dragStartY
+  cabinPanX.value = initialPanX + dx
+  cabinPanY.value = initialPanY + dy
+}
+
+function handleCabinMouseUp() {
+  isCabinDragging.value = false
+}
+
+function zoomInCabin() {
+  cabinZoomScale.value = Number(Math.min(4.0, cabinZoomScale.value + 0.25).toFixed(2))
+}
+
+function zoomOutCabin() {
+  cabinZoomScale.value = Number(Math.max(0.5, cabinZoomScale.value - 0.25).toFixed(2))
+  if (cabinZoomScale.value <= 1.0) {
+    cabinPanX.value = 0
+    cabinPanY.value = 0
+  }
+}
+
+function resetCabinZoom() {
+  cabinZoomScale.value = 1.0
+  cabinPanX.value = 0
+  cabinPanY.value = 0
+}
+
+watch(() => selectedNode.value?.nodeId, () => {
+  resetCabinZoom()
+})
 
 const headerCellStyle: CSSProperties = {
   backgroundColor: '#0d1117',
@@ -491,8 +606,13 @@ const cellStyle: CSSProperties = {
 const viewMode = ref<'list' | 'detail'>('list')
 
 const navNodeDialogRef = ref<InstanceType<typeof NavNodeDialog>>()
-const selectedNode = computed(() => store.currentNavNode)
 const devicesLoading = ref(false)
+// Declared before the selectedNode watcher below: the watcher runs with
+// { immediate: true } during setup, so it must not touch a variable that is
+// still in the temporal dead zone (TDZ) or it throws
+// "Cannot access 'currentDevices' before initialization".
+const currentDevices = ref<DeviceDeployment[]>([])
+const searchQuery = ref('')
 
 function isLeafNode(node: NavTreeNode): boolean {
   return !node.children || node.children.length === 0
@@ -503,9 +623,6 @@ function canAddChild(node: NavTreeNode): boolean {
   return node.nodeLevel < maxLevel
 }
 
-const currentDevices = ref<DeviceDeployment[]>([])
-const searchQuery = ref('')
-
 watch(selectedNode, async (newNode) => {
   viewMode.value = 'list'
   if (newNode && isLeafNode(newNode)) {
@@ -515,6 +632,15 @@ watch(selectedNode, async (newNode) => {
   }
 }, { immediate: true })
 
+onMounted(async () => {
+  if (!store.navTree || store.navTree.length === 0) {
+    await store.loadNavTree()
+  }
+  if (!store.currentNavNode && store.navTree && store.navTree.length > 0) {
+    store.currentNavNode = store.navTree[0]
+  }
+})
+
 // =====================================================================
 //  Icon Mapping
 // =====================================================================
@@ -522,7 +648,8 @@ const iconMap: Record<string, any> = {
   Location, Picture, OfficeBuilding, Grid, Lightning, Warning, EditPen,
   Cpu, Monitor, Box,
 }
-function getNodeIcon(node: NavTreeNode) {
+function getNodeIcon(node?: NavTreeNode | null) {
+  if (!node) return null
   if (node.hasRealData) return DataLine
   if (node.nodeLevel > 1) return null
   const iconName = node.icon
@@ -1206,6 +1333,122 @@ $bg-dark: #0b1119;
   gap: 8px;
 }
 
+.cabin-diagram-card {
+  width: 100%;
+  background-color: $bg-dark;
+  border: 1px solid $border-color;
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.cabin-diagram-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 10px;
+  background-color: rgba(30, 41, 59, 0.4);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+
+  .cabin-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .cabin-icon {
+      color: $accent-green;
+      font-size: 13px;
+    }
+
+    .cabin-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: $text-primary;
+    }
+
+    .zoom-badge {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 10px;
+      background-color: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+      font-weight: 600;
+    }
+  }
+
+  .cabin-header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    .cabin-hint {
+      font-size: 10px;
+      color: $text-muted;
+    }
+
+    .zoom-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+
+      .btn-icon {
+        background-color: rgba(255, 255, 255, 0.05) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        color: $text-secondary !important;
+        padding: 2px 6px !important;
+        height: 20px !important;
+        border-radius: 4px !important;
+        font-size: 11px !important;
+
+        &:hover {
+          background-color: rgba(16, 185, 129, 0.15) !important;
+          border-color: $accent-green !important;
+          color: $accent-green !important;
+        }
+      }
+    }
+  }
+}
+
+.cabin-image-wrapper {
+  width: 100%;
+  height: 280px;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #06090e;
+  overflow: hidden;
+  position: relative;
+  cursor: grab;
+  user-select: none;
+
+  &.is-dragging {
+    cursor: grabbing;
+  }
+
+  .cabin-stage {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+
+    .cabin-diagram-img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      display: block;
+      pointer-events: none;
+      user-select: none;
+    }
+  }
+}
+
 .info-card {
   background-color: $bg-dark;
   border: 1px solid $border-color;
@@ -1454,11 +1697,12 @@ $bg-dark: #0b1119;
 }
 
 .alarm-rule-cell {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 8px;
   width: 100%;
+  padding: 0 4px;
 }
 
 .alarm-code-tag {

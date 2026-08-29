@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Rule evaluation for one point value against the Redis-hosted rule set
@@ -24,10 +25,58 @@ final class RuleEvaluator {
     private final String rulesNumericKey;
     private final String rulesEnumKey;
 
+    /**
+     * Rule definitions change only when edited in the management UI; they are
+     * cached per subtask with a TTL, so an edit takes effect within the TTL
+     * without a restart. Missing rules are cached too (negative caching):
+     * probing an unknown alarm code costs one Redis hit per TTL window.
+     */
+    private static final long RULE_CACHE_TTL_SECONDS = 60;
+
+    private final TtlCache<AlarmRuleNumericEntity> numericRuleCache =
+            new TtlCache<>(RULE_CACHE_TTL_SECONDS, TimeUnit.SECONDS);
+    private final TtlCache<List<AlarmRuleEnumEntity>> enumRuleCache =
+            new TtlCache<>(RULE_CACHE_TTL_SECONDS, TimeUnit.SECONDS);
+
     RuleEvaluator(ObjectMapper objectMapper, String rulesNumericKey, String rulesEnumKey) {
         this.objectMapper = objectMapper;
         this.rulesNumericKey = rulesNumericKey;
         this.rulesEnumKey = rulesEnumKey;
+    }
+
+    /**
+     * Load one numeric rule through the TTL cache. Returns null when absent
+     * in Redis or unparseable; the null is cached so repeated probes of an
+     * unknown alarm code do not hit Redis again within the TTL window.
+     */
+    private AlarmRuleNumericEntity getNumericRule(Jedis jedis, String alarmName) {
+        return numericRuleCache.get(alarmName, key -> {
+            String json = jedis.hget(rulesNumericKey, key);
+            if (json == null || json.isBlank()) return null;
+            try {
+                return objectMapper.readValue(json, AlarmRuleNumericEntity.class);
+            } catch (Exception e) {
+                log.warn("Failed to deserialize numeric rule: {} - {}", key, e.getMessage());
+                return null;
+            }
+        });
+    }
+
+    /**
+     * Load the enum rule list through the TTL cache. Returns null when absent
+     * in Redis or unparseable (cached, same as numeric rules).
+     */
+    private List<AlarmRuleEnumEntity> getEnumRules(Jedis jedis, String alarmName) {
+        return enumRuleCache.get(alarmName, key -> {
+            String json = jedis.hget(rulesEnumKey, key);
+            if (json == null || json.isBlank()) return null;
+            try {
+                return objectMapper.readValue(json, new TypeReference<List<AlarmRuleEnumEntity>>() {});
+            } catch (Exception e) {
+                log.warn("Failed to deserialize enum rules: {} - {}", key, e.getMessage());
+                return null;
+            }
+        });
     }
 
     /**
@@ -41,11 +90,10 @@ final class RuleEvaluator {
                       String message, Integer timeDelay, String deadband) {}
 
     EvalResult evaluateNumeric(Jedis jedis, String alarmName, String pointValue) {
-        String json = jedis.hget(rulesNumericKey, alarmName);
-        if (json == null || json.isBlank()) return null;
+        AlarmRuleNumericEntity rule = getNumericRule(jedis, alarmName);
+        if (rule == null) return null;
 
         try {
-            AlarmRuleNumericEntity rule = objectMapper.readValue(json, AlarmRuleNumericEntity.class);
             Double numVal = null;
             try {
                 numVal = Double.parseDouble(pointValue != null ? pointValue.trim() : "");
@@ -81,7 +129,7 @@ final class RuleEvaluator {
             // always be instantaneous regardless of the configured deadband.
             return new EvalResult(false, false, null, null, null, timeDelay, deadband);
         } catch (Exception e) {
-            log.warn("Failed to deserialize numeric rule: {} - {}", alarmName, e.getMessage());
+            log.warn("Failed to evaluate numeric rule: {} - {}", alarmName, e.getMessage());
             return null;
         }
     }
@@ -138,7 +186,7 @@ final class RuleEvaluator {
      * applied and the alarm recovers at the raw threshold, preserving
      * backward compatibility.
      *
-     * @param jedis    Redis connection for re-reading the rule
+     * @param jedis    Redis connection (rule lookups go through the TTL cache)
      * @param alarmName the rule's alarm code (hash field key)
      * @param history  the currently active alarm record (carries the level)
      * @param current  the latest point state (carries the value + deadband)
@@ -158,15 +206,11 @@ final class RuleEvaluator {
         }
         if (deadband <= 0) return false;
 
-        // Re-read the rule to resolve the threshold for the active level.
-        String json = jedis.hget(rulesNumericKey, alarmName);
-        if (json == null || json.isBlank()) return false;
-        AlarmRuleNumericEntity rule;
-        try {
-            rule = objectMapper.readValue(json, AlarmRuleNumericEntity.class);
-        } catch (Exception e) {
-            return false;
-        }
+        // The rule comes from the TTL cache; this also removes the redundant
+        // re-read of the same hash entry that the per-frame evaluation
+        // already fetched.
+        AlarmRuleNumericEntity rule = getNumericRule(jedis, alarmName);
+        if (rule == null) return false;
 
         String level = history.getLevel();
         String thresholdStr = getThresholdForLevel(rule, level);
@@ -198,42 +242,35 @@ final class RuleEvaluator {
     }
 
     EvalResult evaluateEnum(Jedis jedis, String alarmName, String pointValue) {
-        String json = jedis.hget(rulesEnumKey, alarmName);
-        if (json == null || json.isBlank()) return null;
+        List<AlarmRuleEnumEntity> rules = getEnumRules(jedis, alarmName);
+        if (rules == null) return null;
 
-        try {
-            List<AlarmRuleEnumEntity> rules = objectMapper.readValue(json,
-                    new TypeReference<List<AlarmRuleEnumEntity>>() {});
-            String normalizedValue = pointValue != null ? pointValue.trim() : null;
+        String normalizedValue = pointValue != null ? pointValue.trim() : null;
 
-            for (AlarmRuleEnumEntity rule : rules) {
-                if (rule.getEnumValue() != null && normalizedValue != null
-                        && normalizedValue.equalsIgnoreCase(rule.getEnumValue())) {
-                    // Matched the configured enum value
-                    if (rule.getSeverity() != null && !rule.getSeverity().isBlank()) {
-                        // level carries the enum value so the lifecycle state
-                        // machine can distinguish alarms on different enum
-                        // values (e.g. "Enum:0" vs "Enum:2"); otherwise every
-                        // enum alarm shares the same level and severity changes
-                        // are wrongly treated as "continue".
-                        String level = "Enum:" + rule.getEnumValue();
-                        return new EvalResult(true, false, level, rule.getSeverity(),
-                                rule.getMessage(), rule.getTimeDelay(), null);
-                    } else {
-                        // Matched but severity empty -> explicitly normal value
-                        return new EvalResult(false, false, null, null, null,
-                                rule.getTimeDelay(), null);
-                    }
+        for (AlarmRuleEnumEntity rule : rules) {
+            if (rule.getEnumValue() != null && normalizedValue != null
+                    && normalizedValue.equalsIgnoreCase(rule.getEnumValue())) {
+                // Matched the configured enum value
+                if (rule.getSeverity() != null && !rule.getSeverity().isBlank()) {
+                    // level carries the enum value so the lifecycle state
+                    // machine can distinguish alarms on different enum
+                    // values (e.g. "Enum:0" vs "Enum:2"); otherwise every
+                    // enum alarm shares the same level and severity changes
+                    // are wrongly treated as "continue".
+                    String level = "Enum:" + rule.getEnumValue();
+                    return new EvalResult(true, false, level, rule.getSeverity(),
+                            rule.getMessage(), rule.getTimeDelay(), null);
+                } else {
+                    // Matched but severity empty -> explicitly normal value
+                    return new EvalResult(false, false, null, null, null,
+                            rule.getTimeDelay(), null);
                 }
             }
-            // No matching enum value: skip evaluation, do NOT treat as normal.
-            // Writing a normal state here would wrongly recover an active alarm,
-            // so only the latest real-time value should be refreshed by the caller.
-            return new EvalResult(false, true, null, null, null, null, null);
-        } catch (Exception e) {
-            log.warn("Failed to deserialize enum rules: {} - {}", alarmName, e.getMessage());
-            return null;
         }
+        // No matching enum value: skip evaluation, do NOT treat as normal.
+        // Writing a normal state here would wrongly recover an active alarm,
+        // so only the latest real-time value should be refreshed by the caller.
+        return new EvalResult(false, true, null, null, null, null, null);
     }
 
     private static boolean isBlank(String value) {

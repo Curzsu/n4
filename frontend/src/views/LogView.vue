@@ -94,30 +94,30 @@
         class="custom-table"
         v-loading="loading"
       >
-        <el-table-column prop="logId" label="ID" width="55" align="center" header-align="center" />
-        <el-table-column prop="operatorName" label="Operator" width="110" show-overflow-tooltip />
-        <el-table-column prop="module" label="Module" width="120" show-overflow-tooltip />
-        <el-table-column prop="operation" label="Operation" min-width="140" show-overflow-tooltip />
-        <el-table-column label="Type" width="75" align="center" header-align="center">
+        <el-table-column prop="logId" label="ID" width="55" align="left" header-align="center" :resizable="false" />
+        <el-table-column prop="operatorName" label="Operator" width="110" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+        <el-table-column prop="module" label="Module" width="120" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+        <el-table-column prop="operation" label="Operation" min-width="140" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+        <el-table-column label="Type" width="85" align="left" header-align="center" :resizable="false">
           <template #default="{ row }">
             <span :class="['type-badge', businessTypeClass(row.businessType)]">{{ businessTypeLabel(row.businessType) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="Status" width="75" align="center" header-align="center">
+        <el-table-column label="Status" width="85" align="left" header-align="center" :resizable="false">
           <template #default="{ row }">
             <span :class="['status-badge', row.status === 1 ? 'active' : 'disabled']">
               {{ row.status === 1 ? 'Success' : 'Failed' }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="costTime" label="Cost(ms)" width="70" align="center" header-align="center">
+        <el-table-column prop="costTime" label="Cost(ms)" width="80" align="left" header-align="center" :resizable="false">
           <template #default="{ row }">
             <span class="cost-text">{{ row.costTime }}ms</span>
           </template>
         </el-table-column>
-        <el-table-column prop="operatorIp" label="IP Address" width="110" show-overflow-tooltip />
-        <el-table-column prop="createTime" label="Timestamp" width="145" align="center" header-align="center" show-overflow-tooltip />
-        <el-table-column label="Actions" width="75" align="center" header-align="center">
+        <el-table-column prop="operatorIp" label="IP Address" width="110" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+        <el-table-column prop="createTime" label="Timestamp" width="145" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+        <el-table-column label="Actions" width="75" align="center" header-align="center" :resizable="false">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="openDetail(row as OperationLog)">
               Detail
@@ -596,8 +596,17 @@ onMounted(() => {
     align-items: center;
     font-size: 10px !important;
   }
+  th.el-table__cell .cell {
+    justify-content: center !important;
+    text-align: center !important;
+  }
+  td.el-table__cell .cell {
+    justify-content: flex-start !important;
+    text-align: left !important;
+  }
   td.el-table__cell.is-center .cell {
-    justify-content: center;
+    justify-content: center !important;
+    text-align: center !important;
   }
 }
 

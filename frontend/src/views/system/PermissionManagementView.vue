@@ -28,7 +28,7 @@
         class="custom-table"
         v-loading="loading"
       >
-        <el-table-column prop="permName" label="Permission Name" min-width="200" show-overflow-tooltip>
+        <el-table-column prop="permName" label="Permission Name" min-width="200" align="left" header-align="center" show-overflow-tooltip :resizable="false">
           <template #default="{ row }">
             <span class="tree-perm-name">
               <el-icon v-if="row.icon" class="perm-icon"><component :is="row.icon" v-if="isValidIcon(row.icon)" /><Lock v-else /></el-icon>
@@ -36,27 +36,27 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="permCode" label="Permission Code" min-width="170" show-overflow-tooltip>
+        <el-table-column prop="permCode" label="Permission Code" min-width="170" align="left" header-align="center" show-overflow-tooltip :resizable="false">
           <template #default="{ row }">
             <span class="code-badge">{{ row.permCode }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="Type" width="75" align="center" header-align="center">
+        <el-table-column label="Type" width="85" align="left" header-align="center" :resizable="false">
           <template #default="{ row }">
             <span :class="['type-badge', getPermTypeClass(row.permType)]">{{ getPermTypeLabel(row.permType) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="path" label="Route Path" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="component" label="Component" min-width="170" show-overflow-tooltip />
-        <el-table-column prop="sortOrder" label="Sort" width="55" align="center" header-align="center" />
-        <el-table-column label="Status" width="75" align="center" header-align="center">
+        <el-table-column prop="path" label="Route Path" min-width="140" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+        <el-table-column prop="component" label="Component" min-width="170" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+        <el-table-column prop="sortOrder" label="Sort" width="60" align="left" header-align="center" :resizable="false" />
+        <el-table-column label="Status" width="85" align="left" header-align="center" :resizable="false">
           <template #default="{ row }">
             <span :class="['status-badge', row.status === 1 ? 'active' : 'disabled']">
               {{ row.status === 1 ? 'Active' : 'Disabled' }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="Actions" width="160" align="center" header-align="center">
+        <el-table-column label="Actions" width="160" align="center" header-align="center" :resizable="false">
           <template #default="{ row }">
             <div class="action-btn-grid">
               <div class="action-col">
@@ -528,8 +528,17 @@ onMounted(() => {
     align-items: center;
     font-size: 10px !important;
   }
+  th.el-table__cell .cell {
+    justify-content: center !important;
+    text-align: center !important;
+  }
+  td.el-table__cell .cell {
+    justify-content: flex-start !important;
+    text-align: left !important;
+  }
   td.el-table__cell.is-center .cell {
-    justify-content: center;
+    justify-content: center !important;
+    text-align: center !important;
   }
 
   .el-table__placeholder {

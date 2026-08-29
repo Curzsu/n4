@@ -97,6 +97,12 @@ const router = createRouter({
       component: () => import('@/views/LogView.vue'),
       meta: { permission: 'sys:log:list' },
     },
+    {
+      path: '/fuxa-device-points',
+      name: 'fuxa-device-points',
+      component: () => import('@/views/FuxaDevicePointFrameView.vue'),
+      meta: { bare: true },
+    },
   ],
 })
 
