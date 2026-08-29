@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.n4monitor.mapper.SysGroupMapper">
+
+    <select id="findById" resultType="com.n4monitor.entity.SysGroup">
+        SELECT * FROM sys_group WHERE group_id = #{groupId} AND is_deleted = 0
+    </select>
+
+    <select id="findAll" resultType="com.n4monitor.dto.GroupDto">
+        SELECT group_id, group_name, group_code, description, status, create_time
+        FROM sys_group
+        WHERE is_deleted = 0
+        <if test="status != null">
+            AND status = #{status}
+        </if>
+        ORDER BY group_id ASC
+    </select>
+
+    <select id="findByUserId" resultType="com.n4monitor.dto.GroupDto">
+        SELECT g.group_id, g.group_name, g.group_code, g.description, g.status, g.create_time
+        FROM sys_group g
+        JOIN sys_user_group ug ON g.group_id = ug.group_id
+        WHERE ug.user_id = #{userId} AND g.is_deleted = 0 AND g.status = 1
+        ORDER BY g.group_id ASC
+    </select>
+
+    <insert id="insert" parameterType="com.n4monitor.entity.SysGroup" useGeneratedKeys="true" keyProperty="groupId">
+        INSERT INTO sys_group (group_name, group_code, description, status)
+        VALUES (#{groupName}, #{groupCode}, #{description}, #{status})
+    </insert>
+
+    <update id="update" parameterType="com.n4monitor.entity.SysGroup">
+        UPDATE sys_group
+        SET group_name = #{groupName}, group_code = #{groupCode}, description = #{description}, status = #{status}
+        WHERE group_id = #{groupId} AND is_deleted = 0
+    </update>
+
+    <update id="logicalDelete">
+        UPDATE sys_group SET is_deleted = 1 WHERE group_id = #{groupId}
+    </update>
+
+    <select id="countUsers" resultType="int">
+        SELECT COUNT(*) FROM sys_user_group ug
+        JOIN sys_user u ON ug.user_id = u.user_id
+        WHERE ug.group_id = #{groupId} AND u.is_deleted = 0
+    </select>
+
+    <delete id="deleteGroupPermissions">
+        DELETE FROM sys_group_permission WHERE group_id = #{groupId}
+    </delete>
+
+    <insert id="insertGroupPermission">
+        INSERT IGNORE INTO sys_group_permission (group_id, perm_id) VALUES (#{groupId}, #{permId})
+    </insert>
+
+    <select id="findPermissionIds" resultType="long">
+        SELECT perm_id FROM sys_group_permission WHERE group_id = #{groupId}
+    </select>
+</mapper>
