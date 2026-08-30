@@ -73,11 +73,12 @@ const loadingMore = ref(false)
 const tableData = ref<AlarmRecord[]>([])
 const tableHeight = ref(400)
 
-// Scroll pagination: each request asks for EVENT_PAGE_SIZE rows. The first
-// page pins snapshotTs to its newest write timestamp; every later page passes
-// it back with an offset, so records written meanwhile (which would otherwise
-// shift the ordering and duplicate rows) are excluded and pages stay stable.
-// hasMore turns false once a page comes back short of the page size.
+// Scroll pagination: each request asks for EVENT_PAGE_SIZE rows. Entering the
+// page or hitting Refresh pins snapshotTs to that wall-clock instant; every
+// page of the session (first one included) queries ts <= snapshotTs, and later
+// pages pass it back with an offset, so rows written afterwards never shift
+// the ordering and pages stay stable. hasMore turns false once a page comes
+// back short of the page size.
 const EVENT_PAGE_SIZE = 50
 const SCROLL_BOTTOM_THRESHOLD_PX = 40
 const snapshotTs = ref<number | null>(null)
@@ -122,11 +123,12 @@ function toRecords(raw: AlarmRecord[]): AlarmRecord[] {
 async function fetchData() {
   loading.value = true
   try {
-    const raw = await alarmApi.getAlarmEvents({ limit: EVENT_PAGE_SIZE })
+    // Pin the snapshot to the moment the user enters or hits Refresh: every
+    // page of this browsing session queries strictly before this instant, so
+    // rows written afterwards never shift the ordering under the reader.
+    snapshotTs.value = Date.now()
+    const raw = await alarmApi.getAlarmEvents({ topTs: snapshotTs.value, limit: EVENT_PAGE_SIZE })
     tableData.value = toRecords(raw)
-    // Pin the snapshot bound to the newest row of the first page so later
-    // pages stay stable while new records keep arriving.
-    snapshotTs.value = raw.length ? (raw[0].ts ?? null) : null
     hasMore.value = raw.length >= EVENT_PAGE_SIZE
   } catch (e) {
     console.error('Failed to fetch alarm events:', e)
