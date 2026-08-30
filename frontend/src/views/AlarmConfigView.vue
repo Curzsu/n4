@@ -22,7 +22,7 @@
          rows otherwise make the initial render take seconds in dev mode).
          Rows are windowed: only the first numericVisible rows mount; scrolling
          near the bottom appends the next batch (onTableScroll). -->
-    <div v-if="activeTab === 'numeric'" class="config-table-wrapper" @scroll.capture="onTableScroll($event, 'numeric')">
+    <div v-if="activeTab === 'numeric'" :ref="setTableWrapperRef" class="config-table-wrapper" @scroll.capture="onTableScroll($event, 'numeric')">
       <el-table :data="displayedNumeric" row-key="id" :height="tableHeight" style="width: 100%"
         :header-cell-style="headerCellStyle" :cell-style="cellStyle" size="small" border v-loading="loading">
         <el-table-column prop="alarmName" label="Alarm Name" width="200" show-overflow-tooltip />
@@ -64,7 +64,7 @@
     </div>
 
     <!-- Enum table: v-if, same reason as the numeric table -->
-    <div v-if="activeTab === 'enum'" class="config-table-wrapper" @scroll.capture="onTableScroll($event, 'enum')">
+    <div v-if="activeTab === 'enum'" :ref="setTableWrapperRef" class="config-table-wrapper" @scroll.capture="onTableScroll($event, 'enum')">
       <el-table :data="displayedEnum" row-key="id" :height="tableHeight" style="width: 100%"
         :header-cell-style="headerCellStyle" :cell-style="cellStyle" size="small" border v-loading="loading">
         <el-table-column prop="alarmName" label="Alarm Name" width="200" show-overflow-tooltip />
@@ -241,7 +241,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import type { ComponentPublicInstance } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
 import { alarmApi } from '@/api/alarm'
@@ -249,6 +250,7 @@ import type { NumericRuleItem, EnumRuleItem } from '@/api/types'
 
 const loading = ref(false)
 const saving = ref(false)
+const tableWrapperRef = ref<HTMLElement | null>(null)
 const tableHeight = ref(400)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
@@ -510,14 +512,41 @@ async function handleDelete(row: any) {
   }
 }
 
+// Size the table from the measured wrapper height instead of a magic
+// window.innerHeight offset: the wrapper is the flex child that already
+// absorbs the real page chrome (top navbar, bottom toolbar, paddings), so
+// the table fills the viewport exactly and leaves no blank strip above the
+// bottom menu bar. The ResizeObserver keeps it in sync on window resizes.
+let wrapperResizeObserver: ResizeObserver | null = null
+
 function updateTableHeight() {
-  tableHeight.value = Math.max(300, window.innerHeight - 200)
+  if (tableWrapperRef.value) {
+    tableHeight.value = Math.max(300, tableWrapperRef.value.clientHeight)
+  }
+}
+
+// Function template ref: the numeric/enum wrappers are v-if alternated, so a
+// tab switch swaps the mounted element; rebind the observer on every swap.
+function setTableWrapperRef(el: Element | ComponentPublicInstance | null) {
+  wrapperResizeObserver?.disconnect()
+  const node = el instanceof HTMLElement ? el : null
+  tableWrapperRef.value = node
+  if (node) {
+    if (!wrapperResizeObserver) {
+      wrapperResizeObserver = new ResizeObserver(updateTableHeight)
+    }
+    wrapperResizeObserver.observe(node)
+    updateTableHeight()
+  }
 }
 
 onMounted(() => {
-  updateTableHeight()
-  window.addEventListener('resize', updateTableHeight)
   fetchRules()
+})
+
+onBeforeUnmount(() => {
+  wrapperResizeObserver?.disconnect()
+  wrapperResizeObserver = null
 })
 </script>
 

@@ -8,7 +8,7 @@
       </el-button>
     </div>
 
-    <div class="history-table-wrapper" @scroll.capture="onTableScroll">
+    <div ref="tableWrapperRef" class="history-table-wrapper" @scroll.capture="onTableScroll">
       <el-table
         :data="tableData"
         :height="tableHeight"
@@ -59,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { alarmApi } from '@/api/alarm'
 import { normalizeRecord } from '@/utils/alarm'
@@ -70,6 +70,7 @@ import type { AlarmRecord } from '@/api/types'
 const loading = ref(false)
 const loadingMore = ref(false)
 const tableData = ref<AlarmRecord[]>([])
+const tableWrapperRef = ref<HTMLElement | null>(null)
 const tableHeight = ref(400)
 
 // Scroll pagination, same contract as AlarmEventView: entering the page or
@@ -148,14 +149,31 @@ function onTableScroll(event: Event) {
   }
 }
 
+// Size the table from the measured wrapper height instead of a magic
+// window.innerHeight offset: the wrapper is the flex child that already
+// absorbs the real page chrome (top navbar, bottom toolbar, paddings), so
+// the table fills the viewport exactly and leaves no blank strip above the
+// bottom menu bar. The ResizeObserver keeps it in sync on window resizes.
+let wrapperResizeObserver: ResizeObserver | null = null
+
 function updateTableHeight() {
-  tableHeight.value = Math.max(300, window.innerHeight - 200)
+  if (tableWrapperRef.value) {
+    tableHeight.value = Math.max(300, tableWrapperRef.value.clientHeight)
+  }
 }
 
 onMounted(() => {
   updateTableHeight()
-  window.addEventListener('resize', updateTableHeight)
+  if (tableWrapperRef.value) {
+    wrapperResizeObserver = new ResizeObserver(updateTableHeight)
+    wrapperResizeObserver.observe(tableWrapperRef.value)
+  }
   fetchData()
+})
+
+onBeforeUnmount(() => {
+  wrapperResizeObserver?.disconnect()
+  wrapperResizeObserver = null
 })
 </script>
 
