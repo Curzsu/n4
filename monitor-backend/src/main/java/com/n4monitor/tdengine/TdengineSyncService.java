@@ -454,38 +454,59 @@ public class TdengineSyncService {
     private static final DateTimeFormatter TD_TIME_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
+    /** Max rows per history page; the frontend asks for smaller pages. */
+    private static final int HISTORY_PAGE_MAX_ROWS = 500;
+    private static final int HISTORY_PAGE_DEFAULT_ROWS = 50;
+
     /**
-     * Recent-write window filter for history queries. Rows are ordered by the
-     * write timestamp (the indexed primary ts), so pruning by ts keeps the scan
-     * inside the window instead of the full KEEP range. 0 disables the filter.
+     * Compose the WHERE clause shared by both history queries: the recent-write
+     * window ({@code query-window-days}, 0 disables it) plus the optional
+     * snapshot upper bound {@code topTs} for scroll pagination - the frontend
+     * pins it to the moment the page is entered or refreshed so records written
+     * afterwards never shift the ordering under the reader.
      */
-    private String recentWindowClause() {
+    private String historyWhere(Long topTs) {
+        StringBuilder where = new StringBuilder();
         int windowDays = tdengineConfig.getQueryWindowDays();
-        if (windowDays <= 0) {
-            return "";
+        if (windowDays > 0) {
+            where.append(" WHERE ts > NOW() - ").append(windowDays).append('d');
         }
-        return " WHERE ts > NOW() - " + windowDays + "d";
+        if (topTs != null) {
+            where.append(where.length() == 0 ? " WHERE" : " AND").append(" ts <= ").append(topTs);
+        }
+        return where.toString();
+    }
+
+    private int pageLimit(Integer limit) {
+        return limit == null ? HISTORY_PAGE_DEFAULT_ROWS
+                : Math.max(1, Math.min(limit, HISTORY_PAGE_MAX_ROWS));
+    }
+
+    private int pageOffset(Integer offset) {
+        return offset == null ? 0 : Math.max(0, offset);
     }
 
     /**
-     * Query all alarm records from the alarm_realtime supertable.
-     * Returns the most recent 200 records, ordered by the write timestamp
-     * descending (newest first), mirroring the Active Alarms default ordering.
+     * Query one page of alarm lifecycle records from the alarm_realtime
+     * supertable, newest first. Same scroll-pagination contract as
+     * {@link #queryAlarmEvents(Long, Integer, Integer)}: the frontend pins
+     * {@code topTs} to the moment the page is entered or refreshed and passes
+     * {@code offset}/{@code limit} for subsequent pages.
      */
-    public List<AlarmRecordDto> queryClearedAlarms() {
+    public List<AlarmRecordDto> queryClearedAlarms(Long topTs, Integer offset, Integer limit) {
         List<AlarmRecordDto> result = new ArrayList<>();
 
         String sql = "SELECT data_timestamp, alarm_level, alarm_severity, alarm_source, " +
                 "alarm_message, alarm_location, alarm_status, ack_by, alarm_duration, " +
                 "alarm_stage, alarm_stage_message, alarm_start_time, path FROM " + tdengineConfig.getRealtimeSupertable() +
-                recentWindowClause() +
+                historyWhere(topTs) +
                 // Order by the write timestamp: the indexed primary ts, and the same
                 // insertion-order tiebreaker this query previously used as secondary
                 // key. When two records share the same data_timestamp (e.g. an End +
                 // Start written in the same tick during a level escalation), the
                 // later-written Start always sorts above the earlier-written End.
                 // data_timestamp stays as a secondary key for fully tied rows.
-                " ORDER BY ts DESC, data_timestamp DESC LIMIT 200";
+                " ORDER BY ts DESC, data_timestamp DESC LIMIT " + pageLimit(limit) + " OFFSET " + pageOffset(offset);
 
         try (Connection readConn = openReadConnection();
              Statement stmt = readConn.createStatement();
@@ -531,44 +552,23 @@ public class TdengineSyncService {
         return result;
     }
 
-    /** Max rows per event history page; the frontend asks for smaller pages. */
-    private static final int EVENT_PAGE_MAX_ROWS = 500;
-    private static final int EVENT_PAGE_DEFAULT_ROWS = 50;
-
     /**
      * Query one page of full-detail records from the alarm_event supertable,
-     * newest first. Scroll pagination uses a snapshot upper bound plus offset:
-     * the frontend pins {@code topTs} to the first page's newest write
-     * timestamp and passes it back on every later page, so records written
-     * meanwhile (which would otherwise shift the ordering and duplicate rows)
-     * are excluded and OFFSET stays stable. OFFSET is used instead of a
-     * {@code ts < cursor} keyset cursor because bursty batch writes put dozens
-     * of rows on the same millisecond - a ts cursor would silently skip rows
-     * at page borders. Measured cost is flat on 680k rows / 2700 subtables
-     * (OFFSET 10000 ≈ 0.3s). Scroll depth is still bounded by the recent-write
-     * window ({@code query-window-days}).
+     * newest first. Same scroll-pagination contract as
+     * {@link #queryClearedAlarms(Long, Integer, Integer)}: snapshot upper bound
+     * (topTs) + offset. OFFSET is used instead of a {@code ts < cursor} keyset
+     * cursor because bursty batch writes put dozens of rows on the same
+     * millisecond - a ts cursor would silently skip rows at page borders.
+     * Measured cost is flat on 680k rows / 2700 subtables (OFFSET 10000 ≈ 0.3s).
      */
     public List<AlarmRecordDto> queryAlarmEvents(Long topTs, Integer offset, Integer limit) {
-        int pageLimit = limit == null ? EVENT_PAGE_DEFAULT_ROWS
-                : Math.max(1, Math.min(limit, EVENT_PAGE_MAX_ROWS));
-        int pageOffset = offset == null ? 0 : Math.max(0, offset);
-
-        StringBuilder where = new StringBuilder();
-        int windowDays = tdengineConfig.getQueryWindowDays();
-        if (windowDays > 0) {
-            where.append(" WHERE ts > NOW() - ").append(windowDays).append('d');
-        }
-        if (topTs != null) {
-            where.append(where.length() == 0 ? " WHERE" : " AND").append(" ts <= ").append(topTs);
-        }
-
         String sql = "SELECT ts, data_timestamp, point_value, alarm_level, alarm_severity, alarm_source, " +
                 "alarm_message, alarm_location, alarm_status, ack_by, alarm_duration, " +
                 "alarm_stage, alarm_stage_message, alarm_start_time, path FROM " + tdengineConfig.getEventSupertable() +
-                where +
+                historyWhere(topTs) +
                 // Same ordering contract as queryClearedAlarms: indexed primary ts,
                 // later-written rows first, data_timestamp breaks full ties.
-                " ORDER BY ts DESC, data_timestamp DESC LIMIT " + pageLimit + " OFFSET " + pageOffset;
+                " ORDER BY ts DESC, data_timestamp DESC LIMIT " + pageLimit(limit) + " OFFSET " + pageOffset(offset);
 
         List<AlarmRecordDto> result = new ArrayList<>();
 
@@ -617,7 +617,7 @@ public class TdengineSyncService {
         }
 
         log.info("Queried {} alarm event records from TDengine (limit {}, offset {})",
-                result.size(), pageLimit, pageOffset);
+                result.size(), pageLimit(limit), pageOffset(offset));
         return result;
     }
 

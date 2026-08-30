@@ -461,12 +461,13 @@ alarm_duration, alarm_start_time`。
 - 历史查询按**写入时间戳排序**（`ORDER BY ts DESC, data_timestamp DESC`，ts 是唯一有索引的
   主键时间戳），并带 `WHERE ts > NOW() - N d` 窗口裁剪（`tdengine.query-window-days`，默认 7，
   0 为关闭），避免对全量 `alarm_event`（KEEP 1095）做全表扫描。
-- event 历史接口（`/api/alarms/events`）支持**滚动分页**：`topTs`（**进入页面 / 点击 Refresh 那一刻的
-  系统时间**，作为本次浏览会话的快照上界——首屏与后续页统一按 `ts <= topTs` 查询，翻页期间
-  新写入的行不参与排序，页序稳定）+ `offset`（已加载行数）+ `limit`（每页行数，默认 50、上限 500）。
-  Refresh / 重新进入页面会重置快照。不用 `ts <` 游标是因为批量写入会让同一毫秒挤进几十行，
-  ts 游标会在页边界静默丢行；实测 OFFSET 方案在 68 万行 / 2700 子表上代价平坦（OFFSET 10000 ≈ 0.3s）。
-  前端 `AlarmEventView` 首屏渲染 50 行，滚动到底自动追加更早记录（表尾 #append 提示加载状态）。
+- 两个历史接口（`/api/alarms/cleared` 与 `/api/alarms/events`）支持**滚动分页**：`topTs`（**进入页面 /
+  点击 Refresh 那一刻的系统时间**，作为本次浏览会话的快照上界——首屏与后续页统一按
+  `ts <= topTs` 查询，翻页期间新写入的行不参与排序，页序稳定）+ `offset`（已加载行数）+
+  `limit`（每页行数，默认 50、上限 500）。Refresh / 重新进入页面会重置快照。不用 `ts <` 游标
+  是因为批量写入会让同一毫秒挤进几十行，ts 游标会在页边界静默丢行；实测 OFFSET 方案在
+  68 万行 / 2700 子表上代价平坦（OFFSET 10000 ≈ 0.3s）。前端 `AlarmEventView` /
+  `AlarmHistoryView` 首屏渲染 50 行，滚动到底自动追加更早记录（表尾 #append 提示加载状态）。
   注意 Time 列显示的是**观测时间**（设备消息时间戳）：不同点位/设备的数据滞后不均时，
   显示时间会随翻页非单调跳变，属正常现象。
 
@@ -488,7 +489,7 @@ Kafka → Flink 评估 → alarm:notifications → AlarmNotificationListener
 | 端点 | 数据源 | 说明 |
 |------|--------|------|
 | `GET /api/alarms/active?tab=active\|unacknowledged\|acknowledged\|cleared` | Redis `alarm:active`（经 `ActiveAlarmStore` 800ms TTL 快照） | 当前/未确认/已确认/已清除 |
-| `GET /api/alarms/cleared` | TDengine `alarm_realtime` | 告警生命周期历史，最新 200 条 |
+| `GET /api/alarms/cleared?topTs&offset&limit` | TDengine `alarm_realtime` | 告警生命周期历史，**滚动分页**（同 events，每页默认 50） |
 | `GET /api/alarms/events?topTs&offset&limit` | TDengine `alarm_event` | 每帧全量明细，**滚动分页**（进入/刷新时刻为快照上界，每页默认 50，前端滚动到底自动加载更早记录，见十章） |
 | `GET /api/alarms/summary` | 快照聚合 | 严重级别计数 |
 | `GET /api/alarms/by-severity` | 快照聚合 | 严重级别分布 |

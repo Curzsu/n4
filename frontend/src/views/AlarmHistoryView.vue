@@ -8,7 +8,7 @@
       </el-button>
     </div>
 
-    <div class="history-table-wrapper">
+    <div class="history-table-wrapper" @scroll.capture="onTableScroll">
       <el-table
         :data="tableData"
         :height="tableHeight"
@@ -44,6 +44,15 @@
           </template>
         </el-table-column>
         <el-table-column prop="ackBy" label="Ack. By" width="100" show-overflow-tooltip />
+        <template #append>
+          <div class="table-window-hint">
+            <template v-if="loadingMore">Loading more...</template>
+            <template v-else-if="hasMore">
+              Showing {{ tableData.length }} records - scroll to bottom to load earlier ones
+            </template>
+            <template v-else>Showing all {{ tableData.length }} records</template>
+          </div>
+        </template>
       </el-table>
     </div>
   </div>
@@ -59,8 +68,19 @@ import { formatDuration } from '@/utils/time'
 import type { AlarmRecord } from '@/api/types'
 
 const loading = ref(false)
+const loadingMore = ref(false)
 const tableData = ref<AlarmRecord[]>([])
 const tableHeight = ref(400)
+
+// Scroll pagination, same contract as AlarmEventView: entering the page or
+// hitting Refresh pins snapshotTs to that wall-clock instant; every page of
+// the session queries ts <= snapshotTs and later pages pass it back with an
+// offset, so rows written afterwards never shift the ordering under the
+// reader. hasMore turns false once a page comes back short of the page size.
+const HISTORY_PAGE_SIZE = 50
+const SCROLL_BOTTOM_THRESHOLD_PX = 40
+const snapshotTs = ref<number | null>(null)
+const hasMore = ref(true)
 
 const headerCellStyle = {
   backgroundColor: '#0d1117',
@@ -91,12 +111,40 @@ function severityStyle(row: AlarmRecord): Record<string, string> {
 async function fetchData() {
   loading.value = true
   try {
-    const raw = await alarmApi.getClearedAlarms()
+    // Pin the snapshot to the moment the user enters or hits Refresh.
+    snapshotTs.value = Date.now()
+    const raw = await alarmApi.getClearedAlarms({ topTs: snapshotTs.value, limit: HISTORY_PAGE_SIZE })
     tableData.value = raw.map(normalizeRecord)
+    hasMore.value = raw.length >= HISTORY_PAGE_SIZE
   } catch (e) {
     console.error('Failed to fetch alarm history:', e)
   } finally {
     loading.value = false
+  }
+}
+
+async function loadMore() {
+  if (loadingMore.value || !hasMore.value) return
+  loadingMore.value = true
+  try {
+    const raw = await alarmApi.getClearedAlarms({
+      topTs: snapshotTs.value ?? undefined,
+      offset: tableData.value.length,
+      limit: HISTORY_PAGE_SIZE,
+    })
+    tableData.value.push(...raw.map(normalizeRecord))
+    hasMore.value = raw.length >= HISTORY_PAGE_SIZE
+  } catch (e) {
+    console.error('Failed to load more alarm history:', e)
+  } finally {
+    loadingMore.value = false
+  }
+}
+
+function onTableScroll(event: Event) {
+  const el = event.target as HTMLElement
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - SCROLL_BOTTOM_THRESHOLD_PX) {
+    loadMore()
   }
 }
 
@@ -135,6 +183,15 @@ onMounted(() => {
 .history-table-wrapper {
   flex: 1;
   min-height: 0;
+}
+
+// Footer inside the el-table #append slot: scroll-pagination status.
+.table-window-hint {
+  padding: 6px 10px;
+  font-size: 10px;
+  color: #6b7280;
+  background-color: #111827;
+  border-bottom: 1px solid #1f2937;
 }
 
 .severity-tag {
