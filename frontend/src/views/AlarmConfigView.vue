@@ -18,9 +18,12 @@
       </div>
     </div>
 
-    <!-- Numeric table -->
-    <div v-show="activeTab === 'numeric'" class="config-table-wrapper">
-      <el-table :data="numericData" :height="tableHeight" style="width: 100%"
+    <!-- Numeric table: v-if so only the active tab's table mounts (~1000 combined
+         rows otherwise make the initial render take seconds in dev mode).
+         Rows are windowed: only the first numericVisible rows mount; scrolling
+         near the bottom appends the next batch (onTableScroll). -->
+    <div v-if="activeTab === 'numeric'" class="config-table-wrapper" @scroll.capture="onTableScroll($event, 'numeric')">
+      <el-table :data="displayedNumeric" row-key="id" :height="tableHeight" style="width: 100%"
         :header-cell-style="headerCellStyle" :cell-style="cellStyle" size="small" border v-loading="loading">
         <el-table-column prop="alarmName" label="Alarm Name" width="200" show-overflow-tooltip />
         <el-table-column prop="timeDelay" label="Time Delay(s)" width="80" align="center" />
@@ -51,12 +54,18 @@
             <el-button type="danger" link size="small" @click="handleDelete(row)">Delete</el-button>
           </template>
         </el-table-column>
+        <template #append>
+          <div class="table-window-hint">
+            Showing {{ displayedNumeric.length }} of {{ numericData.length }} numeric rules
+            <span v-if="displayedNumeric.length < numericData.length"> - scroll to bottom to load more</span>
+          </div>
+        </template>
       </el-table>
     </div>
 
-    <!-- Enum table -->
-    <div v-show="activeTab === 'enum'" class="config-table-wrapper">
-      <el-table :data="enumData" :height="tableHeight" style="width: 100%"
+    <!-- Enum table: v-if, same reason as the numeric table -->
+    <div v-if="activeTab === 'enum'" class="config-table-wrapper" @scroll.capture="onTableScroll($event, 'enum')">
+      <el-table :data="displayedEnum" row-key="id" :height="tableHeight" style="width: 100%"
         :header-cell-style="headerCellStyle" :cell-style="cellStyle" size="small" border v-loading="loading">
         <el-table-column prop="alarmName" label="Alarm Name" width="200" show-overflow-tooltip />
         <el-table-column prop="timeDelay" label="Time Delay(s)" width="80" align="center" />
@@ -70,6 +79,12 @@
             <el-button type="danger" link size="small" @click="handleDelete(row)">Delete</el-button>
           </template>
         </el-table-column>
+        <template #append>
+          <div class="table-window-hint">
+            Showing {{ displayedEnum.length }} of {{ enumData.length }} enum rules
+            <span v-if="displayedEnum.length < enumData.length"> - scroll to bottom to load more</span>
+          </div>
+        </template>
       </el-table>
     </div>
 
@@ -226,7 +241,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
 import { alarmApi } from '@/api/alarm'
@@ -250,6 +265,32 @@ const activeTab = ref('numeric')
 // Table data per type
 const numericData = ref<NumericRuleItem[]>([])
 const enumData = ref<EnumRuleItem[]>([])
+
+// Windowed rendering: the two tables hold ~1000 combined rows and mounting
+// them at once takes seconds. Only the first WINDOW_BATCH rows render; the
+// capture-phase scroll listener on each table wrapper (scroll does not bubble,
+// but capture reaches the wrapper from the inner scrollbar) appends the next
+// batch when the scrollbar nears the bottom. Full arrays stay in memory -
+// edit dialogs, delete and any future filtering keep operating on whole sets.
+const WINDOW_BATCH = 50
+const WINDOW_BOTTOM_THRESHOLD_PX = 40
+
+const numericVisible = ref(WINDOW_BATCH)
+const enumVisible = ref(WINDOW_BATCH)
+const displayedNumeric = computed(() => numericData.value.slice(0, numericVisible.value))
+const displayedEnum = computed(() => enumData.value.slice(0, enumVisible.value))
+
+function onTableScroll(event: Event, type: 'numeric' | 'enum') {
+  const el = event.target as HTMLElement
+  if (el.scrollTop + el.clientHeight < el.scrollHeight - WINDOW_BOTTOM_THRESHOLD_PX) {
+    return
+  }
+  if (type === 'numeric' && numericVisible.value < numericData.value.length) {
+    numericVisible.value = Math.min(numericVisible.value + WINDOW_BATCH, numericData.value.length)
+  } else if (type === 'enum' && enumVisible.value < enumData.value.length) {
+    enumVisible.value = Math.min(enumVisible.value + WINDOW_BATCH, enumData.value.length)
+  }
+}
 
 // Form data (union of all three types; only relevant fields used per type)
 const formData = ref<any>({})
@@ -311,6 +352,9 @@ async function fetchRules() {
     ])
     numericData.value = nums
     enumData.value = enums
+    // Fresh data landed: restart the window so the view starts from the top.
+    numericVisible.value = WINDOW_BATCH
+    enumVisible.value = WINDOW_BATCH
   } catch (e) {
     console.error('Failed to fetch alarm rules:', e)
     ElMessage.error('Failed to load alarm rules')
@@ -512,6 +556,16 @@ onMounted(() => {
 .config-table-wrapper {
   flex: 1;
   min-height: 0;
+}
+
+// Footer inside the el-table #append slot: tells the user how much of the
+// windowed list is currently mounted and that scrolling loads more.
+.table-window-hint {
+  padding: 6px 10px;
+  font-size: 10px;
+  color: #6b7280;
+  background-color: #111827;
+  border-bottom: 1px solid #1f2937;
 }
 
 .basic-row {
