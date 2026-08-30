@@ -8,7 +8,7 @@
       </el-button>
     </div>
 
-    <div class="event-table-wrapper">
+    <div class="event-table-wrapper" @scroll.capture="onTableScroll">
       <el-table
         :data="tableData"
         :height="tableHeight"
@@ -45,6 +45,15 @@
           </template>
         </el-table-column>
         <el-table-column prop="ackBy" label="Ack. By" width="100" show-overflow-tooltip />
+        <template #append>
+          <div class="table-window-hint">
+            <template v-if="loadingMore">Loading more...</template>
+            <template v-else-if="hasMore">
+              Showing {{ tableData.length }} records - scroll to bottom to load earlier ones
+            </template>
+            <template v-else>Showing all {{ tableData.length }} records</template>
+          </div>
+        </template>
       </el-table>
     </div>
   </div>
@@ -60,8 +69,19 @@ import { formatDuration } from '@/utils/time'
 import type { AlarmRecord } from '@/api/types'
 
 const loading = ref(false)
+const loadingMore = ref(false)
 const tableData = ref<AlarmRecord[]>([])
 const tableHeight = ref(400)
+
+// Scroll pagination: each request asks for EVENT_PAGE_SIZE rows. The first
+// page pins snapshotTs to its newest write timestamp; every later page passes
+// it back with an offset, so records written meanwhile (which would otherwise
+// shift the ordering and duplicate rows) are excluded and pages stay stable.
+// hasMore turns false once a page comes back short of the page size.
+const EVENT_PAGE_SIZE = 50
+const SCROLL_BOTTOM_THRESHOLD_PX = 40
+const snapshotTs = ref<number | null>(null)
+const hasMore = ref(true)
 
 const headerCellStyle = {
   backgroundColor: '#0d1117',
@@ -89,21 +109,54 @@ function severityStyle(row: AlarmRecord): Record<string, string> {
   }
 }
 
+function toRecords(raw: AlarmRecord[]): AlarmRecord[] {
+  // Keep status as-is from the database (empty stays empty, no default Unack);
+  // other fields go through the shared normalizer for consistent formatting.
+  return raw.map((r) => {
+    const record = normalizeRecord(r)
+    record.status = r.status || ''
+    return record
+  })
+}
+
 async function fetchData() {
   loading.value = true
   try {
-    const raw = await alarmApi.getAlarmEvents()
-    // Keep status as-is from the database (empty stays empty, no default Unack);
-    // other fields go through the shared normalizer for consistent formatting.
-    tableData.value = raw.map((r) => {
-      const record = normalizeRecord(r)
-      record.status = r.status || ''
-      return record
-    })
+    const raw = await alarmApi.getAlarmEvents({ limit: EVENT_PAGE_SIZE })
+    tableData.value = toRecords(raw)
+    // Pin the snapshot bound to the newest row of the first page so later
+    // pages stay stable while new records keep arriving.
+    snapshotTs.value = raw.length ? (raw[0].ts ?? null) : null
+    hasMore.value = raw.length >= EVENT_PAGE_SIZE
   } catch (e) {
     console.error('Failed to fetch alarm events:', e)
   } finally {
     loading.value = false
+  }
+}
+
+async function loadMore() {
+  if (loadingMore.value || !hasMore.value) return
+  loadingMore.value = true
+  try {
+    const raw = await alarmApi.getAlarmEvents({
+      topTs: snapshotTs.value ?? undefined,
+      offset: tableData.value.length,
+      limit: EVENT_PAGE_SIZE,
+    })
+    tableData.value.push(...toRecords(raw))
+    hasMore.value = raw.length >= EVENT_PAGE_SIZE
+  } catch (e) {
+    console.error('Failed to load more alarm events:', e)
+  } finally {
+    loadingMore.value = false
+  }
+}
+
+function onTableScroll(event: Event) {
+  const el = event.target as HTMLElement
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - SCROLL_BOTTOM_THRESHOLD_PX) {
+    loadMore()
   }
 }
 
@@ -142,6 +195,15 @@ onMounted(() => {
 .event-table-wrapper {
   flex: 1;
   min-height: 0;
+}
+
+// Footer inside the el-table #append slot: scroll-pagination status.
+.table-window-hint {
+  padding: 6px 10px;
+  font-size: 10px;
+  color: #6b7280;
+  background-color: #111827;
+  border-bottom: 1px solid #1f2937;
 }
 
 .severity-tag {

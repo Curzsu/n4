@@ -77,12 +77,13 @@ public class AlarmService {
     }
 
     /**
-     * Get all full-detail alarm event records from the alarm_event supertable
-     * (newest first). Reads the same record shape as alarm_realtime, but from
-     * the per-frame event table.
+     * Get one page of full-detail alarm event records from the alarm_event
+     * supertable (newest first). {@code topTs} pins the snapshot upper bound
+     * for scroll pagination (null = newest page), {@code offset} skips already
+     * loaded rows, {@code limit} caps the page.
      */
-    public List<AlarmRecordDto> getAlarmEvents() {
-        return tdengineSyncService.queryAlarmEvents();
+    public List<AlarmRecordDto> getAlarmEvents(Long topTs, Integer offset, Integer limit) {
+        return tdengineSyncService.queryAlarmEvents(topTs, offset, limit);
     }
 
     /**

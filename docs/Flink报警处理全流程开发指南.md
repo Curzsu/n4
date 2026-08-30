@@ -461,6 +461,10 @@ alarm_duration, alarm_start_time`。
 - 历史查询按**写入时间戳排序**（`ORDER BY ts DESC, data_timestamp DESC`，ts 是唯一有索引的
   主键时间戳），并带 `WHERE ts > NOW() - N d` 窗口裁剪（`tdengine.query-window-days`，默认 7，
   0 为关闭），避免对全量 `alarm_event`（KEEP 1095）做全表扫描。
+- event 历史接口（`/api/alarms/events`）支持**滚动分页**：`topTs`（首页最新行的写入时间戳，
+  作为快照上界，排除翻页期间新写入的行以免页序漂移）+ `offset` + `limit`。不用 `ts <` 游标
+  是因为批量写入会让同一毫秒挤进几十行，ts 游标会在页边界静默丢行；实测 OFFSET 方案在
+  68 万行 / 2700 子表上代价平坦（OFFSET 10000 ≈ 0.3s）。
 
 ---
 

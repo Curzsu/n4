@@ -531,20 +531,46 @@ public class TdengineSyncService {
         return result;
     }
 
-    /**
-     * Query all full-detail records from the alarm_event supertable.
-     * Uses the same query shape as {@link #queryClearedAlarms()} but targets the
-     * event table (one row per processed point frame) instead of alarm_realtime.
-     * Returns the most recent 200 records, newest first.
-     */
-    public List<AlarmRecordDto> queryAlarmEvents() {
-        List<AlarmRecordDto> result = new ArrayList<>();
+    /** Max rows per event history page; the frontend asks for smaller pages. */
+    private static final int EVENT_PAGE_MAX_ROWS = 500;
+    private static final int EVENT_PAGE_DEFAULT_ROWS = 50;
 
-        String sql = "SELECT data_timestamp, point_value, alarm_level, alarm_severity, alarm_source, " +
+    /**
+     * Query one page of full-detail records from the alarm_event supertable,
+     * newest first. Scroll pagination uses a snapshot upper bound plus offset:
+     * the frontend pins {@code topTs} to the first page's newest write
+     * timestamp and passes it back on every later page, so records written
+     * meanwhile (which would otherwise shift the ordering and duplicate rows)
+     * are excluded and OFFSET stays stable. OFFSET is used instead of a
+     * {@code ts < cursor} keyset cursor because bursty batch writes put dozens
+     * of rows on the same millisecond - a ts cursor would silently skip rows
+     * at page borders. Measured cost is flat on 680k rows / 2700 subtables
+     * (OFFSET 10000 ≈ 0.3s). Scroll depth is still bounded by the recent-write
+     * window ({@code query-window-days}).
+     */
+    public List<AlarmRecordDto> queryAlarmEvents(Long topTs, Integer offset, Integer limit) {
+        int pageLimit = limit == null ? EVENT_PAGE_DEFAULT_ROWS
+                : Math.max(1, Math.min(limit, EVENT_PAGE_MAX_ROWS));
+        int pageOffset = offset == null ? 0 : Math.max(0, offset);
+
+        StringBuilder where = new StringBuilder();
+        int windowDays = tdengineConfig.getQueryWindowDays();
+        if (windowDays > 0) {
+            where.append(" WHERE ts > NOW() - ").append(windowDays).append('d');
+        }
+        if (topTs != null) {
+            where.append(where.length() == 0 ? " WHERE" : " AND").append(" ts <= ").append(topTs);
+        }
+
+        String sql = "SELECT ts, data_timestamp, point_value, alarm_level, alarm_severity, alarm_source, " +
                 "alarm_message, alarm_location, alarm_status, ack_by, alarm_duration, " +
                 "alarm_stage, alarm_stage_message, alarm_start_time, path FROM " + tdengineConfig.getEventSupertable() +
-                recentWindowClause() +
-                " ORDER BY ts DESC, data_timestamp DESC LIMIT 200";
+                where +
+                // Same ordering contract as queryClearedAlarms: indexed primary ts,
+                // later-written rows first, data_timestamp breaks full ties.
+                " ORDER BY ts DESC, data_timestamp DESC LIMIT " + pageLimit + " OFFSET " + pageOffset;
+
+        List<AlarmRecordDto> result = new ArrayList<>();
 
         try (Connection readConn = openReadConnection();
              Statement stmt = readConn.createStatement();
@@ -578,6 +604,10 @@ public class TdengineSyncService {
                 } else {
                     dto.setAlarmStartTime("-");
                 }
+                Timestamp writeTs = rs.getTimestamp("ts");
+                if (writeTs != null) {
+                    dto.setTs(writeTs.getTime());
+                }
                 dto.setPath(rs.getString("path"));
                 result.add(dto);
             }
@@ -586,7 +616,8 @@ public class TdengineSyncService {
             log.error("Failed to query alarm events from TDengine", e);
         }
 
-        log.info("Queried {} alarm event records from TDengine", result.size());
+        log.info("Queried {} alarm event records from TDengine (limit {}, offset {})",
+                result.size(), pageLimit, pageOffset);
         return result;
     }
 

@@ -18,8 +18,8 @@ export const alarmApi = {
   getClearedAlarms(): Promise<AlarmRecord[]> {
     return request.get('/api/alarms/cleared')
   },
-  getAlarmEvents(): Promise<AlarmRecord[]> {
-    return request.get('/api/alarms/events')
+  getAlarmEvents(params?: { topTs?: number; offset?: number; limit?: number }): Promise<AlarmRecord[]> {
+    return request.get('/api/alarms/events', { params })
   },
   getAlarmSummary(): Promise<AlarmSummary> {
     return request.get('/api/alarms/summary')
