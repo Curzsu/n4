@@ -35,7 +35,7 @@ class PendingAlarmDelayTest {
         // Nothing in alarm:active and nothing published while pending.
         assertThat(h.activeOf(PATH)).isNull();
         assertThat(h.publishedOn(AlarmHarness.NOTIFY_CHANNEL)).isEmpty();
-        assertThat(h.publishedOn(AlarmHarness.REALTIME_CHANNEL)).isEmpty();
+        assertThat(h.publishedOn(AlarmHarness.REALTIME_STREAM)).isEmpty();
         // Pending state captured the would-be alarm.
         assertThat(h.pendingState.value()).isNotNull();
         assertThat(h.pendingState.value().state.getLevel()).isEqualTo("High");
@@ -124,12 +124,12 @@ class PendingAlarmDelayTest {
         assertThat(notify).hasSize(1);
         assertThat(notify.get(0).path("stage").asText()).isEqualTo("start");
         assertThat(notify.get(0).path("timestamp").asLong()).isEqualTo(target);
-        var realtime = h.publishedOn(AlarmHarness.REALTIME_CHANNEL);
+        var realtime = h.publishedOn(AlarmHarness.REALTIME_STREAM);
         assertThat(realtime).hasSize(1);
         assertThat(realtime.get(0).path("timestamp").asLong()).isEqualTo(target);
         // The pending-entry frame plus this confirmed start frame both reach
         // the full-detail persistence channel (alarm_event).
-        var persistence = h.publishedOn(AlarmHarness.PERSISTENCE_CHANNEL);
+        var persistence = h.publishedOn(AlarmHarness.PERSISTENCE_STREAM);
         assertThat(persistence).hasSize(2);
         assertThat(persistence.get(1).path("timestamp").asLong()).isEqualTo(target);
         assertThat(persistence.get(1).path("level").asText()).isEqualTo("High");

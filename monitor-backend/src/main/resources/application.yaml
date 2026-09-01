@@ -47,9 +47,6 @@ tdengine:
   database: n4
   realtime-supertable: alarm_realtime
   event-supertable: alarm_event
-  # Batch flush interval for full-detail event persistence (alarm_event)
-  event-flush-rate-ms: 1000 # Drain buffered frames into alarm_event every second.
-  event-flush-initial-delay-ms: 3000 # Initial delay before the first flush.
   # History queries order by the write timestamp and prune to this recent
   # window (days) instead of scanning the full KEEP range; 0 disables the filter.
   query-window-days: 7
@@ -71,15 +68,19 @@ alarm:
     parallelism: ${ALARM_FLINK_PARALLELISM:4} # Parallel alarm tasks; embedded mode and the standalone cluster share ALARM_FLINK_PARALLELISM. Must be <= min(CPU cores, Kafka topic partitions). keyBy(path) routes same-path messages to one task so concurrent tasks never race on alarm:active state.
     point-meta-cache-ttl-seconds: 60 # Local per-subtask TTL cache for point metadata (alarm:point:rule entries). Raise to reduce Redis reads on stable deployments; rule/deployment edits take effect within one TTL window.
     rule-cache-ttl-seconds: 60 # Local per-subtask TTL cache for numeric/enum rule objects. Rule edits take effect within one TTL window without a job restart.
-  # Redis keys and channels used by alarm processing
+  # Redis keys, channels and streams used by alarm processing
   redis:
     rules-numeric-key: alarm:rules:numeric       # Numeric rules hash (field=alarm_name, value=NumericEntity JSON)
     rules-enum-key: alarm:rules:enum             # Enum rules hash (field=alarm_name, value=List<EnumEntity> JSON, includes former boolean rules)
     latest-key: alarm:latest                     # Real-time point values (overwritten per data tick, for live display + ack override)
     active-key: alarm:active                     # Alarm records + ack status
-    notification-channel: alarm:notifications    # WebSocket notification channel
-    realtime-channel: alarm:realtime             # TDengine realtime persistence channel (alarm lifecycle events only)
-    persistence-channel: alarm:persist           # TDengine full-detail persistence channel (every processed frame)
+    notification-channel: alarm:notifications    # WebSocket notification channel (ephemeral Pub/Sub push; loss during a backend restart is acceptable)
+    realtime-stream: alarm:stream:realtime       # TDengine realtime persistence stream (alarm lifecycle events; consumer group, ack after write, replayable)
+    persistence-stream: alarm:stream:persist     # TDengine full-detail persistence stream (every processed frame; consumer group, ack after write, replayable)
+    realtime-stream-maxlen: 100000               # Approximate MAXLEN trim for the realtime stream (~hours of alarm lifecycle records during a backend outage)
+    persistence-stream-maxlen: 1000000           # Approximate MAXLEN trim for the persist stream (~hours of frames during a backend outage; oldest entries evicted beyond the cap)
+    stream-group: n4-backend                     # Consumer group on both persistence streams
+    stream-consumer: n4-backend                  # Fixed consumer name: restart recovery replays this consumer's own PEL (single-instance deployments only)
     point-rule-map-key: alarm:point:rule         # Point path -> metadata map (Hash, field=path, value=JSON {"type","alarm_code"})
 
 # Dynamic FUXA template binding. Secrets remain in FUXA's MQTT device configuration.

@@ -5,12 +5,23 @@ import com.n4monitor.alarm.model.PointAlarmState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.params.XAddParams;
+
+import java.util.Map;
 
 /**
- * All Redis reads/writes of the alarm pipeline: alarm:latest, alarm:active and
- * the three pub/sub channels (notifications, realtime, persistence). Extracted
- * verbatim from AlarmProcessFunction; key names, JSON shapes (including
- * timestamp overrides) and log messages are unchanged.
+ * All Redis reads/writes of the alarm pipeline: alarm:latest, alarm:active,
+ * the notification Pub/Sub channel and the two persistence Streams
+ * (realtime, full-detail). Extracted verbatim from AlarmProcessFunction;
+ * key names, JSON shapes (including timestamp overrides) and log messages
+ * are unchanged.
+ * <p>
+ * The two persistence paths use Redis Streams instead of Pub/Sub: every
+ * entry is stored until consumed and acknowledged, so a backend outage or
+ * restart can no longer drop alarm records that must reach TDengine for
+ * auditing. Entries are trimmed with approximate MAXLEN so a long backend
+ * outage cannot grow the stream without bound - the cap trades the oldest
+ * entries for bounded Redis memory and is configurable per stream.
  */
 final class RedisStateStore {
 
@@ -20,17 +31,22 @@ final class RedisStateStore {
     private final String latestRedisKey;
     private final String activeRedisKey;
     private final String notificationChannel;
-    private final String realtimeChannel;
-    private final String persistenceChannel;
+    private final String realtimeStream;
+    private final String persistenceStream;
+    private final long realtimeStreamMaxlen;
+    private final long persistenceStreamMaxlen;
 
     RedisStateStore(ObjectMapper objectMapper, String latestRedisKey, String activeRedisKey,
-                    String notificationChannel, String realtimeChannel, String persistenceChannel) {
+                    String notificationChannel, String realtimeStream, String persistenceStream,
+                    long realtimeStreamMaxlen, long persistenceStreamMaxlen) {
         this.objectMapper = objectMapper;
         this.latestRedisKey = latestRedisKey;
         this.activeRedisKey = activeRedisKey;
         this.notificationChannel = notificationChannel;
-        this.realtimeChannel = realtimeChannel;
-        this.persistenceChannel = persistenceChannel;
+        this.realtimeStream = realtimeStream;
+        this.persistenceStream = persistenceStream;
+        this.realtimeStreamMaxlen = realtimeStreamMaxlen;
+        this.persistenceStreamMaxlen = persistenceStreamMaxlen;
     }
 
     void writeLatestState(Jedis jedis, PointAlarmState state) {
@@ -44,9 +60,12 @@ final class RedisStateStore {
     }
 
     /**
-     * Publish to the notification channel (frontend WebSocket).
-     * The timestamp is forced to the alarm's historical start time so the
-     * frontend always shows when the alarm began (start/continue/end alike).
+     * Publish to the notification channel (frontend WebSocket). The timestamp
+     * is forced to the alarm's historical start time so the frontend always
+     * shows when the alarm began (start/continue/end alike). Deliberately kept
+     * on Pub/Sub: this is an ephemeral UI push, not audit data - a missed push
+     * during a backend restart is healed by the next event, while queueing
+     * stale notifications for later replay would only confuse the UI.
      */
     void publishNotificationChannel(Jedis jedis, PointAlarmState state) {
         try {
@@ -59,37 +78,47 @@ final class RedisStateStore {
     }
 
     /**
-     * Publish to the realtime channel (TDengine persistence).
+     * Append to the realtime stream (TDengine alarm lifecycle persistence).
      * The state's own timestamp is used as the observation time. Callers that
      * publish a history record (e.g. a recovered alarm's end record) must set
      * the desired timestamp on the state before publishing, so the event is
      * recorded at the moment it was observed.
      */
-    void publishRealTimeChannel(Jedis jedis, PointAlarmState state) {
+    void publishRealTimeStream(Jedis jedis, PointAlarmState state) {
         try {
             String json = objectMapper.writeValueAsString(state);
-            jedis.publish(realtimeChannel, json);
-            log.debug("PUB-REALTIME {} stage={} -> {}", state.getMqttPath(), state.getStage(), realtimeChannel);
+            jedis.xadd(realtimeStream, xaddParams(realtimeStreamMaxlen), Map.of("data", json));
+            log.debug("XADD-REALTIME {} stage={} -> {}", state.getMqttPath(), state.getStage(), realtimeStream);
         } catch (Exception e) {
             log.warn("Failed to publish realtime for {}: {}", state.getMqttPath(), e.getMessage());
         }
     }
 
     /**
-     * Publish a processed data frame to the persistence channel (TDengine
+     * Append a processed data frame to the persistence stream (TDengine
      * full-detail persistence). The frame's own timestamp is kept. For history
      * records (e.g. a recovered alarm's end record) the caller must set the
      * desired observation timestamp on the state before publishing, so the
      * event lands in TDengine at the same moment as its realtime counterpart.
      */
-    void publishPersistenceChannel(Jedis jedis, PointAlarmState state) {
+    void publishPersistenceStream(Jedis jedis, PointAlarmState state) {
         try {
             String json = objectMapper.writeValueAsString(state);
-            jedis.publish(persistenceChannel, json);
-            log.debug("PUB-PERSIST {} stage={} -> {}", state.getMqttPath(), state.getStage(), persistenceChannel);
+            jedis.xadd(persistenceStream, xaddParams(persistenceStreamMaxlen), Map.of("data", json));
+            log.debug("XADD-PERSIST {} stage={} -> {}", state.getMqttPath(), state.getStage(), persistenceStream);
         } catch (Exception e) {
             log.warn("Failed to publish persistence for {}: {}", state.getMqttPath(), e.getMessage());
         }
+    }
+
+    /**
+     * XADD with approximate MAXLEN trimming: while the backend is down the
+     * stream grows until the cap, then the oldest entries are evicted - bounded
+     * memory at the price of losing the very oldest audit frames after a long
+     * outage (vs. unbounded growth or losing everything, as Pub/Sub did).
+     */
+    private XAddParams xaddParams(long maxlen) {
+        return XAddParams.xAddParams().maxLen(maxlen).approximateTrimming();
     }
 
     /**

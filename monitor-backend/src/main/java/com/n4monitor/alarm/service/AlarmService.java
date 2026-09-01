@@ -2,6 +2,7 @@ package com.n4monitor.alarm.service;
 
 import com.n4monitor.alarm.model.AlarmStage;
 import com.n4monitor.alarm.model.AlarmStatus;
+import com.n4monitor.alarm.stream.AlarmStreamPublisher;
 import com.n4monitor.tdengine.TdengineSyncService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.n4monitor.alarm.dto.AlarmHourChartDto;
@@ -42,6 +43,7 @@ public class AlarmService {
     private String notificationChannel;
 
     private final StringRedisTemplate redisTemplate;
+    private final AlarmStreamPublisher streamPublisher;
     private final TdengineSyncService tdengineSyncService;
     private final ObjectMapper objectMapper;
     private final ActiveAlarmStore activeAlarmStore;
@@ -194,15 +196,15 @@ public class AlarmService {
                 ackedJsons.add(activeJson);
 
                 // Persist the ack event to TDengine with the ack moment as the timestamp.
-                // Write to alarm_realtime (alarm lifecycle history) immediately, and
-                // enqueue the ack into the same persistence buffer as every processed
-                // frame, so it is batched into alarm_event (full-detail history) too.
+                // The ack record is appended to the same Redis Streams every other
+                // producer uses (alarm lifecycle -> alarm_realtime, full detail ->
+                // alarm_event), so the stream consumer acknowledges it only after
+                // the TDengine write succeeded - backend restarts cannot drop it.
                 try {
                     PointAlarmState ackedState = objectMapper.readValue(activeJson, PointAlarmState.class);
                     ackedState.setTimestamp(ackTimestamp);
-                    tdengineSyncService.writeRealtimeAlarm(ackedState);
-                    // Write to alarm_event (full-detail history)
-                    tdengineSyncService.enqueuePersistence(ackedState);
+                    streamPublisher.publishRealtime(ackedState);
+                    streamPublisher.publishPersistence(ackedState);
                 } catch (Exception te) {
                     log.warn("Failed to persist acked alarm to TDengine for key: {}", key, te);
                 }

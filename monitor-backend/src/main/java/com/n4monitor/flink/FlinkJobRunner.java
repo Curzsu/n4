@@ -66,11 +66,17 @@ public class FlinkJobRunner implements CommandLineRunner {
     @Value("${alarm.redis.notification-channel}")
     private String notificationChannel;
 
-    @Value("${alarm.redis.realtime-channel}")
-    private String realtimeChannel;
+    @Value("${alarm.redis.realtime-stream}")
+    private String realtimeStream;
 
-    @Value("${alarm.redis.persistence-channel}")
-    private String persistenceChannel;
+    @Value("${alarm.redis.persistence-stream}")
+    private String persistenceStream;
+
+    @Value("${alarm.redis.realtime-stream-maxlen:100000}")
+    private long realtimeStreamMaxlen;
+
+    @Value("${alarm.redis.persistence-stream-maxlen:1000000}")
+    private long persistenceStreamMaxlen;
 
     @Value("${alarm.redis.point-rule-map-key:alarm:point:rule}")
     private String pointRuleMapKey;
@@ -92,8 +98,8 @@ public class FlinkJobRunner implements CommandLineRunner {
                 log.info("  Latest key: {}", latestRedisKey);
                 log.info("  Active key: {}", activeRedisKey);
                 log.info("  Notification channel: {}", notificationChannel);
-                log.info("  Realtime channel: {}", realtimeChannel);
-                log.info("  Persistence channel: {}", persistenceChannel);
+                log.info("  Realtime stream: {} (maxlen ~{})", realtimeStream, realtimeStreamMaxlen);
+                log.info("  Persistence stream: {} (maxlen ~{})", persistenceStream, persistenceStreamMaxlen);
                 log.info("  Point rule map key: {}", pointRuleMapKey);
                 log.info("  Parallelism: {}", parallelism);
                 log.info("  Point metadata cache TTL: {}s", pointMetaCacheTtlSeconds);
@@ -103,8 +109,9 @@ public class FlinkJobRunner implements CommandLineRunner {
                         redisHost, redisPort, redisPassword,
                         rulesNumericKey, rulesEnumKey,
                         latestRedisKey, activeRedisKey,
-                        notificationChannel, realtimeChannel,
-                        persistenceChannel, pointRuleMapKey, parallelism,
+                        notificationChannel, realtimeStream,
+                        persistenceStream, realtimeStreamMaxlen,
+                        persistenceStreamMaxlen, pointRuleMapKey, parallelism,
                         pointMetaCacheTtlSeconds, ruleCacheTtlSeconds);
             } catch (InterruptedException e) {
                 log.info("Flink job thread interrupted, stopping...");

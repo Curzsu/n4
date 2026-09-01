@@ -12,6 +12,8 @@ import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.StreamEntryID;
+import redis.clients.jedis.params.XAddParams;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -20,6 +22,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -39,8 +43,8 @@ final class AlarmHarness {
     static final String LATEST_KEY = "alarm:latest";
     static final String ACTIVE_KEY = "alarm:active";
     static final String NOTIFY_CHANNEL = "alarm:notifications";
-    static final String REALTIME_CHANNEL = "alarm:realtime";
-    static final String PERSISTENCE_CHANNEL = "alarm:persist";
+    static final String REALTIME_STREAM = "alarm:stream:realtime";
+    static final String PERSISTENCE_STREAM = "alarm:stream:persist";
     static final String POINT_RULE_MAP_KEY = "alarm:point:rule";
 
     final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
@@ -48,7 +52,9 @@ final class AlarmHarness {
     final Map<String, Map<String, String>> hashes = new HashMap<>();
     /** hget call counts per Redis key, to assert cache behavior. */
     final Map<String, Integer> hgetCounts = new HashMap<>();
-    /** Published messages in order: [channel, message]. */
+    /** Published messages in order: [channel-or-stream, message]. Pub/Sub
+     *  publishes and stream XADDs share one capture; publishedOn() matches by
+     *  name, so tests stay agnostic of the transport. */
     final List<String[]> published = new ArrayList<>();
     final FakeTimerService timers = new FakeTimerService();
     final InMemoryValueState<PendingAlarm> pendingState = new InMemoryValueState<>();
@@ -79,6 +85,13 @@ final class AlarmHarness {
             published.add(new String[]{inv.getArgument(0, String.class), inv.getArgument(1, String.class)});
             return 1L;
         });
+        // Persistence paths append to Redis Streams: capture the "data" field
+        // of the XADD entry in the same list as Pub/Sub publishes.
+        when(jedis.xadd(anyString(), any(XAddParams.class), anyMap())).thenAnswer(inv -> {
+            Map<String, String> entry = inv.getArgument(2, Map.class);
+            published.add(new String[]{inv.getArgument(0, String.class), entry.get("data")});
+            return new StreamEntryID();
+        });
     }
 
     /** Build the production function with all transient fields replaced by test doubles. */
@@ -86,7 +99,7 @@ final class AlarmHarness {
     AlarmProcessFunction newFunction() throws Exception {
         AlarmProcessFunction fn = new AlarmProcessFunction("localhost", 6379, null,
                 RULES_NUMERIC_KEY, RULES_ENUM_KEY, LATEST_KEY, ACTIVE_KEY,
-                NOTIFY_CHANNEL, REALTIME_CHANNEL, PERSISTENCE_CHANNEL, POINT_RULE_MAP_KEY);
+                NOTIFY_CHANNEL, REALTIME_STREAM, PERSISTENCE_STREAM, POINT_RULE_MAP_KEY);
         JedisPool pool = mock(JedisPool.class);
         when(pool.getResource()).thenReturn(jedis);
         setField(fn, "jedisPool", pool);
@@ -95,7 +108,8 @@ final class AlarmHarness {
         // Mirror the collaborator wiring that open() performs in production.
         setField(fn, "ruleEvaluator", new RuleEvaluator(mapper, RULES_NUMERIC_KEY, RULES_ENUM_KEY));
         setField(fn, "stateStore", new RedisStateStore(mapper, LATEST_KEY, ACTIVE_KEY,
-                NOTIFY_CHANNEL, REALTIME_CHANNEL, PERSISTENCE_CHANNEL));
+                NOTIFY_CHANNEL, REALTIME_STREAM, PERSISTENCE_STREAM,
+                100_000L, 1_000_000L));
         // Long TTL so tests exercise cache hits rather than expiry.
         setField(fn, "pointMetaCache", new TtlCache<>(1, TimeUnit.HOURS));
         return fn;
