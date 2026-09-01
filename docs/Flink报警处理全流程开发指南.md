@@ -29,11 +29,12 @@ Flink（AlarmProcessingJob，内嵌于 Spring Boot 或独立集群）
 Redis
   ├─ Hash: alarm:latest   实时值（每帧覆盖）
   ├─ Hash: alarm:active   当前告警记录 + ack 状态
-  └─ Pub/Sub: alarm:notifications / alarm:realtime / alarm:persist
+  ├─ Pub/Sub: alarm:notifications（时效性 UI 推送，允许宕机期间丢失）
+  └─ Stream: alarm:stream:realtime / alarm:stream:persist（可靠持久化，至少一次投递）
         │
-        ├─ alarm:notifications → Spring 监听 → WebSocket(/ws/alarm) → 前端大屏
-        ├─ alarm:realtime     → Spring 监听 → TDengine alarm_realtime（告警生命周期事件）
-        └─ alarm:persist      → Spring 监听 → 缓冲批量 → TDengine alarm_event（每帧全量明细）
+        ├─ alarm:notifications      → Spring 监听 → WebSocket(/ws/alarm) → 前端大屏
+        ├─ alarm:stream:realtime    → Spring 消费组（写成功才 ACK）→ TDengine alarm_realtime（告警生命周期事件）
+        └─ alarm:stream:persist     → Spring 消费组（写成功才 ACK）→ TDengine alarm_event（每帧全量明细）
 ```
 
 **各中间件的定位（一句话）：**
@@ -43,7 +44,7 @@ Redis
 | EMQX | 设备 MQTT 接入端点；规则引擎把 `niagara_send/#` 的消息通过 Kafka 桥接转发到 Kafka topic |
 | Kafka | 消息缓冲与解耦：削峰、多消费者复用同一份数据、Flink 与后端解耦 |
 | Flink | 实时规则评估与告警生命周期状态机（**唯一的规则判定者**） |
-| Redis | 规则缓存（MySQL 同步而来）、实时状态（latest/active）、跨进程 Pub/Sub 通信 |
+| Redis | 规则缓存（MySQL 同步而来）、实时状态（latest/active）、跨进程通信（通知走 Pub/Sub，持久化走 Stream 可靠队列） |
 | MySQL | 规则与点位元数据的持久化存储（`alarm_rule_numeric` / `alarm_rule_enum` / `point_deployment`） |
 | TDengine | 告警生命周期历史（`alarm_realtime`）与每帧全量事件明细（`alarm_event`）的时序持久化 |
 | Spring Boot 后端 | 启动时同步规则到 Redis、内嵌启动 Flink、消费 Redis 通知、推送 WebSocket、提供 REST API、ack 操作 |
@@ -186,9 +187,13 @@ alarm:
     rules-enum-key: alarm:rules:enum
     latest-key: alarm:latest
     active-key: alarm:active
-    notification-channel: alarm:notifications
-    realtime-channel: alarm:realtime
-    persistence-channel: alarm:persist
+    notification-channel: alarm:notifications    # 时效性 UI 推送（Pub/Sub 保留）
+    realtime-stream: alarm:stream:realtime       # 生命周期事件持久化 Stream
+    persistence-stream: alarm:stream:persist     # 每帧全量明细持久化 Stream
+    realtime-stream-maxlen: 100000               # 近似 MAXLEN 裁剪（后端长宕机时保留最近约 N 条）
+    persistence-stream-maxlen: 1000000
+    stream-group: n4-backend                     # 两个持久化 Stream 的消费组
+    stream-consumer: n4-backend                  # 固定消费者名：重启按 PEL 重放恢复
     point-rule-map-key: alarm:point:rule
 ```
 
@@ -305,7 +310,7 @@ Low        ≤ 低限     → 报警级别 Low
 - **`alarm:active`**：序列化时**强制 timestamp = alarmStartTime**（历史开始时间），
   所以 continue / end 记录都保留告警开始的时刻。
 - **`alarm:notifications`**：同样强制为 alarmStartTime，前端始终显示告警何时开始。
-- **`alarm:realtime` / `alarm:persist`**：使用状态自身的时间戳；调用方（如 end 记录）
+- **`alarm:stream:realtime` / `alarm:stream:persist`**：使用状态自身的时间戳；调用方（如 end 记录）
   需自行把观测时间戳写到 state 上再发布，保证两条通道时间一致。
 
 ### 7.4 延迟确认（Pending Alarm / 定时器）
@@ -334,7 +339,7 @@ Low        ≤ 低限     → 报警级别 Low
 
 无论是否报警，`processMessage` 末尾（第 7 步）都会：
 - `writeLatestState(jedis, current)` → 写 `alarm:latest`
-- `publishPersistenceChannel(jedis, current)` → 发 `alarm:persist`（TDengine 全量明细）
+- `publishPersistenceStream(jedis, current)` → XADD 到 `alarm:stream:persist`（TDengine 全量明细）
 
 ---
 
@@ -347,8 +352,8 @@ Flink 作业**没有 Kafka sink**。所有结果通过 `RedisStateStore` 以 Red
 | `alarm:latest` | Hash | 每帧覆盖的点位实时值 + 评估结果 | 实时显示、ack 覆盖 |
 | `alarm:active` | Hash | 当前告警记录 + ack 状态（start/continue/frozen-end） | 前端活动告警表、聚合图表 |
 | `alarm:notifications` | Pub/Sub | 告警生命周期事件（start/continue/升级/end/ack） | Spring → WebSocket → 前端 |
-| `alarm:realtime` | Pub/Sub | 告警生命周期事件（同上） | Spring → TDengine `alarm_realtime` |
-| `alarm:persist` | Pub/Sub | **每一帧**（无论是否报警） | Spring → 缓冲 → TDengine `alarm_event` |
+| `alarm:stream:realtime` | Stream（XADD，近似 MAXLEN 裁剪） | 告警生命周期事件（同上） | Spring 消费组（写成功才 ACK）→ TDengine `alarm_realtime` |
+| `alarm:stream:persist` | Stream（XADD，近似 MAXLEN 裁剪） | **每一帧**（无论是否报警） | Spring 消费组（写成功才 ACK）→ TDengine `alarm_event` |
 | stdout | print() | 彩色控制台日志（ConsoleFormatter） | 运维排查 |
 
 ### 8.1 Flink 的 Redis 连接方式
@@ -362,10 +367,11 @@ Flink 作业**没有 Kafka sink**。所有结果通过 `RedisStateStore` 以 Red
 
 ---
 
-## 九、后端如何消费 Flink 的输出（Redis 监听 → 存储/推送）
+## 九、后端如何消费 Flink 的输出（Redis 监听/消费 → 存储/推送）
 
-Spring Boot 通过 `RedisMessageListenerContainer`（`RedisPubSubConfig`）订阅三个通道，
-每个通道一个 `MessageListener`。**后端不消费 Kafka**。
+Spring Boot 通过两条路径消费 Flink 输出：`RedisMessageListenerContainer`
+（`RedisPubSubConfig`）订阅**通知通道**；`AlarmStreamConsumer` 以消费组消费**两个持久化
+Stream**（写成功才 ACK）。**后端不消费 Kafka**。
 
 ### 9.1 alarm:notifications → WebSocket → 前端
 
@@ -391,30 +397,54 @@ Spring Boot 通过 `RedisMessageListenerContainer`（`RedisPubSubConfig`）订�
   `AlarmTable.vue` 据此增/改/删行。
 - 无连接客户端时打 warn（广播被跳过），便于区分「无订阅者」与「上游丢失」。
 
-### 9.2 alarm:realtime → TDengine（即时写）
+### 9.2 alarm:stream:realtime → TDengine（可靠消费，即时写）
 
-`AlarmRealtimeListener` → `TdengineSyncService.writeRealtimeAlarm(state)`：
-- 走**独立 realtime 通道**（专属单线程 + 专属长连接）写 `alarm_realtime` 超表，**立即**
-  写入（不经批量）；与 9.3 的批量事件通道完全隔离，大批 flush 再慢也不挤占报警写入。
-- 只含告警生命周期事件（start/continue/升级/end/ack）。
+`AlarmStreamConsumer`（realtime 线程）→ `TdengineSyncService.writeRealtimeAlarm(state)`：
+- 后端以**消费组**（`alarm.redis.stream-group`）阻塞轮询拉取条目，调用
+  `writeRealtimeAlarm` 走**独立 realtime 通道**（专属单线程 + 专属长连接）同步写
+  `alarm_realtime` 超表；与 9.3 的批量事件通道完全隔离，大批写入再慢也不挤占报警写入。
+- **写成功才 XACK**：TDengine 不可用时写失败，条目留在 PEL（pending 列表）整批退避重试，
+  TDengine 恢复后自动补写——后端宕机/重启期间发布的记录不再丢失（旧 Pub/Sub 会丢）。
+- TDengine 以 (子表, ts) 为主键 upsert：重放已写过的记录是幂等覆盖，不产生重复行。
+- 只含告警生命周期事件（start/continue/升级/end/ack），后端 ack 操作产生的记录
+  由 `AlarmStreamPublisher` 追加到同一条 Stream。
 
-### 9.3 alarm:persist → TDengine（批量写）
+### 9.3 alarm:stream:persist → TDengine（可靠消费，批量写）
 
-`AlarmPersistenceListener` → `TdengineSyncService.enqueuePersistence(state)`：
-- 入**有界缓冲**（容量 5000，满则丢弃并 warn）。
-- `flushPersistenceBatch()`（`@Scheduled` 每秒）提交给**独立 event 通道**（专属单线程 +
-  专属长连接，等待队列只有 2——丢帧的缓冲是 persistenceBuffer 本身，不是排队任务）：
-  连接就绪后才 `drainTo`，由 `TdengineSql` 按点位路径分组、拼成**多条多表多行 INSERT**
+`AlarmStreamConsumer`（persist 线程）→ `TdengineSyncService.writeEventFrames(batch)`：
+- 消费组拉取一批条目（默认 500/次），直接交给**独立 event 通道**（专属单线程 +
+  专属长连接）批量写：`TdengineSql` 按点位路径分组、拼成**多条多表多行 INSERT**
   （每条最多 300 行 / 250K 字符，组内 `VALUES (a)(b)` 元组并列）一次提交，
-  `alarm_event` 的写入从「每帧一次 HTTP 往返」变为「每秒几次往返」，突发流量下
+  `alarm_event` 的写入从「每帧一次 HTTP 往返」变为「每批几次往返」，突发流量下
   写吞吐提升 1~2 个数量级。某条语句失败时仅对该分片回退为逐行写，定位坏行不丢整批。
+- **整批写成功才逐条 XACK**；任一行失败则整批留在 PEL 重放（重放的已写行被 TDengine
+  按 (子表, ts) upsert 幂等覆盖）。**Stream 本身就是缓冲**——旧版的内存有界缓冲
+  （容量 5000，满则丢帧）已删除，宕机期间的条目安全地积压在 Redis 里。
 - 每帧都写，`alarm_event` 是点位全量明细日志。
+- **背压与上限**：后端停机/写入失败时条目在 Stream 内积压，生产端 XADD 带**近似 MAXLEN**
+  （persist 默认 100 万，按帧率约合数小时），超过后淘汰最旧条目——用最旧审计数据换
+  Redis 内存有界；正常情况下消费速度远快于生产，长度稳定在低位。
 
-### 9.4 订阅健康检查
+### 9.4 通知订阅健康检查
 
-`RedisPubSubConfig.checkSubscriptionHealth()` 每 60s 用 `PUBSUB NUMSUB` 检查三个通道
-是否有存活订阅者；任一为 0 则强制重启 listener container（覆盖「半开连接」静默失效
-这种 keepalive 也测不出的场景）。
+`RedisPubSubConfig.checkSubscriptionHealth()` 每 60s 用 `PUBSUB NUMSUB` 检查通知通道
+（`alarm:notifications`，现在唯一保留的 Pub/Sub）是否有存活订阅者；为 0 则强制重启
+listener container（覆盖「半开连接」静默失效这种 keepalive 也测不出的场景）。
+
+### 9.5 持久化 Stream 的可靠消费语义（AlarmStreamConsumer）
+
+- **消费模型**：两个 Stream（realtime / persist）各一条消费线程；固定消费组 +
+  **固定消费者名**（`alarm.redis.stream-consumer`），后端重启后按同名消费者的 PEL 重放
+  未 ACK 条目，实现至少一次投递。单实例部署约束：多实例共跑一个消费者名会重复消费
+  （TDengine upsert 兜底不产生重复行，但应避免）。
+- **顺序**：每个 tick 先排干自身 PEL（`XREADGROUP id=0`）再读新条目（`id=>`），
+  恢复数据始终先于新数据处理。
+- **失败重试**：写失败（连接不可用/部分行失败）→ 整批不 ACK、 lane 退避一个轮询间隔
+  后重试，**永不放弃**（审计数据优先）；持续失败时周期性输出 pending 积压告警日志。
+- **毒消息**：JSON 无法解析或 path 为空的条目，记录 ERROR（含完整原始载荷，供人工补录）
+  后立即 ACK 跳过，避免永久阻塞通道。
+- **组管理**：启动时懒创建消费组（`XGROUP CREATE ... 0`，从 0 开始消费）；运行中组/流
+  被删除（NOGROUP）会自动重建，lane 不会卡死。
 
 ---
 
@@ -437,8 +467,8 @@ WS 模式连接直接失败（auth failure），REST 模式也无法通过该连
 在线调整（实测线上库曾为 BUFFER 32 / VGROUPS 4，实际写内存池 = vgroup 数 × BUFFER）。
 
 **写通道模型**：`realtime` 与 `event` 两条独立通道，各自专属单线程 + 专属长连接
-（JDBC 连接非线程安全）；event 通道的等待队列只有 2，突发流量的缓冲是 persistenceBuffer
-本身；任一通道连接故障互不影响，查询失败也不会关闭写连接。
+（JDBC 连接非线程安全）；写失败的批次留在 Redis Stream 的 PEL 中重试（Stream 本身就是
+缓冲）；任一通道连接故障互不影响，查询失败也不会关闭写连接。
 
 | 超表 | subtable 后缀 | 内容 | 写入频率 |
 |------|--------------|------|---------|
@@ -547,6 +577,7 @@ Kafka → Flink 评估 → alarm:notifications → AlarmNotificationListener
 | 规则改了不生效 | Flink per-subtask 本地 TTL 缓存（默认 60s，可配置），等 TTL 过期或 `POST /api/alarm-rules/reload` |
 | 报警延迟不确认 | 检查规则 `timeDelay`；pending 期间 `alarm:latest` 应为正常态（无级别） |
 | 前端没实时刷新 | 检查 `alarm:notifications` 订阅是否存活（`PUBSUB NUMSUB`）、WebSocket 是否有客户端连接、Nginx 是否代理 `/ws` |
+| 持久化数据疑似缺失 | ① 查 `XLEN alarm:stream:persist` / `alarm:stream:realtime` 是否有积压；② `XPENDING <stream> n4-backend` 看未 ACK 数量；③ 后端日志搜 `stays pending`（TDengine 不可用重试）或 `unparseable`（毒消息被跳过）；④ 生产端 MAXLEN 裁剪会在超长宕机后淘汰最旧条目 |
 | TDengine 时间错 8 小时 | 确认写入走 setLong 毫秒绑定；检查 TDengine 与 JVM 时区配置 |
 | 重启后消费行为 | Kafka `OffsetsInitializer.latest()`：新消费组从最新开始，会跳过已有历史消息 |
 | 内嵌与独立集群同跑 | 两套并行会瓜分分区随机丢告警——同一 topic 同一组只能有一种模式 |
@@ -567,8 +598,9 @@ Kafka → Flink 评估 → alarm:notifications → AlarmNotificationListener
 | monitor-backend | `FlinkJobRunner.java` | 内嵌启动 Flink 作业 |
 | monitor-backend | `AlarmRuleInitializer.java` / `AlarmRuleSyncService.java` | MySQL→Redis 规则同步 |
 | monitor-backend | `AlarmNotificationListener.java` | 通知→WebSocket |
-| monitor-backend | `AlarmRealtimeListener.java` / `AlarmPersistenceListener.java` | 通知→TDengine |
-| monitor-backend | `RedisPubSubConfig.java` | Pub/Sub 订阅 + 健康检查 |
+| monitor-backend | `alarm/stream/AlarmStreamConsumer.java` | 两个持久化 Stream 的消费组消费（ACK/重试/恢复） |
+| monitor-backend | `alarm/stream/AlarmStreamPublisher.java` | 后端产生的确认事件→Stream |
+| monitor-backend | `RedisPubSubConfig.java` | Pub/Sub 订阅（仅通知通道）+ 健康检查 |
 | monitor-backend | `TdengineSyncService.java` | TDengine 建表/写/查 |
 | monitor-backend | `AlarmService.java` | REST 查询 + ack 回写 |
 | monitor-backend | `ActiveAlarmStore.java` / `AlarmAggregator.java` | 快照缓存 + 聚合 |
