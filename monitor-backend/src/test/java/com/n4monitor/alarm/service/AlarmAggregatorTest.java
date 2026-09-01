@@ -84,21 +84,19 @@ class AlarmAggregatorTest {
 
     @Test
     void byHourCountsInFourHourSteps() {
-        long epoch = System.currentTimeMillis();
-        String hourKey = LocalDateTime.ofInstant(Instant.ofEpochMilli(epoch), ZoneId.systemDefault())
-                .format(HOUR_FORMAT);
-        // The 4h-step chart reports the bucket containing the epoch; the
-        // record without a timestamp is not counted at all.
-        String stepKey = hourKey;
-        while (Integer.parseInt(stepKey.substring(0, 2)) % 4 != 0) {
-            stepKey = String.format("%02d:00", Integer.parseInt(stepKey.substring(0, 2)) - 1);
-        }
+        // The chart samples every 4th hour ("00:00", "04:00", ...), so pin the
+        // records inside the "00:00" sampled bucket. Deriving the epoch from
+        // System.currentTimeMillis() made this test fail whenever it ran during
+        // a non-sampled hour (e.g. 01:xx).
+        long epoch = LocalDateTime.now(ZoneId.systemDefault()).withHour(0).withMinute(30)
+                .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        // The record without a timestamp is not counted at all.
         var dto = AlarmAggregator.byHour(List.of(
                 alarm("Major", epoch, "p1", "s"),
                 alarm("Major", epoch, "p2", "s"),
                 alarm("Major", null, "p3", "s")));
         assertThat(dto.getHours()).containsExactly("00:00", "04:00", "08:00", "12:00", "16:00", "20:00");
-        assertThat(dto.getCounts().get(dto.getHours().indexOf(stepKey))).isEqualTo(2);
+        assertThat(dto.getCounts().get(0)).isEqualTo(2);
         assertThat(dto.getCounts().stream().mapToInt(Integer::intValue).sum()).isEqualTo(2);
     }
 

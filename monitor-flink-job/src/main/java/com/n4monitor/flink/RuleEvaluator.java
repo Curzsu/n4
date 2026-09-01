@@ -30,18 +30,25 @@ final class RuleEvaluator {
      * cached per subtask with a TTL, so an edit takes effect within the TTL
      * without a restart. Missing rules are cached too (negative caching):
      * probing an unknown alarm code costs one Redis hit per TTL window.
+     * The TTL is configurable (alarm.flink.rule-cache-ttl-seconds); this
+     * constant is only the fallback when no explicit value is supplied.
      */
-    private static final long RULE_CACHE_TTL_SECONDS = 60;
+    static final long DEFAULT_RULE_CACHE_TTL_SECONDS = 60;
 
-    private final TtlCache<AlarmRuleNumericEntity> numericRuleCache =
-            new TtlCache<>(RULE_CACHE_TTL_SECONDS, TimeUnit.SECONDS);
-    private final TtlCache<List<AlarmRuleEnumEntity>> enumRuleCache =
-            new TtlCache<>(RULE_CACHE_TTL_SECONDS, TimeUnit.SECONDS);
+    private final TtlCache<AlarmRuleNumericEntity> numericRuleCache;
+    private final TtlCache<List<AlarmRuleEnumEntity>> enumRuleCache;
 
     RuleEvaluator(ObjectMapper objectMapper, String rulesNumericKey, String rulesEnumKey) {
+        this(objectMapper, rulesNumericKey, rulesEnumKey, DEFAULT_RULE_CACHE_TTL_SECONDS);
+    }
+
+    RuleEvaluator(ObjectMapper objectMapper, String rulesNumericKey, String rulesEnumKey,
+                  long ruleCacheTtlSeconds) {
         this.objectMapper = objectMapper;
         this.rulesNumericKey = rulesNumericKey;
         this.rulesEnumKey = rulesEnumKey;
+        this.numericRuleCache = new TtlCache<>(ruleCacheTtlSeconds, TimeUnit.SECONDS);
+        this.enumRuleCache = new TtlCache<>(ruleCacheTtlSeconds, TimeUnit.SECONDS);
     }
 
     /**

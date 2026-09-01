@@ -8,8 +8,8 @@ spring:
   # Optional per-environment overrides from a local .env file (KEY=VALUE,
   # properties syntax). .env values win over the defaults below; OS environment
   # variables still win over both. Copy .env.example to .env and fill in real
-  # endpoints/credentials. Note: .env is currently tracked in this private
-  # self-hosted repo; untrack it and rotate credentials before wider sharing.
+  # endpoints/credentials. Note: .env is gitignored (never committed) - create
+  # it locally on each machine.
   config:
     import:
       - optional:file:.env[.properties]
@@ -36,7 +36,10 @@ mybatis:
   configuration:
     map-underscore-to-camel-case: true
 
-# TDengine configuration (REST mode, port 6041)
+# TDengine configuration (REST mode, port 6041). WebSocket mode (jdbc:TAOS-WS://)
+# is available by changing the URL only - measured slower for this project's
+# batched-statement workload (WS fetch protocol adds a round trip per query);
+# revisit together with a STMT2 prepared-statement migration.
 tdengine:
   url: ${TDENGINE_URL:jdbc:TAOS-RS://localhost:6041/n4}
   username: ${TDENGINE_USERNAME:root}
@@ -47,15 +50,27 @@ tdengine:
   # Batch flush interval for full-detail event persistence (alarm_event)
   event-flush-rate-ms: 1000 # Drain buffered frames into alarm_event every second.
   event-flush-initial-delay-ms: 3000 # Initial delay before the first flush.
+  # History queries order by the write timestamp and prune to this recent
+  # window (days) instead of scanning the full KEEP range; 0 disables the filter.
+  query-window-days: 7
 
 # Alarm configuration
 alarm:
   flink:
-    enabled: true
-    topic: mqtt-push-kafka
-    # topic: kafka-test
+    # Master switch for the embedded alarm-processing job. Set
+    # ALARM_FLINK_ENABLED=false in .env for local development that does not
+    # touch the alarm pipeline: the backend then skips the job entirely
+    # (no Kafka connection, no rule evaluation); MySQL CRUD, templates, nav
+    # and FUXA keep working. Docker compose pins it to "true" for deployments.
+    enabled: ${ALARM_FLINK_ENABLED:true}
+    # Kafka topic consumed by the embedded job. Override via ALARM_FLINK_TOPIC
+    # in .env (e.g. kafka-test for the manual test producer). Keep in sync with
+    # the EMQX bridge target and the standalone cluster's --kafka-topic.
+    topic: ${ALARM_FLINK_TOPIC:mqtt-push-kafka}
     group-id: n4-flink-alarm-processor
-    parallelism: 4 # Parallel alarm tasks. Must be <= min(CPU cores, Kafka topic partitions). keyBy(path) routes same-path messages to one task so concurrent tasks never race on alarm:active state.
+    parallelism: ${ALARM_FLINK_PARALLELISM:4} # Parallel alarm tasks; embedded mode and the standalone cluster share ALARM_FLINK_PARALLELISM. Must be <= min(CPU cores, Kafka topic partitions). keyBy(path) routes same-path messages to one task so concurrent tasks never race on alarm:active state.
+    point-meta-cache-ttl-seconds: 60 # Local per-subtask TTL cache for point metadata (alarm:point:rule entries). Raise to reduce Redis reads on stable deployments; rule/deployment edits take effect within one TTL window.
+    rule-cache-ttl-seconds: 60 # Local per-subtask TTL cache for numeric/enum rule objects. Rule edits take effect within one TTL window without a job restart.
   # Redis keys and channels used by alarm processing
   redis:
     rules-numeric-key: alarm:rules:numeric       # Numeric rules hash (field=alarm_name, value=NumericEntity JSON)

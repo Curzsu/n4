@@ -48,8 +48,14 @@ services:
       TDENGINE_PASSWORD: ${TDENGINE_PASSWORD}
       # FUXA is already running on the host; backend calls it for template provisioning
       FUXA_BASE_URL: ${FUXA_BASE_URL}
-      # Alarm Flink job toggle (set false to disable embedded Flink processing)
-      ALARM_FLINK_ENABLED: "true"
+      # Alarm Flink job toggle (set false to disable embedded Flink processing).
+      # Same .env variable as application.yaml's ${ALARM_FLINK_ENABLED:true}.
+      ALARM_FLINK_ENABLED: ${ALARM_FLINK_ENABLED:-true}
+      # Kafka topic consumed by the embedded job. Same .env variable as
+      # application.yaml's ${ALARM_FLINK_TOPIC:mqtt-push-kafka} and the
+      # standalone cluster's --kafka-topic below, so one edit keeps all
+      # consumers in sync.
+      ALARM_FLINK_TOPIC: ${ALARM_FLINK_TOPIC:-mqtt-push-kafka}
     # Flink embedded execution benefits from ample file descriptors
     ulimits:
       nofile:
@@ -110,8 +116,8 @@ services:
   # so a plain `docker compose up -d` never runs this cluster in parallel with
   # the backend's embedded job (both consume the same Kafka topic; running both
   # splits partitions between them and drops alarms randomly).
-  # Cutover order: set ALARM_FLINK_ENABLED=false on the backend and recreate it
-  # FIRST, then start this profile.
+  # Cutover order: set ALARM_FLINK_ENABLED=false (.env or the backend
+  # environment below) and recreate the backend FIRST, then start this profile.
   flink-jobmanager:
     profiles: ["flink"]
     build:
@@ -125,13 +131,13 @@ services:
       standalone-job
       --job-classname com.n4monitor.flink.AlarmProcessingJob
       --kafka-broker ${KAFKA_BOOTSTRAP_SERVERS}
-      --kafka-topic mqtt-push-kafka
+      --kafka-topic ${ALARM_FLINK_TOPIC:-mqtt-push-kafka}
       --group-id n4-flink-alarm-processor-prod
       --redis-host ${REDIS_HOST}
       --redis-port ${REDIS_PORT}
       --redis-password ${REDIS_PASSWORD}
       --persistence-channel alarm:persist
-      --parallelism 4
+      --parallelism ${ALARM_FLINK_PARALLELISM:-4}
     environment:
       TZ: Asia/Shanghai
       FLINK_PROPERTIES: |

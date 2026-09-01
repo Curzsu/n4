@@ -29,13 +29,19 @@ public class AlarmController {
     }
 
     @GetMapping("/cleared")
-    public ApiResponse<List<AlarmRecordDto>> getClearedAlarms() {
-        return ApiResponse.success(alarmService.getClearedAlarms());
+    public ApiResponse<List<AlarmRecordDto>> getClearedAlarms(
+            @RequestParam(value = "topTs", required = false) Long topTs,
+            @RequestParam(value = "offset", defaultValue = "0") Integer offset,
+            @RequestParam(value = "limit", defaultValue = "50") Integer limit) {
+        return ApiResponse.success(alarmService.getClearedAlarms(topTs, offset, limit));
     }
 
     @GetMapping("/events")
-    public ApiResponse<List<AlarmRecordDto>> getAlarmEvents() {
-        return ApiResponse.success(alarmService.getAlarmEvents());
+    public ApiResponse<List<AlarmRecordDto>> getAlarmEvents(
+            @RequestParam(value = "topTs", required = false) Long topTs,
+            @RequestParam(value = "offset", defaultValue = "0") Integer offset,
+            @RequestParam(value = "limit", defaultValue = "50") Integer limit) {
+        return ApiResponse.success(alarmService.getAlarmEvents(topTs, offset, limit));
     }
 
     @GetMapping("/summary")

@@ -68,21 +68,24 @@ public class AlarmService {
     }
 
     /**
-     * Get all alarm history records from TDengine (newest first).
-     * Returns every record stored in alarm_realtime regardless of stage/status,
-     * mirroring the Active Alarms default time ordering.
+     * Get one page of alarm lifecycle history records from the alarm_realtime
+     * supertable (newest first). Same scroll-pagination contract as
+     * {@link #getAlarmEvents(Long, Integer, Integer)}: {@code topTs} pins the
+     * snapshot upper bound (null = newest page), {@code offset} skips already
+     * loaded rows, {@code limit} caps the page.
      */
-    public List<AlarmRecordDto> getClearedAlarms() {
-        return tdengineSyncService.queryClearedAlarms();
+    public List<AlarmRecordDto> getClearedAlarms(Long topTs, Integer offset, Integer limit) {
+        return tdengineSyncService.queryClearedAlarms(topTs, offset, limit);
     }
 
     /**
-     * Get all full-detail alarm event records from the alarm_event supertable
-     * (newest first). Reads the same record shape as alarm_realtime, but from
-     * the per-frame event table.
+     * Get one page of full-detail alarm event records from the alarm_event
+     * supertable (newest first). {@code topTs} pins the snapshot upper bound
+     * for scroll pagination (null = newest page), {@code offset} skips already
+     * loaded rows, {@code limit} caps the page.
      */
-    public List<AlarmRecordDto> getAlarmEvents() {
-        return tdengineSyncService.queryAlarmEvents();
+    public List<AlarmRecordDto> getAlarmEvents(Long topTs, Integer offset, Integer limit) {
+        return tdengineSyncService.queryAlarmEvents(topTs, offset, limit);
     }
 
     /**

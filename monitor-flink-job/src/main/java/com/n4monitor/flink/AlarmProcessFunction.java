@@ -48,14 +48,21 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
     private final String realtimeChannel;
     private final String persistenceChannel;
     private final String pointRuleMapKey;
+    private final long pointMetaTtlSeconds;
+    private final long ruleCacheTtlSeconds;
 
     private transient JedisPool jedisPool;
     private transient ObjectMapper objectMapper;
     private transient RuleEvaluator ruleEvaluator;
     private transient RedisStateStore stateStore;
 
-    /** TTL for the per-subtask point-metadata cache (alarm:point:rule). */
-    private static final long POINT_META_TTL_SECONDS = 60;
+    /**
+     * Fallback TTL for the per-subtask point-metadata cache (alarm:point:rule)
+     * when no explicit value is supplied. The live value comes from the
+     * pointMetaTtlSeconds constructor argument (configurable via
+     * alarm.flink.point-meta-cache-ttl-seconds).
+     */
+    static final long DEFAULT_POINT_META_TTL_SECONDS = 60;
 
     /**
      * Per-subtask TTL cache of point metadata (alarm:point:rule entries).
@@ -86,6 +93,20 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
                                 String latestRedisKey, String activeRedisKey,
                                 String notificationChannel, String realtimeChannel,
                                 String persistenceChannel, String pointRuleMapKey) {
+        this(redisHost, redisPort, redisPassword,
+                rulesNumericKey, rulesEnumKey,
+                latestRedisKey, activeRedisKey,
+                notificationChannel, realtimeChannel,
+                persistenceChannel, pointRuleMapKey,
+                DEFAULT_POINT_META_TTL_SECONDS, RuleEvaluator.DEFAULT_RULE_CACHE_TTL_SECONDS);
+    }
+
+    public AlarmProcessFunction(String redisHost, int redisPort, String redisPassword,
+                                String rulesNumericKey, String rulesEnumKey,
+                                String latestRedisKey, String activeRedisKey,
+                                String notificationChannel, String realtimeChannel,
+                                String persistenceChannel, String pointRuleMapKey,
+                                long pointMetaTtlSeconds, long ruleCacheTtlSeconds) {
         this.redisHost = redisHost;
         this.redisPort = redisPort;
         this.redisPassword = redisPassword;
@@ -97,6 +118,8 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
         this.realtimeChannel = realtimeChannel;
         this.persistenceChannel = persistenceChannel;
         this.pointRuleMapKey = pointRuleMapKey;
+        this.pointMetaTtlSeconds = pointMetaTtlSeconds;
+        this.ruleCacheTtlSeconds = ruleCacheTtlSeconds;
     }
 
     @Override
@@ -124,10 +147,11 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
         jedisPool = new JedisPool(poolConfig, redisHost, redisPort,
                 REDIS_TIMEOUT_MS, effectivePassword);
         objectMapper = new ObjectMapper().findAndRegisterModules();
-        ruleEvaluator = new RuleEvaluator(objectMapper, rulesNumericKey, rulesEnumKey);
+        ruleEvaluator = new RuleEvaluator(objectMapper, rulesNumericKey, rulesEnumKey,
+                ruleCacheTtlSeconds);
         stateStore = new RedisStateStore(objectMapper, latestRedisKey, activeRedisKey,
                 notificationChannel, realtimeChannel, persistenceChannel);
-        pointMetaCache = new TtlCache<>(POINT_META_TTL_SECONDS, TimeUnit.SECONDS);
+        pointMetaCache = new TtlCache<>(pointMetaTtlSeconds, TimeUnit.SECONDS);
 
         // Per-key pending-alarm state for delay confirmation. Keyed by the
         // process function's key (path). One pending record per point at most.
@@ -142,6 +166,8 @@ public class AlarmProcessFunction extends KeyedProcessFunction<String, PointData
         log.info("Point rule map key: {}", pointRuleMapKey);
         log.info("Persistence channel: {}", persistenceChannel);
         log.info("Redis timeout: {}ms", REDIS_TIMEOUT_MS);
+        log.info("Point metadata cache TTL: {}s", pointMetaTtlSeconds);
+        log.info("Rule cache TTL: {}s", ruleCacheTtlSeconds);
     }
 
     @Override
