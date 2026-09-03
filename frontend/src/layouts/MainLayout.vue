@@ -62,14 +62,22 @@ const store = useDashboardStore()
 const systemPaths = ['/device-template', '/device-deployment', '/alarm/config', '/system-deployment', '/logs']
 const isSystemRoute = computed(() => route.path.startsWith('/system') || systemPaths.includes(route.path))
 const isAlarmRoute = computed(() => route.path.startsWith('/alarm') && !isSystemRoute.value)
+const isAuthorityRoute = computed(() =>
+  (route.path.startsWith('/system') && route.path !== '/system-deployment') || route.path === '/logs'
+)
 // The Event route is a standalone page with no second-level toolbar menu.
 const isEventRoute = computed(() => route.path === '/event')
 // The home page uses the new two-level navigation mode.
 const isNavRoute = computed(() => route.path === '/')
 // The left sidebar is collapsed (not removed) on every route except Dashboard,
-// Device Template and Device Deployment, where it opens by default.
+// Device Template, Device Deployment, and Authority Management, where it opens by default.
 const isLeftSidebarOpenByDefault = computed(() =>
-  route.path === '/' || route.path === '/device-template' || route.path === '/device-deployment' || route.path === '/system-deployment')
+  route.path === '/' ||
+  route.path === '/device-template' ||
+  route.path === '/device-deployment' ||
+  route.path === '/system-deployment' ||
+  isAuthorityRoute.value
+)
 
 const isRightCollapsed = computed({
   get: () => store.isRightCollapsed,

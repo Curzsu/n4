@@ -49,6 +49,12 @@ public class GlobalExceptionHandler {
         return ApiResponse.error(403, "Access denied: insufficient permissions");
     }
 
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ApiResponse<Void> handleMaxUploadSizeExceededException(org.springframework.web.multipart.MaxUploadSizeExceededException e) {
+        log.warn("Upload size exceeded: {}", e.getMessage());
+        return ApiResponse.error(413, "Uploaded files exceed the maximum allowed size");
+    }
+
     @ExceptionHandler(Exception.class)
     public ApiResponse<Void> handleException(Exception e) {
         log.error("Internal server error: ", e);

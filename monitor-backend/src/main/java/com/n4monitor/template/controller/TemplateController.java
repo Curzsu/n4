@@ -4,6 +4,20 @@ import com.n4monitor.common.ApiResponse;
 import com.n4monitor.template.entity.DeviceTemplate;
 import com.n4monitor.template.entity.PointTemplate;
 import com.n4monitor.template.service.TemplateService;
+import com.n4monitor.transfer.ImportSummary;
+import com.n4monitor.transfer.template.TemplateExportService;
+import com.n4monitor.transfer.template.TemplateImportTemplateService;
+import com.n4monitor.transfer.template.TemplateTransferService;
+import com.n4monitor.annotation.BusinessType;
+import com.n4monitor.annotation.OperationLog;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -13,9 +27,18 @@ import java.util.List;
 public class TemplateController {
 
     private final TemplateService templateService;
+    private final TemplateTransferService templateTransferService;
+    private final TemplateExportService templateExportService;
+    private final TemplateImportTemplateService templateImportTemplateService;
 
-    public TemplateController(TemplateService templateService) {
+    public TemplateController(TemplateService templateService,
+                              TemplateTransferService templateTransferService,
+                              TemplateExportService templateExportService,
+                              TemplateImportTemplateService templateImportTemplateService) {
         this.templateService = templateService;
+        this.templateTransferService = templateTransferService;
+        this.templateExportService = templateExportService;
+        this.templateImportTemplateService = templateImportTemplateService;
     }
 
     /** List device templates with point counts and real/mock tags */
@@ -74,5 +97,41 @@ public class TemplateController {
     public ApiResponse<String> deletePoint(@PathVariable("pointId") Long pointId) {
         templateService.deletePoint(pointId);
         return ApiResponse.success("Point deleted successfully");
+    }
+
+    /** Preview or import the teacher-provided template workbook. */
+    @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('device:template:view')")
+    @OperationLog(module = "Template Management", operation = "Import template workbook", businessType = BusinessType.IMPORT)
+    public ApiResponse<ImportSummary> importWorkbook(
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(value = "dryRun", defaultValue = "false") boolean dryRun) {
+        return ApiResponse.success(templateTransferService.importWorkbook(file, dryRun));
+    }
+
+    /** Download a workbook with the teacher-provided template layout. */
+    @GetMapping("/import-template")
+    @PreAuthorize("hasAuthority('device:template:view')")
+    @OperationLog(module = "Template Management", operation = "Download template import template", businessType = BusinessType.EXPORT)
+    public ResponseEntity<ByteArrayResource> downloadImportTemplate() {
+        byte[] content = templateImportTemplateService.generate();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentDisposition(ContentDisposition.attachment().filename("KVTP-A-single-panel-plan.xlsx").build());
+        headers.setContentType(MediaType.parseMediaType(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+        return ResponseEntity.ok().headers(headers).body(new ByteArrayResource(content));
+    }
+
+    /** Export a database snapshot of active device and point templates. */
+    @GetMapping("/export")
+    @PreAuthorize("hasAuthority('device:template:view')")
+    @OperationLog(module = "Template Management", operation = "Export template snapshot", businessType = BusinessType.EXPORT)
+    public ResponseEntity<ByteArrayResource> exportWorkbook() {
+        byte[] content = templateExportService.exportWorkbook();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentDisposition(ContentDisposition.attachment().filename("n4-template-snapshot.xlsx").build());
+        headers.setContentType(MediaType.parseMediaType(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+        return ResponseEntity.ok().headers(headers).body(new ByteArrayResource(content));
     }
 }

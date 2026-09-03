@@ -41,13 +41,20 @@ where npm.cmd >nul 2>&1 || (
   exit /b 1
 )
 
-echo Checking for an existing N4 Monitor backend on port 8088...
-call :stop_port 8088 "N4 Monitor backend"
+set "BACKEND_PORT=8088"
+if exist "%ROOT%.env" (
+  for /f "usebackq tokens=1,* delims==" %%A in ("%ROOT%.env") do (
+    if "%%A"=="SERVER_PORT" set "BACKEND_PORT=%%B"
+  )
+)
+
+echo Checking for an existing N4 Monitor backend on port %BACKEND_PORT%...
+call :stop_port %BACKEND_PORT% "N4 Monitor backend"
 
 echo Checking for an existing N4 Monitor frontend on port 5173...
 call :stop_port 5173 "N4 Monitor frontend"
 
-echo Starting a fresh N4 Monitor backend on port 8088...
+echo Starting a fresh N4 Monitor backend on port %BACKEND_PORT%...
 rem Build the reactor first so monitor-common and monitor-flink-job are available
 rem to monitor-backend after a fresh pull or a clean local Maven repository.
 start "N4 Monitor Backend" cmd.exe /k "cd /d ""%ROOT%"" && mvn.cmd -pl monitor-backend -am install -DskipTests && cd /d ""%BACKEND%"" && mvn.cmd spring-boot:run"

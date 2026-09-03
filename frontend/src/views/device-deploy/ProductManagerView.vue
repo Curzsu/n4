@@ -126,7 +126,7 @@
               <el-table-column type="selection" width="30" v-if="isPointBatchManaging" align="center" header-align="center" :resizable="false" />
               <el-table-column prop="pointTmplId" label="ID" width="55" align="left" header-align="center" :resizable="false" />
               <el-table-column prop="pointName" label="Point Name" min-width="180" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
-              <el-table-column prop="dataType" label="Data Type" width="110" align="left" header-align="center" :resizable="false" />
+              <el-table-column prop="type" label="Type" width="110" align="left" header-align="center" :resizable="false" />
               <el-table-column prop="unit" label="Unit" width="90" align="left" header-align="center" :resizable="false" />
               <el-table-column prop="displayPrecision" label="Precision" width="90" align="left" header-align="center" :resizable="false" />
               <el-table-column label="Alarm Rule" min-width="220" align="left" header-align="center" :resizable="false">
@@ -206,8 +206,20 @@
               >
                 Add Template
               </el-button>
-              <el-button size="small" class="btn-secondary" :icon="Download" @click="handleImport">Import</el-button>
-              <el-button size="small" class="btn-secondary" :icon="Upload" @click="handleExport">Export</el-button>
+              <el-button size="small" class="btn-secondary" :icon="Download" @click="openN4TemplateImport">Import</el-button>
+              <el-button-group class="transfer-button-group">
+                <el-button size="small" class="btn-secondary" :icon="Upload" @click="handleExport">Export</el-button>
+                <el-dropdown @command="handleExportMode">
+                  <el-button size="small" class="btn-secondary transfer-menu-button">
+                    <el-icon><ArrowDown /></el-icon>
+                  </el-button>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="template-snapshot">Database Snapshot</el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+              </el-button-group>
             </template>
           </div>
         </div>
@@ -417,16 +429,8 @@
         <el-form-item label="Point Name" prop="pointName">
           <el-input v-model="pointForm.pointName" maxlength="50" placeholder="e.g. Temperature" />
         </el-form-item>
-        <el-form-item label="Point Type" prop="pointType">
-          <el-select v-model="pointForm.pointType" placeholder="Select point type" style="width: 100%" clearable>
-            <el-option value="DI" label="DI - Digital Input" />
-            <el-option value="DO" label="DO - Digital Output" />
-            <el-option value="AI" label="AI - Analog Input" />
-            <el-option value="AO" label="AO - Analog Output" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="Data Type" prop="dataType">
-          <el-select v-model="pointForm.dataType" placeholder="Select data type" style="width: 100%" clearable>
+        <el-form-item label="Type" prop="type">
+          <el-select v-model="pointForm.type" placeholder="Select point type" style="width: 100%" clearable>
             <el-option value="numeric" label="numeric - Number" />
             <el-option value="enum" label="enum - Enumeration" />
             <el-option value="boolean" label="boolean - Boolean" />
@@ -446,42 +450,70 @@
       </template>
     </el-dialog>
 
-    <!-- Import CSV Drag & Drop Dialog -->
+    <!-- Teacher-provided N4 template workbook import dialog -->
     <el-dialog
-      v-model="importDialogVisible"
-      title="Import Point Data"
-      width="460px"
+      v-model="n4TemplateImportDialogVisible"
+      title="Import N4 Template Excel"
+      width="520px"
       append-to-body
       class="dark-dialog"
     >
       <el-upload
+        ref="n4TemplateUploadRef"
         class="upload-drag-area"
         drag
         action="#"
         :auto-upload="false"
         :show-file-list="false"
-        accept=".csv"
-        :on-change="handleImportFileChange"
+        accept=".xlsx"
+        :on-change="handleN4TemplateFileChange"
       >
         <el-icon class="el-icon--upload" style="font-size: 48px; color: #3b82f6; margin-bottom: 12px;"><UploadFilled /></el-icon>
         <div class="el-upload__text" style="color: #cbd5e1; font-size: 14px;">
-          Drag CSV template file here, or <em style="color: #3b82f6; font-style: normal; font-weight: bold; cursor: pointer;">click to upload</em>
+          Drag the N4 template workbook here, or <em style="color: #3b82f6; font-style: normal; font-weight: bold; cursor: pointer;">click to upload</em>
         </div>
         <template #tip>
           <div class="el-upload__tip text-center" style="margin-top: 15px; color: #64748b; font-size: 12px; text-align: center;">
-            Only .csv format is supported. Please ensure the data format is correct before importing.
+            The workbook is previewed first. The download below uses the teacher-provided 35-sheet layout and sample data.
+            Edit the required sheets and rows before importing. Existing template data is reused and never reset.
           </div>
         </template>
       </el-upload>
+      <div v-if="n4TemplateImportResult" class="transfer-result">
+        <div class="transfer-result-title">
+          {{ n4TemplateImportResult.valid ? 'Preview ready' : 'Preview failed' }}
+        </div>
+        <div class="transfer-result-counts">
+          Templates: {{ n4TemplateImportResult.deviceTemplateCreated }} new,
+          {{ n4TemplateImportResult.deviceTemplateReused }} reused ·
+          Points: {{ n4TemplateImportResult.pointTemplateCreated }} new,
+          {{ n4TemplateImportResult.pointTemplateReused }} reused
+        </div>
+        <div v-for="issue in n4TemplateImportResult.issues" :key="`${issue.code}-${issue.fileName}-${issue.rowNumber}`" class="transfer-issue" :class="issue.severity.toLowerCase()">
+          {{ issue.severity }}: {{ issue.message }}
+        </div>
+      </div>
       <template #footer>
-        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-          <el-button type="primary" link :icon="Download" @click="downloadImportTemplate">
-            Download Template
+        <div class="transfer-dialog-footer" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+          <el-button type="primary" link :icon="Download" :loading="n4TemplateDownloadLoading" @click="downloadN4ImportTemplate">
+            Download Excel Template
           </el-button>
-          <el-button class="btn-secondary" @click="importDialogVisible = false">Close</el-button>
+          <div>
+            <el-button class="btn-secondary" @click="closeN4TemplateImport">Close</el-button>
+            <el-button
+              type="primary"
+              class="btn-primary"
+              :loading="n4TemplateImportLoading"
+              :disabled="!n4TemplateImportFile || !n4TemplateImportResult?.valid"
+              @click="confirmN4TemplateImport"
+            >
+              Confirm Import
+            </el-button>
+          </div>
         </div>
       </template>
     </el-dialog>
+
 
     <!-- Device Diagram Modal Dialog -->
     <TemplateDiagramDialog
@@ -500,11 +532,11 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, type CSSProperties } from 'vue'
-import { Plus, Edit, Delete, List, Odometer, Download, Upload, UploadFilled, Search, Picture } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete, List, Odometer, Download, Upload, UploadFilled, Search, Picture, ArrowDown } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { templateApi } from '@/api/template'
-import type { DeviceTemplate, PointTemplateItem } from '@/api/types'
-import type { FormInstance, FormRules } from 'element-plus'
+import type { DeviceTemplate, ImportSummary, PointTemplateItem } from '@/api/types'
+import type { FormInstance, FormRules, UploadInstance } from 'element-plus'
 import { useDashboardStore } from '@/stores/dashboard'
 import TemplateDiagramDialog from './dialogs/TemplateDiagramDialog.vue'
 import AlarmRuleEditModal from './dialogs/AlarmRuleEditModal.vue'
@@ -535,14 +567,18 @@ const cellStyle: CSSProperties = {
   borderBottom: '1px solid #1f2937',
   textAlign: 'left',
 }
-
 const loading = ref(false)
 const tableSearchQuery = ref('')
 const selectedPoints = ref<any[]>([])
 const isPointBatchManaging = ref(false)
 const isTemplateBatchManaging = ref(false)
 const selectedTemplates = ref<any[]>([])
-const importDialogVisible = ref(false)
+const n4TemplateImportDialogVisible = ref(false)
+const n4TemplateImportLoading = ref(false)
+const n4TemplateDownloadLoading = ref(false)
+const n4TemplateImportFile = ref<File | null>(null)
+const n4TemplateImportResult = ref<ImportSummary | null>(null)
+const n4TemplateUploadRef = ref<UploadInstance>()
 
 function handleTemplateSelectionChange(val: any[]) {
   selectedTemplates.value = val
@@ -576,8 +612,7 @@ const pointFormRef = ref<FormInstance>()
 const pointForm = ref<any>({
   pointTmplId: null,
   pointName: '',
-  pointType: null,
-  dataType: null,
+  type: null,
   unit: '',
   displayPrecision: 0
 })
@@ -635,11 +670,8 @@ const pointRules = ref<FormRules>({
     { validator: validatePointNameUnique, trigger: 'blur' },
     { max: 50, message: 'Point name cannot exceed 50 characters', trigger: 'blur' }
   ],
-  pointType: [
+  type: [
     { required: true, message: 'Please select point type', trigger: 'change' }
-  ],
-  dataType: [
-    { required: true, message: 'Please select data type', trigger: 'change' }
   ],
   unit: [
     { validator: validateUnit, trigger: 'blur' },
@@ -1107,8 +1139,7 @@ function openAddPointDialog() {
   pointForm.value = {
     pointTmplId: null,
     pointName: '',
-    pointType: null,
-    dataType: null,
+    type: null,
     unit: '',
     displayPrecision: 0
   }
@@ -1125,8 +1156,7 @@ function openEditPointDialog(row: any) {
   pointForm.value = {
     pointTmplId: row.pointTmplId,
     pointName: row.pointName,
-    pointType: row.pointType || null,
-    dataType: row.dataType || null,
+    type: row.type || row.dataType || null,
     unit: row.unit || '',
     displayPrecision: row.displayPrecision ?? 0
   }
@@ -1174,8 +1204,7 @@ async function submitPointForm() {
 
     const payload = {
       pointName: pointForm.value.pointName.trim(),
-      pointType: pointForm.value.pointType,
-      dataType: pointForm.value.dataType,
+      type: pointForm.value.type,
       unit: pointForm.value.unit ? pointForm.value.unit.trim() : '',
       displayPrecision: pointForm.value.displayPrecision ?? 0
     }
@@ -1280,8 +1309,85 @@ async function handleAlarmSaved() {
   await store.loadTemplates()
 }
 
-function handleExport() {
+async function handleExport() {
+  try {
+    await ElMessageBox.confirm(
+      'Are you sure you want to export all device templates and points to CSV?',
+      'Export Confirmation',
+      {
+        confirmButtonText: 'Export',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+        customClass: 'dark-message-box'
+      }
+    )
+  } catch {
+    return
+  }
   exportAllTemplatesAndPoints()
+}
+
+function openN4TemplateImport() {
+  n4TemplateUploadRef.value?.clearFiles()
+  n4TemplateImportFile.value = null
+  n4TemplateImportResult.value = null
+  n4TemplateImportDialogVisible.value = true
+}
+
+function handleExportMode(command: string) {
+  if (command === 'template-snapshot') {
+    downloadTemplateSnapshot()
+  }
+}
+
+async function downloadN4ImportTemplate() {
+  n4TemplateDownloadLoading.value = true
+  try {
+    const blob = await templateApi.downloadImportTemplate()
+    downloadBlob(blob, 'KVTP-A-single-panel-plan.xlsx')
+    ElMessage.success('Excel import template downloaded successfully')
+  } catch (err: any) {
+    ElMessage.error(err.message || 'Excel import template download failed')
+  } finally {
+    n4TemplateDownloadLoading.value = false
+  }
+}
+
+async function downloadTemplateSnapshot() {
+  try {
+    await ElMessageBox.confirm(
+      'Are you sure you want to export the database template snapshot to Excel?',
+      'Export Confirmation',
+      {
+        confirmButtonText: 'Export',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+        customClass: 'dark-message-box'
+      }
+    )
+  } catch {
+    return
+  }
+
+  loading.value = true
+  try {
+    const blob = await templateApi.exportSnapshot()
+    downloadBlob(blob, 'n4-template-snapshot.xlsx')
+    ElMessage.success('Template snapshot downloaded successfully')
+  } catch (err: any) {
+    ElMessage.error(err.message || 'Template snapshot export failed')
+  } finally {
+    loading.value = false
+  }
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  link.click()
+  URL.revokeObjectURL(url)
 }
 
 async function exportAllTemplatesAndPoints() {
@@ -1305,8 +1411,8 @@ async function exportAllTemplatesAndPoints() {
             tpl.model || '',
             tpl.manufacturer || '',
             p.pointName || '',
-            p.pointType || '',
-            p.dataType || '',
+            '',
+            p.type || '',
             p.unit || '',
             p.displayPrecision ?? 0
           ])
@@ -1339,204 +1445,46 @@ async function exportAllTemplatesAndPoints() {
   }
 }
 
-function handleImport() {
-  importDialogVisible.value = true
-}
-
-function handleImportFileChange(uploadFile: any) {
-  const rawFile = uploadFile.raw
-  if (rawFile) {
-    importAllTemplatesAndPoints(rawFile)
-    importDialogVisible.value = false
+async function handleN4TemplateFileChange(uploadFile: any) {
+  const rawFile = uploadFile.raw as File | undefined
+  if (!rawFile) return
+  n4TemplateImportFile.value = rawFile
+  n4TemplateImportLoading.value = true
+  try {
+    n4TemplateImportResult.value = await templateApi.importWorkbook(rawFile, true)
+  } catch (err: any) {
+    n4TemplateImportResult.value = null
+    ElMessage.error(err.message || 'Template workbook preview failed')
+  } finally {
+    n4TemplateImportLoading.value = false
   }
 }
 
-function downloadImportTemplate() {
-  const headers = ['Template Name', 'Device Type', 'Model / Specs', 'Manufacturer', 'Point Name', 'Point Type', 'Data Type', 'Unit', 'Precision']
-  const rows = [
-    ['Sample_Power_Meter', 'EM', 'DTSD-342', 'Instrument Corp', 'Voltage_A', 'AI', 'numeric', 'V', '1'],
-    ['Sample_Power_Meter', 'EM', 'DTSD-342', 'Instrument Corp', 'Voltage_B', 'AI', 'numeric', 'V', '1'],
-    ['Sample_Power_Meter', 'EM', 'DTSD-342', 'Instrument Corp', 'Communication_Status', 'DI', 'enum', 'None', '0']
-  ]
-
-  let csvContent = "\uFEFF"
-  csvContent += [headers.join(','), ...rows.map(r => r.map(val => `"${val}"`).join(','))].join('\n')
-
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement("a")
-  const url = URL.createObjectURL(blob)
-  link.setAttribute("href", url)
-  link.setAttribute("download", `Device_Point_Import_Template.csv`)
-  link.style.visibility = 'hidden'
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  ElMessage.success('Import template downloaded')
-}
-
-function importAllTemplatesAndPoints(file: File) {
-  const reader = new FileReader()
-  reader.onload = async (e: any) => {
-    loading.value = true
-    try {
-      const text = e.target.result
-      const lines = text.split('\n').map((l: string) => l.trim()).filter(Boolean)
-      if (lines.length <= 1) {
-        throw new Error('Invalid format: File is empty or has no data rows')
-      }
-
-      let delimiter = ','
-      if (lines[1] && lines[1].includes(';')) {
-        delimiter = ';'
-      }
-
-      const headerLine = lines[0].split(delimiter).map((s: any) => s.replace(/^"|"$/g, '').trim())
-      if (headerLine.length < 9) {
-        throw new Error('Invalid format: Header must have at least 9 columns')
-      }
-
-      const groups = new Map<string, { type: string, model: string, manufacturer: string, points: any[], seenPointNames: Set<string> }>()
-      const validationErrors: string[] = []
-
-      for (let i = 1; i < lines.length; i++) {
-        const parts = lines[i].split(delimiter).map((s: any) => s.replace(/^"|"$/g, '').trim())
-        if (parts.every((p: any) => p === '')) continue
-
-        const rowNum = i + 1
-        if (parts.length < 9) {
-          validationErrors.push(`Row ${rowNum}: Insufficient columns (expected 9, got ${parts.length})`)
-          continue
-        }
-
-        const tplName = parts[0]
-        if (!tplName || tplName.length < 2 || tplName.length > 100) {
-          validationErrors.push(`Row ${rowNum}: Template name must be 2-100 characters`)
-        }
-
-        const type = parts[1] || 'EM'
-        if (type.length > 50) {
-          validationErrors.push(`Row ${rowNum}: Device type cannot exceed 50 characters`)
-        }
-
-        const model = (parts[2] || '').slice(0, 100)
-        const manufacturer = (parts[3] || '').slice(0, 100)
-
-        const pointName = parts[4]
-        if (!pointName || pointName.length < 1 || pointName.length > 150) {
-          validationErrors.push(`Row ${rowNum}: Point name must be 1-150 characters`)
-        } else if (!/^[a-zA-Z0-9_\-\.\s()]+$/.test(pointName)) {
-          validationErrors.push(`Row ${rowNum}: Point name "${pointName}" contains invalid characters`)
-        }
-
-        const typeStr = (parts[5] || '').toUpperCase()
-        let pointType = 'AI'
-        if (typeStr.includes('DI')) pointType = 'DI'
-        else if (typeStr.includes('DO')) pointType = 'DO'
-        else if (typeStr.includes('AI')) pointType = 'AI'
-        else if (typeStr.includes('AO')) pointType = 'AO'
-        else {
-          validationErrors.push(`Row ${rowNum}: Invalid point type "${parts[5]}", must be DI, DO, AI, or AO`)
-        }
-
-        let dataType = (parts[6] || '').toLowerCase()
-        const validDataTypes = ['numeric', 'enum', 'boolean', 'string']
-        if (!dataType) {
-          dataType = (pointType === 'DI' || pointType === 'DO') ? 'enum' : 'numeric'
-        } else if (!validDataTypes.includes(dataType)) {
-          validationErrors.push(`Row ${rowNum}: Invalid data type "${parts[6]}", must be numeric, enum, boolean, or string`)
-        }
-
-        const unit = (parts[7] || '').slice(0, 50)
-        const precisionStr = parts[8]
-        const displayPrecision = parseInt(precisionStr, 10)
-        if (isNaN(displayPrecision) || displayPrecision < 0 || displayPrecision > 4) {
-          validationErrors.push(`Row ${rowNum}: Display precision must be an integer between 0 and 4`)
-        }
-
-        if (!groups.has(tplName)) {
-          groups.set(tplName, {
-            type,
-            model,
-            manufacturer,
-            points: [],
-            seenPointNames: new Set<string>()
-          })
-        }
-
-        const group = groups.get(tplName)!
-        const lowerPointName = (pointName || '').toLowerCase()
-        if (group.seenPointNames.has(lowerPointName)) {
-          validationErrors.push(`Row ${rowNum}: Duplicate point name "${pointName}" under template "${tplName}"`)
-        } else {
-          group.seenPointNames.add(lowerPointName)
-        }
-
-        group.points.push({
-          pointName,
-          pointType,
-          dataType,
-          unit,
-          displayPrecision: isNaN(displayPrecision) ? 0 : Math.max(0, Math.min(4, displayPrecision))
-        })
-      }
-
-      if (validationErrors.length > 0) {
-        const errorSummary = validationErrors.slice(0, 5).join('\n') + (validationErrors.length > 5 ? `\n...and ${validationErrors.length - 5} more error(s)` : '')
-        ElMessageBox.alert(errorSummary, 'CSV Validation Failed', {
-          type: 'error',
-          confirmButtonText: 'OK'
-        })
-        loading.value = false
-        return
-      }
-
-      if (groups.size === 0) {
-        throw new Error('No valid records parsed from CSV')
-      }
-
-      let createdCount = 0
-      let updatedCount = 0
-      let totalPointsCount = 0
-
-      for (const [tplName, data] of groups.entries()) {
-        const template = store.allTemplates.find((t: any) => t.deviceTmplName === tplName)
-        let targetTmplId: number | null = null
-
-        if (!template) {
-          const created = await templateApi.createTemplate({
-            deviceTmplName: tplName,
-            deviceType: data.type || 'EM',
-            model: data.model || 'N/A',
-            manufacturer: data.manufacturer || 'N/A',
-            manuDate: new Date().toISOString().split('T')[0]
-          })
-          createdCount++
-          targetTmplId = created.deviceTmplId!
-        } else {
-          targetTmplId = template.deviceTmplId!
-          updatedCount++
-        }
-
-        if (targetTmplId) {
-          for (const ip of data.points) {
-            await templateApi.addPoint(targetTmplId, ip)
-            totalPointsCount++
-          }
-        }
-      }
-
-      ElMessage.success(`Import complete: ${createdCount} created, ${updatedCount} updated, ${totalPointsCount} points total.`)
-      await store.refreshAfterMutation()
-
-    } catch (err: any) {
-      console.error(err)
-      ElMessage.error(err.message || 'Import failed')
-    } finally {
-      loading.value = false
+async function confirmN4TemplateImport() {
+  if (!n4TemplateImportFile.value || !n4TemplateImportResult.value?.valid) return
+  n4TemplateImportLoading.value = true
+  try {
+    const result = await templateApi.importWorkbook(n4TemplateImportFile.value, false)
+    if (!result.valid || !result.committed) {
+      n4TemplateImportResult.value = result
+      ElMessage.error('Template workbook import was not committed')
+      return
     }
+    await store.refreshAfterMutation()
+    ElMessage.success('N4 template workbook imported successfully')
+    closeN4TemplateImport()
+  } catch (err: any) {
+    ElMessage.error(err.message || 'Template workbook import failed')
+  } finally {
+    n4TemplateImportLoading.value = false
   }
-  reader.readAsText(file, 'utf-8')
-  return false
+}
+
+function closeN4TemplateImport() {
+  n4TemplateImportDialogVisible.value = false
+  n4TemplateUploadRef.value?.clearFiles()
+  n4TemplateImportFile.value = null
+  n4TemplateImportResult.value = null
 }
 </script>
 

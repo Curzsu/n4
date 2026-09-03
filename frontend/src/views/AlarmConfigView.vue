@@ -18,9 +18,21 @@
       </div>
     </div>
 
+    <!-- Search Bar -->
+    <div class="search-box-table">
+      <el-input
+        v-model="searchQuery"
+        placeholder="Search alarm rules..."
+        size="small"
+        :prefix-icon="Search"
+        clearable
+        class="search-bar"
+      />
+    </div>
+
     <!-- Numeric table -->
     <div v-show="activeTab === 'numeric'" class="config-table-wrapper">
-      <el-table :data="numericData" :height="tableHeight" style="width: 100%"
+      <el-table :data="filteredNumericData" :height="tableHeight" style="width: 100%"
         :header-cell-style="headerCellStyle" :cell-style="cellStyle" size="small" border v-loading="loading">
         <el-table-column prop="alarmName" label="Alarm Name" width="200" show-overflow-tooltip />
         <el-table-column prop="timeDelay" label="Time Delay(s)" width="80" align="center" />
@@ -56,7 +68,7 @@
 
     <!-- Enum table -->
     <div v-show="activeTab === 'enum'" class="config-table-wrapper">
-      <el-table :data="enumData" :height="tableHeight" style="width: 100%"
+      <el-table :data="filteredEnumData" :height="tableHeight" style="width: 100%"
         :header-cell-style="headerCellStyle" :cell-style="cellStyle" size="small" border v-loading="loading">
         <el-table-column prop="alarmName" label="Alarm Name" width="200" show-overflow-tooltip />
         <el-table-column prop="timeDelay" label="Time Delay(s)" width="80" align="center" />
@@ -226,9 +238,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Delete } from '@element-plus/icons-vue'
+import { Plus, Delete, Search } from '@element-plus/icons-vue'
 import { alarmApi } from '@/api/alarm'
 import type { NumericRuleItem, EnumRuleItem } from '@/api/types'
 
@@ -237,6 +249,7 @@ const saving = ref(false)
 const tableHeight = ref(400)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
+const searchQuery = ref('')
 
 const severityOptions = ['Critical', 'Major', 'Minor', 'Warning']
 const enumSeverityOptions = ['Critical', 'Major', 'Minor', 'Warning']
@@ -250,6 +263,28 @@ const activeTab = ref('numeric')
 // Table data per type
 const numericData = ref<NumericRuleItem[]>([])
 const enumData = ref<EnumRuleItem[]>([])
+
+const filteredNumericData = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return numericData.value
+  return numericData.value.filter((item) =>
+    (item.alarmName && item.alarmName.toLowerCase().includes(q)) ||
+    (item.highHighMessage && item.highHighMessage.toLowerCase().includes(q)) ||
+    (item.highMessage && item.highMessage.toLowerCase().includes(q)) ||
+    (item.lowMessage && item.lowMessage.toLowerCase().includes(q)) ||
+    (item.lowLowMessage && item.lowLowMessage.toLowerCase().includes(q))
+  )
+})
+
+const filteredEnumData = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return enumData.value
+  return enumData.value.filter((item) =>
+    (item.alarmName && item.alarmName.toLowerCase().includes(q)) ||
+    (item.enumMeaning && item.enumMeaning.toLowerCase().includes(q)) ||
+    (item.message && item.message.toLowerCase().includes(q))
+  )
+})
 
 // Form data (union of all three types; only relevant fields used per type)
 const formData = ref<any>({})
@@ -507,6 +542,35 @@ onMounted(() => {
   transition: all 0.2s;
   &:hover { color: $text-primary; background-color: $bg-card-hover; }
   &.active { color: $accent-green; border-bottom-color: $accent-green; }
+}
+
+.search-box-table {
+  width: 240px;
+  flex-shrink: 0;
+
+  :deep(.el-input__wrapper) {
+    background-color: #0b1119 !important;
+    height: 20px !important;
+    min-height: 20px !important;
+    line-height: 20px !important;
+    padding: 0 6px !important;
+    border-radius: 4px !important;
+    border: 1px solid #1e293b !important;
+    box-shadow: none !important;
+    font-size: 10px !important;
+  }
+
+  :deep(.el-input__inner) {
+    font-size: 10px !important;
+    height: 20px !important;
+    line-height: 20px !important;
+    color: #e5e7eb !important;
+
+    &::placeholder {
+      font-size: 10px !important;
+      color: #64748b !important;
+    }
+  }
 }
 
 .config-table-wrapper {

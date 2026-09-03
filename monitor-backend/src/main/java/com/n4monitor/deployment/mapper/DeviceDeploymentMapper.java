@@ -11,6 +11,8 @@ public interface DeviceDeploymentMapper {
 
     List<DeviceDeployment> findAll();
 
+    List<DeviceDeployment> findAllIncludingDeleted();
+
     List<DeviceDeployment> findByNavNodeId(@Param("navNodeId") Long navNodeId);
 
     DeviceDeployment findByDeviceDeployId(@Param("deviceDeployId") Long deviceDeployId);
@@ -26,4 +28,8 @@ public interface DeviceDeploymentMapper {
                    @Param("n4Address") String n4Address);
 
     int logicalDelete(@Param("deviceDeployId") Long deviceDeployId);
+
+    int restore(@Param("deviceDeployId") Long deviceDeployId);
+
+    int updateAlarmCode(@Param("deviceDeployId") Long deviceDeployId, @Param("alarmCode") String alarmCode);
 }

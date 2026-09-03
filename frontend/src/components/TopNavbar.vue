@@ -25,36 +25,19 @@
         >{{ alarmSummary?.[b.key] || 0 }}</span>
       </div>
       <el-icon class="search-icon"><Search /></el-icon>
-      <el-dropdown trigger="click" @command="handleUserCommand">
-        <div class="user-profile">
-          <el-icon><UserFilled /></el-icon>
-          <span class="username">{{ displayName }}</span>
-          <el-icon class="arrow-icon"><ArrowDown /></el-icon>
-        </div>
-        <template #dropdown>
-          <el-dropdown-menu>
-            <el-dropdown-item command="password">Change Password</el-dropdown-item>
-            <el-dropdown-item command="logs">Audit Logs</el-dropdown-item>
-            <el-dropdown-item divided command="logout">Logout</el-dropdown-item>
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
+      <span class="admin-name">{{ displayName }}</span>
     </div>
-
-    <ChangePasswordDialog v-model="changePasswordVisible" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Search, UserFilled, ArrowDown } from '@element-plus/icons-vue'
-import { ElMessageBox, ElMessage } from 'element-plus'
+import { Search } from '@element-plus/icons-vue'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
 import { useAuthStore } from '@/stores/auth'
 import { severityColors } from '@/config/severityColors'
-import ChangePasswordDialog from '@/components/ChangePasswordDialog.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -62,11 +45,7 @@ const store = useDashboardStore()
 const authStore = useAuthStore()
 const { summaryData } = useAlarmWebSocket()
 
-const changePasswordVisible = ref(false)
-
-const displayName = computed(() => {
-  return authStore.currentUser?.realName || authStore.currentUser?.username || 'User'
-})
+const displayName = computed(() => authStore.currentUser?.realName || authStore.currentUser?.username || '')
 
 // Live alarm counts from the WebSocket stream
 const alarmSummary = computed(() => {
@@ -133,27 +112,6 @@ function handleTabClick(tab: string) {
 
 function handleBadgeClick(severity: string) {
   router.push({ path: '/alarm', query: { severity } })
-}
-
-async function handleUserCommand(command: string) {
-  if (command === 'password') {
-    changePasswordVisible.value = true
-  } else if (command === 'logs') {
-    router.push('/logs')
-  } else if (command === 'logout') {
-    try {
-      await ElMessageBox.confirm('Are you sure you want to log out?', 'Confirm Logout', {
-        type: 'warning',
-        confirmButtonText: 'Logout',
-        cancelButtonText: 'Cancel',
-      })
-      await authStore.logout()
-      ElMessage.success('Logged out successfully')
-      router.push('/login')
-    } catch {
-      // User cancelled
-    }
-  }
 }
 </script>
 
@@ -252,28 +210,10 @@ async function handleUserCommand(command: string) {
   font-size: 16px;
 }
 
-.user-profile {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.admin-name {
   color: $text-secondary;
   font-size: 13px;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: background-color 0.2s;
-
-  &:hover {
-    color: $text-primary;
-    background-color: $bg-card-hover;
-  }
-
-  .username {
-    font-weight: 500;
-  }
-
-  .arrow-icon {
-    font-size: 11px;
-  }
+  font-weight: 500;
+  white-space: nowrap;
 }
 </style>

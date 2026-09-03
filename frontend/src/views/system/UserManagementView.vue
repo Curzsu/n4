@@ -7,6 +7,16 @@
         <el-button v-permission="'sys:user:add'" size="small" class="btn-primary" :icon="Plus" @click="openCreate">
           Add User
         </el-button>
+        <el-button
+          v-permission="'sys:user:delete'"
+          size="small"
+          class="btn-danger"
+          :icon="Delete"
+          :disabled="selectedUsers.length === 0"
+          @click="batchDelete"
+        >
+          Delete
+        </el-button>
         <el-button size="small" class="btn-secondary" :icon="Refresh" @click="loadUsers">
           Refresh
         </el-button>
@@ -53,8 +63,7 @@
         </el-select>
       </div>
       <div class="filter-actions">
-        <el-button size="small" class="btn-primary" @click="handleSearch">Search</el-button>
-        <el-button size="small" class="btn-secondary" @click="handleReset">Reset</el-button>
+        <el-button size="small" class="btn-primary" :icon="Search" @click="handleSearch">Search</el-button>
       </div>
     </div>
 
@@ -70,11 +79,13 @@
         border
         class="custom-table"
         v-loading="loading"
+        @selection-change="handleSelectionChange"
       >
+        <el-table-column type="selection" width="40" align="center" header-align="center" :resizable="false" />
         <el-table-column prop="userId" label="ID" width="55" align="left" header-align="center" :resizable="false" />
-        <el-table-column prop="username" label="Username" min-width="120" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
-        <el-table-column prop="realName" label="Real Name" min-width="120" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
-        <el-table-column label="Roles" min-width="150" align="left" header-align="center" show-overflow-tooltip :resizable="false">
+        <el-table-column prop="username" label="Username" min-width="110" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+        <el-table-column prop="realName" label="Real Name" min-width="110" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+        <el-table-column label="Roles" min-width="130" align="left" header-align="center" show-overflow-tooltip :resizable="false">
           <template #default="{ row }">
             <span v-for="g in (row as User).groups || []" :key="g.groupId" class="role-badge">
               {{ g.groupName }}
@@ -82,18 +93,18 @@
             <span v-if="!row.groups || row.groups.length === 0" class="text-muted">-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="email" label="Email" min-width="170" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
-        <el-table-column prop="phone" label="Phone" width="110" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
-        <el-table-column label="Status" width="85" align="left" header-align="center" :resizable="false">
+        <el-table-column prop="email" label="Email" min-width="150" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+        <el-table-column prop="phone" label="Phone" width="105" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+        <el-table-column label="Status" width="80" align="left" header-align="center" :resizable="false">
           <template #default="{ row }">
             <span :class="['status-badge', row.status === 1 ? 'active' : 'disabled']">
               {{ row.status === 1 ? 'Active' : 'Disabled' }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="lastLoginTime" label="Last Login" width="145" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
-        <el-table-column prop="createTime" label="Created At" width="145" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
-        <el-table-column label="Actions" width="180" align="center" header-align="center" :resizable="false">
+        <el-table-column prop="lastLoginTime" label="Last Login" width="140" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+        <el-table-column prop="createTime" label="Created At" width="140" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+        <el-table-column label="Actions" width="180" align="center" header-align="center" fixed="right" :resizable="false">
           <template #default="{ row }">
             <div class="action-btn-grid">
               <div class="action-col">
@@ -199,7 +210,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Refresh } from '@element-plus/icons-vue'
+import { Plus, Refresh, Delete, Search } from '@element-plus/icons-vue'
 import { userApi } from '@/api/user'
 import { groupApi } from '@/api/group'
 import type { Group, User, UserForm } from '@/api/types'
@@ -207,6 +218,7 @@ import type { Group, User, UserForm } from '@/api/types'
 const loading = ref(false)
 const saving = ref(false)
 const users = ref<User[]>([])
+const selectedUsers = ref<User[]>([])
 const groups = ref<Group[]>([])
 const total = ref(0)
 
@@ -263,14 +275,6 @@ async function loadGroups() {
 }
 
 function handleSearch() {
-  query.page = 1
-  loadUsers()
-}
-
-function handleReset() {
-  query.username = ''
-  query.realName = ''
-  query.status = undefined
   query.page = 1
   loadUsers()
 }
@@ -359,7 +363,44 @@ async function toggleStatus(row: User) {
   } catch {}
 }
 
+function handleSelectionChange(rows: User[]) {
+  selectedUsers.value = rows
+}
+
+async function batchDelete() {
+  if (selectedUsers.value.length === 0) return
+  const deletableUsers = selectedUsers.value.filter((u) => u.userId !== 1)
+  if (deletableUsers.length === 0) {
+    ElMessage.warning('Cannot delete super administrator account')
+    return
+  }
+  try {
+    const names = deletableUsers.map((u) => u.username).join(', ')
+    await ElMessageBox.confirm(
+      `Are you sure you want to delete ${deletableUsers.length} user(s): ${names}? This action cannot be undone.`,
+      'Confirm Delete',
+      {
+        type: 'warning',
+        confirmButtonText: 'Delete',
+        cancelButtonText: 'Cancel',
+      }
+    )
+    for (const user of deletableUsers) {
+      await userApi.delete(user.userId)
+    }
+    ElMessage.success('Deleted successfully')
+    selectedUsers.value = []
+    loadUsers()
+  } catch {
+    // Cancelled by user
+  }
+}
+
 async function removeUser(row: User) {
+  if (row.userId === 1) {
+    ElMessage.warning('Cannot delete super administrator account')
+    return
+  }
   try {
     await ElMessageBox.confirm(`Are you sure you want to delete user "${row.username}"? This action cannot be undone.`, 'Confirm Delete', {
       type: 'warning',
@@ -433,7 +474,6 @@ onMounted(() => {
   }
 
   .filter-actions {
-    margin-left: auto;
     display: flex;
     align-items: center;
     gap: 6px;

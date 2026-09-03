@@ -86,11 +86,11 @@
                 :cell-style="cellStyle"
               >
                 <el-table-column prop="pointName" label="Point Name" min-width="180" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
-                <el-table-column prop="dataType" label="Data Type" width="110" align="left" header-align="center" :resizable="false" />
+                <el-table-column prop="type" label="Type" width="110" align="left" header-align="center" :resizable="false" />
                 <el-table-column prop="unit" label="Unit" width="90" align="left" header-align="center" :resizable="false" />
-                <el-table-column prop="register" label="Register Address" min-width="150" align="left" header-align="center" :resizable="false">
+                <el-table-column prop="modbusAddress" label="Modbus Address" min-width="150" align="left" header-align="center" :resizable="false">
                   <template #default="{ row }">
-                    <code class="addr-code">{{ row.register || 'N/A' }}</code>
+                    <code class="addr-code">{{ row.modbusAddress || 'N/A' }}</code>
                   </template>
                 </el-table-column>
                 <el-table-column label="Alarm Rule" min-width="160" align="left" header-align="center" :resizable="false">
@@ -133,6 +133,8 @@
               <el-button size="small" class="btn-primary" :icon="Plus" v-if="canAddChild(selectedNode)" @click="navNodeDialogRef?.openCreate(selectedNode)">Add Child</el-button>
               <el-button size="small" class="btn-secondary" :icon="EditPen" @click="navNodeDialogRef?.openEdit(selectedNode)">Edit</el-button>
               <el-button size="small" class="btn-danger" :icon="Delete" @click="navNodeDialogRef?.confirmDelete(selectedNode)">Delete</el-button>
+              <el-button size="small" class="btn-secondary" :icon="Download" @click="openDeploymentImportDialog">Import</el-button>
+              <el-button size="small" class="btn-secondary" :icon="Upload" @click="exportDeploymentSnapshot">Export</el-button>
             </div>
           </header>
 
@@ -297,6 +299,108 @@
         </el-empty>
       </div>
     </section>
+
+    <!-- Deployment CSV or ZIP import/export dialog -->
+    <el-dialog
+      v-model="deploymentImportDialogVisible"
+      title="Import Deployment Data"
+      width="560px"
+      append-to-body
+      class="dark-dialog"
+    >
+      <div
+        class="deployment-upload-drop-zone"
+        @dragover.capture="handleDeploymentDragOver"
+        @drop.capture="handleDeploymentDrop"
+      >
+        <el-upload
+          ref="deploymentUploadRef"
+          class="upload-drag-area"
+          drag
+          multiple
+          action="#"
+          :auto-upload="false"
+          accept=".csv,.zip"
+          :on-change="handleDeploymentFileChange"
+          :on-remove="handleDeploymentFileRemove"
+        >
+          <el-icon class="el-icon--upload" style="font-size: 48px; color: #3b82f6; margin-bottom: 12px;"><UploadFilled /></el-icon>
+          <div class="el-upload__text" style="color: #cbd5e1; font-size: 14px;">
+            Drag deployment CSV files, a ZIP archive, or a folder here, or <em style="color: #3b82f6; font-style: normal; font-weight: bold; cursor: pointer;">click to upload</em>
+          </div>
+          <template #tip>
+            <div class="el-upload__tip text-center" style="margin-top: 15px; color: #64748b; font-size: 12px; text-align: center;">
+              Download the complete CSV layout below, then replace the example row. The full batch is validated before any database write.
+              Existing rows are reused. New/reused counts are based on CSV business keys (*path and mqttPath), not folder names.
+              Importing deployment data does not create navigation nodes. Use Add Child Group for new sidebar folders.
+            </div>
+          </template>
+        </el-upload>
+      </div>
+      <div class="deployment-folder-picker">
+        <input
+          ref="deploymentFolderInputRef"
+          class="deployment-folder-input"
+          type="file"
+          accept=".csv"
+          multiple
+          webkitdirectory
+          @change="handleDeploymentFolderChange"
+        />
+        <el-button size="small" class="btn-secondary" :icon="FolderOpened" @click="openDeploymentFolderPicker">
+          Select Folder
+        </el-button>
+        <span v-if="deploymentFolderFileCount" class="deployment-folder-summary">
+          {{ deploymentFolderName }}: {{ deploymentFolderFileCount }} CSV file(s) selected
+          <span v-if="deploymentFolderDuplicateCount">({{ deploymentFolderDuplicateCount }} duplicate file(s) ignored)</span>
+        </span>
+      </div>
+      <div v-if="deploymentImportResult" class="transfer-result">
+        <div class="transfer-result-title">
+          {{ deploymentImportResult.valid ? 'Preview ready' : 'Preview failed' }}
+        </div>
+        <div class="transfer-result-counts">
+          Navigation groups: {{ deploymentImportResult.navigationGroupCreated }} new<span v-if="deploymentImportResult.navigationGroupNames.length">
+            ({{ deploymentImportResult.navigationGroupNames.join(', ') }})</span> ·
+          Devices: {{ deploymentImportResult.deviceDeploymentCreated }} new,
+          {{ deploymentImportResult.deviceDeploymentReused }} reused ·
+          Points: {{ deploymentImportResult.pointDeploymentCreated }} new,
+          {{ deploymentImportResult.pointDeploymentReused }} reused ·
+          Enum rules: {{ deploymentImportResult.enumRuleCreated }} ·
+          Numeric rules: {{ deploymentImportResult.numericRuleCreated }}
+        </div>
+        <div v-for="issue in deploymentImportResult.issues" :key="`${issue.code}-${issue.fileName}-${issue.rowNumber}`" class="transfer-issue" :class="issue.severity.toLowerCase()">
+          {{ issue.severity }}: {{ issue.message }}
+        </div>
+      </div>
+      <template #footer>
+        <div class="transfer-dialog-footer" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+          <el-button type="primary" link :icon="Download" :loading="deploymentTemplateDownloadLoading" @click="downloadDeploymentImportTemplate">
+            Download CSV Template
+          </el-button>
+          <div>
+            <el-button class="btn-secondary" @click="closeDeploymentImportDialog">Close</el-button>
+            <el-button
+              class="btn-secondary"
+              :loading="deploymentImportLoading"
+              :disabled="!deploymentImportFiles.length"
+              @click="previewDeploymentImport"
+            >
+              Preview
+            </el-button>
+            <el-button
+              type="primary"
+              class="btn-primary"
+              :loading="deploymentImportLoading"
+              :disabled="!deploymentImportResult?.valid"
+              @click="confirmDeploymentImport"
+            >
+              Confirm Import
+            </el-button>
+          </div>
+        </div>
+      </template>
+    </el-dialog>
 
     <!-- Nav Node Dialog for Edit/Delete actions -->
     <NavNodeDialog ref="navNodeDialogRef" />
@@ -482,13 +586,13 @@ import {
   FolderOpened,
   DataLine,
   Connection, Edit, List, Search, Link,
-  ZoomIn, ZoomOut, RefreshRight,
+  ZoomIn, ZoomOut, RefreshRight, Download, Upload, UploadFilled,
 } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type UploadInstance } from 'element-plus'
 import { dashboardNavApi } from '@/api/dashboardNav'
 import { deploymentApi } from '@/api/deployment'
 import { useDashboardStore } from '@/stores/dashboard'
-import type { NavTreeNode, DeviceDeployItem, DeviceDeployment, PointDeploymentItem } from '@/api/types'
+import type { ImportSummary, NavTreeNode, DeviceDeployItem, DeviceDeployment, PointDeploymentItem } from '@/api/types'
 import NavNodeDialog from '@/views/device-deploy/dialogs/NavNodeDialog.vue'
 import { triggerFormShake } from '@/utils/formAnimation'
 
@@ -607,6 +711,16 @@ const viewMode = ref<'list' | 'detail'>('list')
 
 const navNodeDialogRef = ref<InstanceType<typeof NavNodeDialog>>()
 const devicesLoading = ref(false)
+const deploymentImportDialogVisible = ref(false)
+const deploymentImportLoading = ref(false)
+const deploymentTemplateDownloadLoading = ref(false)
+const deploymentImportFiles = ref<File[]>([])
+const deploymentImportResult = ref<ImportSummary | null>(null)
+const deploymentUploadRef = ref<UploadInstance>()
+const deploymentFolderInputRef = ref<HTMLInputElement>()
+const deploymentFolderName = ref('')
+const deploymentFolderFileCount = ref(0)
+const deploymentFolderDuplicateCount = ref(0)
 // Declared before the selectedNode watcher below: the watcher runs with
 // { immediate: true } during setup, so it must not touch a variable that is
 // still in the temporal dead zone (TDZ) or it throws
@@ -1028,6 +1142,258 @@ async function refreshAfterChange() {
   await store.refreshAfterMutation()
   if (selectedNode.value && isLeafNode(selectedNode.value)) {
     await loadNodeDevices(selectedNode.value.nodeId)
+  }
+}
+
+function openDeploymentImportDialog() {
+  deploymentUploadRef.value?.clearFiles()
+  resetDeploymentFolderSelection()
+  deploymentImportFiles.value = []
+  deploymentImportResult.value = null
+  deploymentImportDialogVisible.value = true
+}
+
+function resetDeploymentFolderSelection() {
+  deploymentFolderName.value = ''
+  deploymentFolderFileCount.value = 0
+  deploymentFolderDuplicateCount.value = 0
+  if (deploymentFolderInputRef.value) {
+    deploymentFolderInputRef.value.value = ''
+  }
+}
+
+function openDeploymentFolderPicker() {
+  deploymentFolderInputRef.value?.click()
+}
+
+function getDroppedEntries(event: DragEvent): FileSystemEntry[] {
+  return Array.from(event.dataTransfer?.items ?? [])
+    .map(item => item.webkitGetAsEntry())
+    .filter((entry): entry is FileSystemEntry => Boolean(entry))
+}
+
+function getDroppedDirectories(event: DragEvent): FileSystemDirectoryEntry[] {
+  return getDroppedEntries(event)
+    .filter((entry): entry is FileSystemDirectoryEntry => entry.isDirectory)
+}
+
+function handleDeploymentDragOver(event: DragEvent) {
+  if (getDroppedDirectories(event).length) {
+    event.preventDefault()
+    event.stopPropagation()
+  }
+}
+
+function handleDeploymentDrop(event: DragEvent) {
+  const directories = getDroppedDirectories(event)
+  if (!directories.length) return
+
+  event.preventDefault()
+  event.stopPropagation()
+  void handleDeploymentDirectoryDrop(directories)
+}
+
+async function readDroppedEntry(entry: FileSystemEntry): Promise<File[]> {
+  try {
+    if (entry.isFile) {
+      const fileEntry = entry as FileSystemFileEntry
+      return [await new Promise<File>((resolve, reject) => {
+        fileEntry.file(resolve, reject)
+      })]
+    }
+    if (!entry.isDirectory) return []
+
+    const reader = (entry as FileSystemDirectoryEntry).createReader()
+    const entries: FileSystemEntry[] = []
+    while (true) {
+      const batch = await new Promise<FileSystemEntry[]>((resolve, reject) => {
+        reader.readEntries(resolve, reject)
+      })
+      if (!batch.length) break
+      entries.push(...batch)
+    }
+
+    const nestedFiles = await Promise.all(entries.map(readDroppedEntry))
+    return nestedFiles.flat()
+  } catch {
+    return []
+  }
+}
+
+function isCsvFile(file: File): boolean {
+  return file.name.toLowerCase().endsWith('.csv')
+}
+
+function isSupportedDeploymentFile(file: File): boolean {
+  const fileName = file.name.toLowerCase()
+  return fileName.endsWith('.csv') || fileName.endsWith('.zip')
+}
+
+async function fingerprintDeploymentFile(file: File): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  let hash = 2166136261
+  for (const byte of bytes) {
+    hash ^= byte
+    hash = Math.imul(hash, 16777619)
+  }
+  return `${file.size}:${hash >>> 0}`
+}
+
+async function deduplicateDeploymentFiles(files: File[]): Promise<File[]> {
+  const seenFingerprints = new Set<string>()
+  const uniqueFiles: File[] = []
+  for (const file of files) {
+    try {
+      const fingerprint = await fingerprintDeploymentFile(file)
+      if (seenFingerprints.has(fingerprint)) continue
+      seenFingerprints.add(fingerprint)
+    } catch {
+      // Keep files that cannot be read so the backend can report the issue.
+    }
+    uniqueFiles.push(file)
+  }
+  return uniqueFiles
+}
+
+function applyDeploymentFolderSelection(csvFiles: File[], folderName: string, duplicateCount = 0) {
+  deploymentUploadRef.value?.clearFiles()
+  deploymentImportFiles.value = csvFiles
+  deploymentImportResult.value = null
+  deploymentFolderFileCount.value = csvFiles.length
+  deploymentFolderDuplicateCount.value = duplicateCount
+  deploymentFolderName.value = folderName || 'Selected folder'
+
+  if (!csvFiles.length) {
+    ElMessage.warning('No CSV files found in the selected folder')
+  }
+}
+
+async function handleDeploymentDirectoryDrop(directories: FileSystemDirectoryEntry[]) {
+  const nestedFiles = await Promise.all(directories.map(readDroppedEntry))
+  const csvFiles = nestedFiles.flat().filter(isCsvFile)
+  const uniqueCsvFiles = await deduplicateDeploymentFiles(csvFiles)
+  const folderName = directories.length === 1 ? directories[0].name : 'Selected folders'
+  applyDeploymentFolderSelection(uniqueCsvFiles, folderName, csvFiles.length - uniqueCsvFiles.length)
+}
+
+async function handleDeploymentFolderChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const selectedFiles = Array.from(input.files ?? [])
+  const csvFiles = selectedFiles.filter(file => file.name.toLowerCase().endsWith('.csv'))
+  const uniqueCsvFiles = await deduplicateDeploymentFiles(csvFiles)
+
+  const firstRelativePath = uniqueCsvFiles[0]?.webkitRelativePath ?? ''
+  applyDeploymentFolderSelection(
+    uniqueCsvFiles,
+    firstRelativePath.split('/')[0] || 'Selected folder',
+    csvFiles.length - uniqueCsvFiles.length,
+  )
+
+  input.value = ''
+}
+
+function handleDeploymentFileChange(_uploadFile: any, uploadFiles: any[]) {
+  deploymentImportFiles.value = uploadFiles
+    .map(file => file.raw as File | undefined)
+    .filter((file): file is File => Boolean(file))
+    .filter(isSupportedDeploymentFile)
+  resetDeploymentFolderSelection()
+  deploymentImportResult.value = null
+}
+
+function handleDeploymentFileRemove(_uploadFile: any, uploadFiles: any[]) {
+  handleDeploymentFileChange(_uploadFile, uploadFiles)
+}
+
+async function previewDeploymentImport() {
+  if (!deploymentImportFiles.value.length) return
+  deploymentImportLoading.value = true
+  try {
+    deploymentImportResult.value = await deploymentApi.importFiles(deploymentImportFiles.value, true)
+  } catch (err: any) {
+    deploymentImportResult.value = null
+    ElMessage.error(err.message || 'Deployment data preview failed')
+  } finally {
+    deploymentImportLoading.value = false
+  }
+}
+
+async function confirmDeploymentImport() {
+  if (!deploymentImportResult.value?.valid || !deploymentImportFiles.value.length) return
+  deploymentImportLoading.value = true
+  try {
+    const result = await deploymentApi.importFiles(deploymentImportFiles.value, false)
+    if (!result.valid || !result.committed) {
+      deploymentImportResult.value = result
+      ElMessage.error('Deployment data import was not committed')
+      return
+    }
+    await refreshAfterChange()
+    ElMessage.success('Deployment data imported successfully')
+    closeDeploymentImportDialog()
+  } catch (err: any) {
+    ElMessage.error(err.message || 'Deployment data import failed')
+  } finally {
+    deploymentImportLoading.value = false
+  }
+}
+
+function closeDeploymentImportDialog() {
+  deploymentImportDialogVisible.value = false
+  deploymentUploadRef.value?.clearFiles()
+  resetDeploymentFolderSelection()
+  deploymentImportFiles.value = []
+  deploymentImportResult.value = null
+}
+
+async function downloadDeploymentImportTemplate() {
+  deploymentTemplateDownloadLoading.value = true
+  try {
+    const blob = await deploymentApi.downloadImportTemplate()
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'n4-deployment-import-template.csv'
+    link.click()
+    URL.revokeObjectURL(url)
+    ElMessage.success('CSV import template downloaded successfully')
+  } catch (err: any) {
+    ElMessage.error(err.message || 'CSV import template download failed')
+  } finally {
+    deploymentTemplateDownloadLoading.value = false
+  }
+}
+
+async function exportDeploymentSnapshot() {
+  try {
+    await ElMessageBox.confirm(
+      'Are you sure you want to export the deployment snapshot ZIP package?',
+      'Export Confirmation',
+      {
+        confirmButtonText: 'Export',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+        customClass: 'dark-message-box'
+      }
+    )
+  } catch {
+    return
+  }
+
+  devicesLoading.value = true
+  try {
+    const blob = await deploymentApi.exportSnapshot()
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'n4-deployment-snapshot.zip'
+    link.click()
+    URL.revokeObjectURL(url)
+    ElMessage.success('Deployment snapshot downloaded successfully')
+  } catch (err: any) {
+    ElMessage.error(err.message || 'Deployment snapshot export failed')
+  } finally {
+    devicesLoading.value = false
   }
 }
 
@@ -1880,6 +2246,22 @@ $bg-dark: #0b1119;
     height: 22px !important;
     line-height: 22px !important;
   }
+}
+
+.deployment-folder-input {
+  display: none;
+}
+
+.deployment-folder-picker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.deployment-folder-summary {
+  color: #94a3b8;
+  font-size: 12px;
 }
 
 :deep(.el-dialog) {

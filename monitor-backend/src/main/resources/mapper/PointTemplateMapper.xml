@@ -4,7 +4,9 @@
 <mapper namespace="com.n4monitor.template.mapper.PointTemplateMapper">
 
     <select id="findByDeviceTmplId" resultType="com.n4monitor.template.entity.PointTemplate">
-        SELECT pt.*,
+        SELECT pt.point_tmpl_id, pt.device_tmpl_id, pt.alarm_code, pt.point_name,
+               pt.type, pt.unit, pt.display_precision, pt.is_deleted,
+               pt.create_time, pt.update_time,
                (dt.device_tmpl_name NOT LIKE 'MOCK\_%') AS isReal
         FROM point_template pt
         LEFT JOIN device_template dt ON pt.device_tmpl_id = dt.device_tmpl_id
@@ -13,24 +15,35 @@
     </select>
 
     <select id="findByPointTmplId" resultType="com.n4monitor.template.entity.PointTemplate">
-        SELECT pt.*,
+        SELECT pt.point_tmpl_id, pt.device_tmpl_id, pt.alarm_code, pt.point_name,
+               pt.type, pt.unit, pt.display_precision, pt.is_deleted,
+               pt.create_time, pt.update_time,
                (dt.device_tmpl_name NOT LIKE 'MOCK\_%') AS isReal
         FROM point_template pt
         LEFT JOIN device_template dt ON pt.device_tmpl_id = dt.device_tmpl_id
         WHERE pt.point_tmpl_id = #{pointTmplId} AND pt.is_deleted = 0
     </select>
 
+    <select id="findAllIncludingDeleted" resultType="com.n4monitor.template.entity.PointTemplate">
+        SELECT pt.point_tmpl_id, pt.device_tmpl_id, pt.alarm_code, pt.point_name,
+               pt.type, pt.unit, pt.display_precision, pt.is_deleted,
+               pt.create_time, pt.update_time,
+               (dt.device_tmpl_name NOT LIKE 'MOCK\_%') AS isReal
+        FROM point_template pt
+        LEFT JOIN device_template dt ON pt.device_tmpl_id = dt.device_tmpl_id
+        ORDER BY pt.point_tmpl_id
+    </select>
+
     <insert id="insert" useGeneratedKeys="true" keyProperty="pointTmplId">
-        INSERT INTO point_template (device_tmpl_id, alarm_code, point_name, point_type, data_type, unit, display_precision)
-        VALUES (#{deviceTmplId}, #{alarmCode}, #{pointName}, #{pointType}, #{dataType}, #{unit}, #{displayPrecision})
+        INSERT INTO point_template (device_tmpl_id, alarm_code, point_name, type, unit, display_precision)
+        VALUES (#{deviceTmplId}, #{alarmCode}, #{pointName}, #{type}, #{unit}, #{displayPrecision})
     </insert>
 
     <update id="update">
         UPDATE point_template
         SET alarm_code = #{alarmCode},
             point_name = #{pointName},
-            point_type = #{pointType},
-            data_type = #{dataType},
+            type = #{type},
             unit = #{unit},
             display_precision = #{displayPrecision}
         WHERE point_tmpl_id = #{pointTmplId}
@@ -39,6 +52,26 @@
     <update id="logicalDelete">
         UPDATE point_template
         SET is_deleted = 1
+        WHERE point_tmpl_id = #{pointTmplId}
+    </update>
+
+    <update id="restore">
+        UPDATE point_template
+        SET is_deleted = 0, update_time = NOW()
+        WHERE point_tmpl_id = #{pointTmplId}
+    </update>
+
+    <update id="updateTypeAndUnitIfEmpty">
+        UPDATE point_template
+        SET type = COALESCE(type, #{type}),
+            unit = COALESCE(unit, #{unit}),
+            update_time = NOW()
+        WHERE point_tmpl_id = #{pointTmplId}
+    </update>
+
+    <update id="updateAlarmCode">
+        UPDATE point_template
+        SET alarm_code = #{alarmCode}, update_time = NOW()
         WHERE point_tmpl_id = #{pointTmplId}
     </update>
 

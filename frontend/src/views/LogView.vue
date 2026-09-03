@@ -13,71 +13,43 @@
     <!-- Filter bar -->
     <div class="filter-bar">
       <div class="filter-item">
-        <span class="filter-label">Operator:</span>
         <el-input
           v-model="query.operatorName"
           size="small"
-          placeholder="Operator"
+          placeholder="Filter operator..."
+          :prefix-icon="User"
           clearable
-          style="width: 120px"
+          style="width: 160px"
           @keyup.enter="handleSearch"
         />
       </div>
       <div class="filter-item">
-        <span class="filter-label">Module:</span>
-        <el-input
-          v-model="query.module"
-          size="small"
-          placeholder="e.g. User"
-          clearable
-          style="width: 120px"
-          @keyup.enter="handleSearch"
-        />
-      </div>
-      <div class="filter-item">
-        <span class="filter-label">Operation:</span>
         <el-input
           v-model="query.operation"
           size="small"
-          placeholder="e.g. Add"
+          placeholder="Filter operation..."
+          :prefix-icon="Operation"
           clearable
-          style="width: 120px"
+          style="width: 170px"
           @keyup.enter="handleSearch"
         />
       </div>
       <div class="filter-item">
-        <span class="filter-label">Status:</span>
-        <el-select
-          v-model="query.status"
-          size="small"
-          placeholder="All"
-          clearable
-          style="width: 90px"
-          popper-class="alarm-config-popper"
-          @change="handleSearch"
-        >
-          <el-option label="Success" :value="1" />
-          <el-option label="Failed" :value="0" />
-        </el-select>
-      </div>
-      <div class="filter-item">
-        <span class="filter-label">Time:</span>
         <el-date-picker
           v-model="dateRange"
           type="datetimerange"
           size="small"
           range-separator="-"
-          start-placeholder="Start"
-          end-placeholder="End"
+          start-placeholder="Start Time"
+          end-placeholder="End Time"
           value-format="YYYY-MM-DDTHH:mm:ss"
-          style="width: 270px"
+          style="width: 290px"
           popper-class="alarm-datepicker-popper"
           @change="handleSearch"
         />
       </div>
       <div class="filter-actions">
-        <el-button size="small" class="btn-primary" @click="handleSearch">Search</el-button>
-        <el-button size="small" class="btn-secondary" @click="handleReset">Reset</el-button>
+        <el-button size="small" class="btn-primary" :icon="Search" @click="handleSearch">Search</el-button>
       </div>
     </div>
 
@@ -185,7 +157,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { Refresh } from '@element-plus/icons-vue'
+import { Refresh, User, Operation, Search } from '@element-plus/icons-vue'
 import { logApi } from '@/api/log'
 import type { LogQuery, OperationLog } from '@/api/types'
 
@@ -265,15 +237,6 @@ function handleSearch() {
   loadLogs()
 }
 
-function handleReset() {
-  query.operatorName = ''
-  query.module = ''
-  query.operation = ''
-  query.status = undefined
-  dateRange.value = null
-  query.page = 1
-  loadLogs()
-}
 
 async function openDetail(row: OperationLog) {
   detail.value = await logApi.detail(row.logId)
@@ -340,7 +303,6 @@ onMounted(() => {
   }
 
   .filter-actions {
-    margin-left: auto;
     display: flex;
     align-items: center;
     gap: 6px;

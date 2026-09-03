@@ -41,10 +41,10 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="dataType" label="Type" width="90" align="left" header-align="center" :resizable="false">
+        <el-table-column prop="type" label="Type" width="90" align="left" header-align="center" :resizable="false">
           <template #default="{ row }">
-            <span :class="['type-tag', row.dataType === 'enum' ? 'tag-enum' : 'tag-numeric']">
-              {{ row.dataType || 'numeric' }}
+            <span :class="['type-tag', row.type === 'enum' ? 'tag-enum' : 'tag-numeric']">
+              {{ row.type || 'numeric' }}
             </span>
           </template>
         </el-table-column>
@@ -60,7 +60,7 @@
               style="width: 100%"
             >
               <el-option label="-- No Alarm Rule --" :value="''" />
-              <template v-if="row.dataType === 'enum'">
+              <template v-if="row.type === 'enum'">
                 <el-option
                   v-for="name in allEnumRuleNames"
                   :key="name"
