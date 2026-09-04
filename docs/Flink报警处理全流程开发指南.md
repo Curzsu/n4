@@ -488,9 +488,11 @@ alarm_duration, alarm_start_time`。
   taos-jdbcdriver 的 WS/REST 模式走 `Statement` 文本 SQL，均无服务端参数绑定。
 - 查询走 `openReadConnection()` 从**专用 HikariCP 读连接池**（`tdengine-read`，最多 4 连接）
   借连接，绝不共享写通道的长连接（JDBC 非线程安全）。
-- 历史查询按**写入时间戳排序**（`ORDER BY ts DESC, data_timestamp DESC`，ts 是唯一有索引的
-  主键时间戳），并带 `WHERE ts > NOW() - N d` 窗口裁剪（`tdengine.query-window-days`，默认 7，
-  0 为关闭），避免对全量 `alarm_event`（KEEP 1095）做全表扫描。
+- 历史查询按**写入时间戳排序**（`ORDER BY ts DESC`，ts 是唯一有索引的主键时间戳，随写入单调
+  递增，直接走主键索引流式取数；曾用 `data_timestamp` 做同毫秒行的二级排序，已移除——同一
+  写入毫秒内的行没有确定顺序，如页边界需要确定性排序再加回），并带 `WHERE ts > NOW() - N d`
+  窗口裁剪（`tdengine.query-window-days`，默认 7，0 为关闭），避免对全量 `alarm_event`
+  （KEEP 1095）做全表扫描。
 - 两个历史接口（`/api/alarms/cleared` 与 `/api/alarms/events`）支持**滚动分页**：`topTs`（**进入页面 /
   点击 Refresh 那一刻的系统时间**，作为本次浏览会话的快照上界——首屏与后续页统一按
   `ts <= topTs` 查询，翻页期间新写入的行不参与排序，页序稳定）+ `offset`（已加载行数）+

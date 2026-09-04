@@ -497,13 +497,14 @@ public class TdengineSyncService {
                 "alarm_message, alarm_location, alarm_status, ack_by, alarm_duration, " +
                 "alarm_stage, alarm_stage_message, alarm_start_time, path FROM " + tdengineConfig.getRealtimeSupertable() +
                 historyWhere(topTs) +
-                // Order by the write timestamp: the indexed primary ts, and the same
-                // insertion-order tiebreaker this query previously used as secondary
-                // key. When two records share the same data_timestamp (e.g. an End +
-                // Start written in the same tick during a level escalation), the
-                // later-written Start always sorts above the earlier-written End.
-                // data_timestamp stays as a secondary key for fully tied rows.
-                " ORDER BY ts DESC, data_timestamp DESC LIMIT " + pageLimit(limit) + " OFFSET " + pageOffset(offset);
+                // Order by the write timestamp only: ts is the indexed primary
+                // key and grows monotonically with insertion, so TDengine
+                // streams the newest rows straight off the index. Rows sharing
+                // one write millisecond (a single INSERT batch) have no defined
+                // relative order; the former data_timestamp secondary sort was
+                // removed as unnecessary - restore it only if same-millisecond
+                // page-border rows ever need a deterministic order again.
+                " ORDER BY ts DESC LIMIT " + pageLimit(limit) + " OFFSET " + pageOffset(offset);
 
         try (Connection readConn = openReadConnection();
              Statement stmt = readConn.createStatement();
@@ -551,7 +552,8 @@ public class TdengineSyncService {
 
     /**
      * Query one page of full-detail records from the alarm_event supertable,
-     * newest first. Same scroll-pagination contract as
+     * newest first (ordered by the write timestamp {@code ts}, the indexed
+     * primary key). Same scroll-pagination contract as
      * {@link #queryClearedAlarms(Long, Integer, Integer)}: snapshot upper bound
      * (topTs) + offset. OFFSET is used instead of a {@code ts < cursor} keyset
      * cursor because bursty batch writes put dozens of rows on the same
@@ -563,9 +565,9 @@ public class TdengineSyncService {
                 "alarm_message, alarm_location, alarm_status, ack_by, alarm_duration, " +
                 "alarm_stage, alarm_stage_message, alarm_start_time, path FROM " + tdengineConfig.getEventSupertable() +
                 historyWhere(topTs) +
-                // Same ordering contract as queryClearedAlarms: indexed primary ts,
-                // later-written rows first, data_timestamp breaks full ties.
-                " ORDER BY ts DESC, data_timestamp DESC LIMIT " + pageLimit(limit) + " OFFSET " + pageOffset(offset);
+                // Same ordering contract as queryClearedAlarms: indexed primary
+                // ts only (see the note there on the removed secondary sort).
+                " ORDER BY ts DESC LIMIT " + pageLimit(limit) + " OFFSET " + pageOffset(offset);
 
         List<AlarmRecordDto> result = new ArrayList<>();
 
