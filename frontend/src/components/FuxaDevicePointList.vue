@@ -1,5 +1,5 @@
 <template>
-  <section v-if="panel" class="linked-points">
+  <section v-if="panel" ref="listRoot" :class="['linked-points', { 'linked-points--compact': compact }]">
     <header class="linked-points__header">
       <h4>Active alarms</h4>
       <span class="linked-points__device">{{ panel.deviceRole || 'Unnamed device' }}</span>
@@ -12,12 +12,12 @@
             <th>No.</th>
             <th>Time</th>
             <th>Severity</th>
-            <th>Source</th>
+            <th v-if="!compact">Source</th>
             <th>Message</th>
-            <th>Location</th>
+            <th v-if="!compact">Location</th>
             <th>Status</th>
-            <th>Duration</th>
-            <th>Ack. by</th>
+            <th v-if="!compact">Duration</th>
+            <th v-if="!compact">Ack. by</th>
           </tr>
         </thead>
         <tbody>
@@ -29,12 +29,12 @@
                 {{ alarm.severity || 'Unknown' }}
               </span>
             </td>
-            <td>{{ alarm.source }}</td>
+            <td v-if="!compact">{{ alarm.source }}</td>
             <td class="linked-points__message">{{ alarm.message || alarm.source }}</td>
-            <td>{{ alarm.location }}</td>
+            <td v-if="!compact">{{ alarm.location }}</td>
             <td>{{ alarm.status }}</td>
-            <td>{{ alarm.duration }}</td>
-            <td>{{ alarm.ackBy }}</td>
+            <td v-if="!compact">{{ alarm.duration }}</td>
+            <td v-if="!compact">{{ alarm.ackBy }}</td>
           </tr>
         </tbody>
       </table>
@@ -72,7 +72,14 @@ const props = defineProps<{
 
 const initialLoading = ref(true)
 const records = ref<AlarmRecord[]>([])
+const listRoot = ref<HTMLElement | null>(null)
+const compact = ref(false)
 let removeAlarmListener: (() => void) | undefined
+let resizeObserver: ResizeObserver | undefined
+
+function updateLayout() {
+  compact.value = (listRoot.value?.clientWidth || 0) < 820
+}
 
 const matchKeys = computed(() => {
   if (!props.panel) return []
@@ -133,10 +140,14 @@ function applyAlarmUpdate(data: { alarm?: unknown }) {
 onMounted(() => {
   void loadAlarms()
   removeAlarmListener = onUpdate(applyAlarmUpdate)
+  resizeObserver = new ResizeObserver(updateLayout)
+  if (listRoot.value) resizeObserver.observe(listRoot.value)
+  updateLayout()
 })
 
 onBeforeUnmount(() => {
   removeAlarmListener?.()
+  resizeObserver?.disconnect()
 })
 </script>
 
@@ -219,6 +230,22 @@ h4 {
   th:nth-child(9) { width: 100px; }
 
   tbody tr:last-child td { border-bottom: 0; }
+}
+
+.linked-points--compact {
+  .linked-points__header { min-height: 30px; padding: 0 10px; }
+  .linked-points__table {
+    min-width: 560px;
+    font-size: 11px;
+
+    th,
+    td { padding: 5px 7px; }
+    th:nth-child(1) { width: 38px; }
+    th:nth-child(2) { width: 128px; }
+    th:nth-child(3) { width: 74px; }
+    th:nth-child(4) { width: 230px; }
+    th:nth-child(5) { width: 78px; }
+  }
 }
 
 .linked-points__time {

@@ -4,13 +4,18 @@ import { ElMessage } from 'element-plus'
 
 const TOKEN_KEY = 'n4_token'
 
+function getEmbeddedDeviceFrameToken(): string {
+  if (window.location.pathname !== '/fuxa-device-points') return ''
+  return new URLSearchParams(window.location.search).get('n4AccessToken') || ''
+}
+
 const request = axios.create({
   baseURL: '',
   timeout: 10000,
 })
 
 request.interceptors.request.use((config) => {
-  const token = localStorage.getItem(TOKEN_KEY)
+  const token = localStorage.getItem(TOKEN_KEY) || getEmbeddedDeviceFrameToken()
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
@@ -32,6 +37,10 @@ function showErrorToast(msg: string) {
 }
 
 function handleUnauthorized() {
+  // The embedded device list receives a token through the FUXA bridge. Do
+  // not replace only that small iframe with the Login page on a transient API
+  // failure; the outer N4 session remains authoritative.
+  if (getEmbeddedDeviceFrameToken()) return
   localStorage.removeItem(TOKEN_KEY)
   if (window.location.pathname !== '/login') {
     window.location.href = '/login'

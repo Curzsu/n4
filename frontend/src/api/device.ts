@@ -11,6 +11,10 @@ function getFuxaSessionHeaders(includeJsonContentType = false): HeadersInit {
   return headers
 }
 
+export function getFuxaSessionAccessToken(): string {
+  return localStorage.getItem(TOKEN_KEY) || ''
+}
+
 async function requestCabinSession(url: string, method: 'POST' | 'DELETE'): Promise<FuxaCabinSession> {
   const response = await fetch(url, {
     method,
