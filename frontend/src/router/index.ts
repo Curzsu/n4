@@ -103,17 +103,17 @@ const router = createRouter({
       component: () => import('@/views/FuxaDevicePointFrameView.vue'),
       meta: { bare: true },
     },
-    {
-      path: '/fuxa-device-points',
-      name: 'fuxa-device-points',
-      component: () => import('@/views/FuxaDevicePointFrameView.vue'),
-      meta: { bare: true },
-    },
   ],
 })
 
 router.beforeEach(async (to) => {
   const authStore = useAuthStore()
+  // A FUXA card hosts this small N4 route in a nested iframe. Third-party
+  // iframe storage can be unavailable, so the parent forwards its active
+  // token in the URL and the API interceptor uses it only for this route.
+  if (to.path === '/fuxa-device-points' && typeof to.query.n4AccessToken === 'string' && to.query.n4AccessToken) {
+    return true
+  }
   if (to.meta.public) {
     if (to.path === '/login' && authStore.isLoggedIn) {
       return '/'

@@ -48,7 +48,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Monitor, RefreshRight, SwitchButton } from '@element-plus/icons-vue'
-import { deviceApi, getFuxaSessionAuthorizationHeader } from '@/api/device'
+import { deviceApi, getFuxaSessionAccessToken, getFuxaSessionAuthorizationHeader } from '@/api/device'
 import type { FuxaCabinSession } from '@/api/types'
 
 const props = defineProps<{
@@ -110,6 +110,9 @@ function requestCabinSwitch(cabinSession: FuxaCabinSession) {
     type: 'n4-cabin-runtime:open',
     mqttDeviceName: cabinSession.fuxaDeviceName,
     cabinViewName: cabinSession.viewName,
+    // The FUXA detail-card iframe is cross-origin from its FUXA parent. It
+    // needs this token to load the protected N4 alarm-list route.
+    n4AccessToken: getFuxaSessionAccessToken(),
   }, getFuxaOrigin())
 }
 
@@ -298,11 +301,11 @@ async function preloadCabin() {
 }
 
 .monitor-card-header {
-  height: 48px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
+  padding: 0 10px;
   border-bottom: 1px solid $border-card;
 }
 
@@ -314,17 +317,21 @@ async function preloadCabin() {
   color: $text-primary;
 
   .el-icon { color: $accent-green; }
-  h3 { margin: 0; font-size: 14px; font-weight: 600; }
+  h3 { margin: 0; font-size: 12px; font-weight: 600; }
 }
 
 .connection-state {
   color: $text-muted;
-  font-size: 12px;
+  font-size: 10px;
 
   &.active { color: $accent-green; }
 }
 
 .connection-btn {
+  width: 26px;
+  height: 26px;
+  min-height: 26px;
+  padding: 4px;
   color: $text-secondary;
   background: transparent;
   border-color: $border-card;
