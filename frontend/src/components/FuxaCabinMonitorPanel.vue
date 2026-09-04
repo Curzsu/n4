@@ -48,7 +48,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Monitor, RefreshRight, SwitchButton } from '@element-plus/icons-vue'
-import { deviceApi } from '@/api/device'
+import { deviceApi, getFuxaSessionAuthorizationHeader } from '@/api/device'
 import type { FuxaCabinSession } from '@/api/types'
 
 const props = defineProps<{
@@ -230,6 +230,7 @@ function releaseOnPageExit() {
   // not support keepalive); nothing can be done about failures here anyway.
   void fetch(`/api/fuxa/cabins/${cabin}/sessions/${viewer}`, {
     method: 'DELETE',
+    headers: getFuxaSessionAuthorizationHeader(),
     credentials: 'same-origin',
     keepalive: true,
   }).catch(() => { /* page is unloading; nothing to recover */ })
