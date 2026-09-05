@@ -52,6 +52,29 @@ html, body, #app {
   font-size: 10px !important;
 }
 
+// Date-picker panels: Element Plus's default selection palette (light-blue
+// active pill, near-white in-range fill) is built for light backgrounds and
+// clashes with the dark theme. Retune through the datepicker variables so
+// single and range pickers both follow the accent palette (green selection,
+// soft green range highlight) regardless of where the panel is teleported.
+.el-picker-panel {
+  --el-datepicker-active-color: #10b981;
+  --el-datepicker-hover-text-color: #10b981;
+  --el-datepicker-inrange-bg-color: rgba(16, 185, 129, 0.1);
+  --el-datepicker-inrange-hover-bg-color: rgba(16, 185, 129, 0.18);
+  --el-datepicker-text-color: #cbd5e1;
+  --el-datepicker-off-text-color: #4b5563;
+  --el-datepicker-border-color: #1e293b;
+  --el-datepicker-inner-border-color: #2d3748;
+}
+
+// Range editors use .el-range-input texts (both the toolbar trigger and the
+// panel's own date/time editor row), which Element Plus hardcodes at 12px.
+.el-range-input,
+.el-range-separator {
+  font-size: 10px !important;
+}
+
 // Element Plus dark theme overrides
 .el-menu {
   background-color: $bg-card !important;
