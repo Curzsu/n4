@@ -599,6 +599,7 @@ onBeforeUnmount(() => {
   gap: 16px;
   .basic-name { flex: 1 1 auto; .el-input { width: 100%; } }
   .basic-type { flex: 0 0 auto; }
+  .el-form-item { margin-bottom: 12px; }
 }
 
 .level-row {
@@ -606,9 +607,9 @@ onBeforeUnmount(() => {
   align-items: flex-start;
   gap: 12px;
   .el-form-item {
-    margin-bottom: 22px;
+    margin-bottom: 12px;
     &.is-error {
-      margin-bottom: 24px;
+      margin-bottom: 14px;
     }
   }
   /* Element Plus sets width:100% on .el-form-item by default, which forces
@@ -638,9 +639,9 @@ onBeforeUnmount(() => {
 }
 
 .type-hint {
-  padding: 24px 12px;
+  padding: 10px 12px;
   color: $text-muted;
-  font-size: 13px;
+  font-size: 10px;
   text-align: center;
 }
 
@@ -713,6 +714,7 @@ onBeforeUnmount(() => {
   .el-dialog__body { color: $text-primary; }
 }
 :deep(.el-divider__text) { background-color: $bg-card; color: $text-secondary; }
+:deep(.el-divider--horizontal) { margin: 10px 0; }
 :deep(.el-form-item__label) { color: $text-secondary; }
 :deep(.el-input__wrapper) {
   background-color: $bg-dark;

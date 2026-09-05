@@ -552,9 +552,9 @@ defineExpose({
   align-items: flex-start;
   gap: 12px;
   .el-form-item {
-    margin-bottom: 22px;
+    margin-bottom: 12px;
     &.is-error {
-      margin-bottom: 24px;
+      margin-bottom: 14px;
     }
   }
   .field-half {
@@ -580,9 +580,9 @@ defineExpose({
 }
 
 .type-hint {
-  padding: 24px 12px;
+  padding: 10px 12px;
   color: $text-muted;
-  font-size: 13px;
+  font-size: 10px;
   text-align: center;
 }
 
