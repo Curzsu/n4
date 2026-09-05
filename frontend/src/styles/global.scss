@@ -11,8 +11,45 @@ html, body, #app {
   background-color: $bg-dark;
   color: $text-primary;
   font-family: $font-family;
-  font-size: 14px;
+  font-size: 10px;
   line-height: 1.5;
+}
+
+// ── Global default font size: 10px ─────────────────────────────────────────
+// Normal UI text is 10px app-wide; the top navigation and page/dialog titles
+// keep their explicit larger sizes. Element Plus derives most component text
+// from the font-size variables below. :root:root double-selects to win the
+// cascade against the :root variable definitions that ship inside each
+// Element Plus style chunk (their import order relative to this file is not
+// guaranteed, and the duplicate selector out-specifies them either way).
+
+:root:root {
+  --el-font-size-base: 10px;        // EP default 14px
+  --el-font-size-small: 10px;       // EP default 13px
+  --el-font-size-extra-small: 10px; // EP default 12px
+  --el-pagination-font-size: 10px;  // EP default 14px
+}
+
+// A few Element Plus components hardcode their size instead of deriving from
+// the variables above, so pin them explicitly: form controls, dropdown and
+// panel poppers (date/time pickers, select menus, tooltips), message boxes.
+.el-form-item__label,
+.el-input__inner,
+.el-textarea__inner,
+.el-select-dropdown__item,
+.el-radio__label,
+.el-checkbox__label,
+.el-radio-button__inner,
+.el-input-number,
+.el-divider__text,
+.el-message-box__message,
+.el-time-panel,
+.el-time-spinner__item,
+.el-picker-panel,
+.el-date-picker,
+.el-date-range-picker,
+.el-popper {
+  font-size: 10px !important;
 }
 
 // Element Plus dark theme overrides
