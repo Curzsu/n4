@@ -167,15 +167,19 @@ public class AlarmStreamConsumer implements SmartLifecycle {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
-            } catch (Exception e) {
-                // A deleted group/stream (NOGROUP) must not wedge the lane:
-                // forget the cached "group ready" flag so it is recreated.
-                if (String.valueOf(e.getMessage()).contains("NOGROUP")) {
-                    groupsReady.remove(streamKey);
-                }
-                log.warn("Alarm stream lane '{}' poll failed, will retry: {}", streamKey, e.getMessage());
-                sleepQuietly(Math.max(pollIntervalMs, 1_000));
+        } catch (Exception e) {
+            // A deleted group/stream (NOGROUP) must not wedge the lane:
+            // forget the cached "group ready" flag so it is recreated. The
+            // match must run over the full cause chain - Spring wraps the
+            // Lettuce server error in a RedisSystemException whose own
+            // message is a generic "Error in execution".
+            String messages = exceptionMessages(e);
+            if (messages.contains("NOGROUP")) {
+                groupsReady.remove(streamKey);
             }
+            log.warn("Alarm stream lane '{}' poll failed, will retry: {}", streamKey, messages);
+            sleepQuietly(Math.max(pollIntervalMs, 1_000));
+        }
         }
     }
 
@@ -293,8 +297,14 @@ public class AlarmStreamConsumer implements SmartLifecycle {
      * the first deploy. The group reads from id=0 so even entries appended
      * before the group existed are consumed (matters when the group was
      * deleted or the stream pre-existed the upgrade).
+     * <p>
+     * The BUSYGROUP match must run over the full cause chain: Spring wraps
+     * the Lettuce server error in a RedisSystemException whose own message
+     * is a generic "Error in execution" - the BUSYGROUP text only appears in
+     * the cause. Checking the top-level message alone would rethrow the
+     * "group exists" case on every poll and wedge the lane permanently.
      */
-    private void ensureGroup(String streamKey) throws Exception {
+    void ensureGroup(String streamKey) throws Exception {
         if (groupsReady.contains(streamKey)) {
             return;
         }
@@ -302,11 +312,37 @@ public class AlarmStreamConsumer implements SmartLifecycle {
             redisTemplate.opsForStream().createGroup(streamKey, ReadOffset.from("0"), group);
             log.info("Created consumer group '{}' on stream '{}' (reading from 0)", group, streamKey);
         } catch (Exception e) {
-            if (!String.valueOf(e.getMessage()).contains("BUSYGROUP")) {
+            if (!exceptionMessages(e).contains("BUSYGROUP")) {
                 throw e;
             }
+            log.debug("Consumer group '{}' already exists on stream '{}'", group, streamKey);
         }
         groupsReady.add(streamKey);
+    }
+
+    /**
+     * Join the message of the exception and its whole cause chain. Spring
+     * Data Redis wraps Lettuce server errors in a {@code RedisSystemException}
+     * whose own message is the generic "Error in execution"; the actual
+     * server reply (BUSYGROUP / NOGROUP / unknown command) only appears in
+     * the cause chain, so message matching and error logging must use this
+     * joined text.
+     */
+    static String exceptionMessages(Throwable e) {
+        StringBuilder joined = new StringBuilder();
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            String msg = t.getMessage();
+            if (msg != null && !msg.isBlank()) {
+                if (joined.length() > 0) {
+                    joined.append(" | caused by: ");
+                }
+                joined.append(msg);
+            }
+            if (t.getCause() == t) {
+                break;
+            }
+        }
+        return joined.toString();
     }
 
     /**
@@ -326,7 +362,7 @@ public class AlarmStreamConsumer implements SmartLifecycle {
                         streamKey, total, group);
             }
         } catch (Exception e) {
-            log.debug("Pending check on '{}' failed: {}", streamKey, e.getMessage());
+            log.debug("Pending check on '{}' failed: {}", streamKey, exceptionMessages(e));
         }
     }
 
