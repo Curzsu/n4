@@ -1157,15 +1157,17 @@ onBeforeUnmount(() => {
     border-color: #2d3748;
   }
 
-  // Compact buttons - minimal size to prevent overflow
+  // Compact buttons - minimal size to prevent overflow. The !important flags
+  // are required to beat the app-wide unified button base in global.scss
+  // (which flags its declarations too; this scope is more specific).
   .el-button {
-    height: 18px;
-    padding: 0 4px;
-    margin: 0 2px;
-    font-size: 10px;
-    line-height: 18px;
-    min-height: 18px;
-    span { font-size: 10px; }
+    height: 18px !important;
+    padding: 0 4px !important;
+    margin: 0 2px !important;
+    font-size: 10px !important;
+    line-height: 18px !important;
+    min-height: 18px !important;
+    span { font-size: 10px !important; }
   }
 
   // Input dark theme

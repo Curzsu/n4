@@ -865,4 +865,22 @@ html, body, #app {
   }
 }
 
+// Multi-select tags inside el-select: Element Plus paints them with the light
+// `el-tag--info` palette (near-white fill, dark text) that clashes with the
+// dark theme. Align them with the secondary (blue accent) button look.
+.el-select__selection .el-tag--info {
+  background-color: rgba($accent-blue, 0.16) !important;
+  border: none !important;
+  color: #93c5fd !important;
+
+  .el-tag__close {
+    color: #93c5fd !important;
+
+    &:hover {
+      background-color: rgba($accent-blue, 0.28) !important;
+      color: #bfdbfe !important;
+    }
+  }
+}
+
 
