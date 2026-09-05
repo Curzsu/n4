@@ -607,9 +607,12 @@ onBeforeUnmount(() => {
   align-items: flex-start;
   gap: 12px;
   .el-form-item {
-    margin-bottom: 12px;
+    // Rows inside one level group sit tight; group separation comes from the
+    // divider margins. is-error needs extra room for the absolute-positioned
+    // validation message below the field.
+    margin-bottom: 4px;
     &.is-error {
-      margin-bottom: 14px;
+      margin-bottom: 18px;
     }
   }
   /* Element Plus sets width:100% on .el-form-item by default, which forces
@@ -714,7 +717,7 @@ onBeforeUnmount(() => {
   .el-dialog__body { color: $text-primary; }
 }
 :deep(.el-divider__text) { background-color: $bg-card; color: $text-secondary; }
-:deep(.el-divider--horizontal) { margin: 10px 0; }
+:deep(.el-divider--horizontal) { margin: 12px 0; }
 :deep(.el-form-item__label) { color: $text-secondary; }
 :deep(.el-input__wrapper) {
   background-color: $bg-dark;

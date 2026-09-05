@@ -552,9 +552,12 @@ defineExpose({
   align-items: flex-start;
   gap: 12px;
   .el-form-item {
-    margin-bottom: 12px;
+    // Rows inside one level group sit tight; group separation comes from the
+    // divider margins. is-error needs extra room for the absolute-positioned
+    // validation message below the field.
+    margin-bottom: 4px;
     &.is-error {
-      margin-bottom: 14px;
+      margin-bottom: 18px;
     }
   }
   .field-half {
@@ -578,6 +581,8 @@ defineExpose({
 :deep(.el-form-item__label) {
   padding-right: 4px;
 }
+
+:deep(.el-divider--horizontal) { margin: 12px 0; }
 
 .type-hint {
   padding: 10px 12px;
