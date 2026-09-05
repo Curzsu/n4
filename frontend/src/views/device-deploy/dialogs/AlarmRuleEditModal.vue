@@ -145,16 +145,14 @@
                 link
                 size="small"
                 class="enum-delete-btn"
+                :icon="Delete"
                 @click="removeEnumItem(idx)"
                 :disabled="enumFormItems.length <= 1"
-              >
-                <el-icon><Delete /></el-icon>
-              </el-button>
+              />
             </div>
           </div>
-          <el-button type="primary" link size="small" @click="addEnumItem">
-            <el-icon><Plus /></el-icon>
-            <span>Add Enum Value</span>
+          <el-button type="primary" link size="small" :icon="Plus" @click="addEnumItem">
+            Add Enum Value
           </el-button>
         </template>
       </el-form>
@@ -162,8 +160,8 @@
 
     <template #footer>
       <div class="dialog-footer">
-        <el-button @click="dialogVisible = false">Cancel</el-button>
-        <el-button type="primary" :loading="saving" @click="handleSave">Save</el-button>
+        <el-button class="btn-secondary" @click="dialogVisible = false">Cancel</el-button>
+        <el-button type="primary" class="btn-primary" :loading="saving" @click="handleSave">Save</el-button>
       </div>
     </template>
   </el-dialog>
@@ -547,6 +545,9 @@ defineExpose({
   gap: 16px;
   .basic-name { flex: 1 1 auto; .el-input { width: 100%; } }
   .basic-type { flex: 0 0 auto; }
+  // !important beats global.scss `.el-dialog .el-form-item { margin-bottom: 22px !important }`
+  // (the test branch applies 22px to every dialog; this dialog is compact by design).
+  .el-form-item { margin-bottom: 4px !important; }
 }
 
 .level-row {
@@ -554,9 +555,13 @@ defineExpose({
   align-items: flex-start;
   gap: 12px;
   .el-form-item {
-    margin-bottom: 22px;
+    // Rows inside one level group sit tight; group separation comes from the
+    // divider margins. is-error needs extra room for the absolute-positioned
+    // validation message below the field. !important beats the global
+    // `.el-dialog .el-form-item { margin-bottom: 22px !important }` rule.
+    margin-bottom: 4px !important;
     &.is-error {
-      margin-bottom: 24px;
+      margin-bottom: 18px !important;
     }
   }
   .field-half {
@@ -581,10 +586,12 @@ defineExpose({
   padding-right: 4px;
 }
 
+:deep(.el-divider--horizontal) { margin: 12px 0; }
+
 .type-hint {
-  padding: 24px 12px;
+  padding: 10px 12px;
   color: $text-muted;
-  font-size: 13px;
+  font-size: 10px;
   text-align: center;
 }
 

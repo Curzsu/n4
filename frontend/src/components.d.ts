@@ -62,6 +62,7 @@ declare module 'vue' {
     ElTree: typeof import('element-plus/es')['ElTree']
     ElUpload: typeof import('element-plus/es')['ElUpload']
     EnergyTrendChart: typeof import('./components/charts/EnergyTrendChart.vue')['default']
+    EventExportDialog: typeof import('./components/EventExportDialog.vue')['default']
     FuxaCabinMonitorPanel: typeof import('./components/FuxaCabinMonitorPanel.vue')['default']
     FuxaCabinRuntimeHost: typeof import('./components/FuxaCabinRuntimeHost.vue')['default']
     FuxaDevicePointList: typeof import('./components/FuxaDevicePointList.vue')['default']

@@ -364,25 +364,5 @@ $accent-yellow: #f59e0b;
   gap: 8px;
 }
 
-.btn-primary {
-  background-color: rgba(16, 185, 129, 0.16) !important;
-  color: #34d399 !important;
-  border: none !important;
-  border-radius: 9px !important;
-  font-size: 10px !important;
-  height: 20px !important;
-  line-height: 16px !important;
-  padding: 2px 8px !important;
-}
-
-.btn-secondary {
-  background-color: rgba(59, 130, 246, 0.16) !important;
-  color: #93c5fd !important;
-  border: none !important;
-  border-radius: 9px !important;
-  font-size: 10px !important;
-  height: 20px !important;
-  line-height: 16px !important;
-  padding: 2px 8px !important;
-}
+// Button styling lives in styles/global.scss (app-wide unified look).
 </style>

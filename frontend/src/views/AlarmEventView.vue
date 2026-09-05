@@ -2,10 +2,10 @@
   <div class="alarm-event-view">
     <div class="config-header">
       <span class="config-title">Event</span>
-      <el-button type="primary" size="small" @click="fetchData">
-        <el-icon><Refresh /></el-icon>
-        <span>Refresh</span>
-      </el-button>
+      <div class="header-actions">
+        <el-button size="small" class="btn-secondary" :icon="Refresh" @click="fetchData">Refresh</el-button>
+        <el-button size="small" class="btn-secondary" :icon="Download" @click="exportVisible = true">Export</el-button>
+      </div>
     </div>
 
     <div ref="tableWrapperRef" class="event-table-wrapper" @scroll.capture="onTableScroll">
@@ -56,16 +56,19 @@
         </template>
       </el-table>
     </div>
+
+    <EventExportDialog v-model:visible="exportVisible" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { Refresh } from '@element-plus/icons-vue'
+import { Refresh, Download } from '@element-plus/icons-vue'
 import { alarmApi } from '@/api/alarm'
 import { normalizeRecord } from '@/utils/alarm'
 import { getSeverityColor } from '@/config/severityColors'
 import { formatDuration } from '@/utils/time'
+import EventExportDialog from '@/components/EventExportDialog.vue'
 import type { AlarmRecord } from '@/api/types'
 
 const loading = ref(false)
@@ -73,6 +76,7 @@ const loadingMore = ref(false)
 const tableData = ref<AlarmRecord[]>([])
 const tableWrapperRef = ref<HTMLElement | null>(null)
 const tableHeight = ref(400)
+const exportVisible = ref(false)
 
 // Scroll pagination: each request asks for EVENT_PAGE_SIZE rows. Entering the
 // page or hitting Refresh pins snapshotTs to that wall-clock instant; every
@@ -205,6 +209,14 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   flex-shrink: 0;
 }
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+// Button styling lives in styles/global.scss (app-wide unified look).
 
 .config-title {
   font-size: 16px;

@@ -11,8 +11,78 @@ html, body, #app {
   background-color: $bg-dark;
   color: $text-primary;
   font-family: $font-family;
-  font-size: 14px;
+  font-size: 10px;
   line-height: 1.5;
+}
+
+// ── Global default font size: 10px ─────────────────────────────────────────
+// Normal UI text is 10px app-wide; the top navigation and page/dialog titles
+// keep their explicit larger sizes. Element Plus derives most component text
+// from the font-size variables below. :root:root double-selects to win the
+// cascade against the :root variable definitions that ship inside each
+// Element Plus style chunk (their import order relative to this file is not
+// guaranteed, and the duplicate selector out-specifies them either way).
+
+:root:root {
+  --el-font-size-base: 10px;        // EP default 14px
+  --el-font-size-small: 10px;       // EP default 13px
+  --el-font-size-extra-small: 10px; // EP default 12px
+  --el-pagination-font-size: 10px;  // EP default 14px
+}
+
+// A few Element Plus components hardcode their size instead of deriving from
+// the variables above, so pin them explicitly: form controls, dropdown and
+// panel poppers (date/time pickers, select menus, tooltips), message boxes.
+// .el-select__wrapper carries a hardcoded 12px in the small variant (EP does
+// not derive it from --el-font-size-small), and the selected item /
+// placeholder inherit that size instead of declaring their own.
+.el-form-item__label,
+.el-input__inner,
+.el-textarea__inner,
+.el-select__wrapper,
+.el-select__selected-item,
+.el-select__placeholder,
+.el-select-dropdown__item,
+.el-radio__label,
+.el-checkbox__label,
+.el-radio-button__inner,
+.el-input-number,
+.el-divider__text,
+.el-message-box__message,
+.el-time-panel,
+.el-time-spinner__item,
+.el-picker-panel,
+.el-date-picker,
+.el-date-range-picker,
+.el-popper {
+  font-size: 10px !important;
+}
+
+// Date-picker panels: Element Plus's default selection palette (light-blue
+// active pill, near-white in-range fill) is built for light backgrounds and
+// clashes with the dark theme. Retune through the datepicker variables so
+// single and range pickers both follow the accent palette (green selection,
+// soft green range highlight) regardless of where the panel is teleported.
+// The !important flags are load-bearing: EP re-declares the same variables on
+// `.el-date-range-picker` / `.el-date-picker` with equal specificity, and its
+// component CSS loads after this file, so a plain declaration loses the
+// cascade - custom-property importance beats it regardless of order.
+.el-picker-panel {
+  --el-datepicker-active-color: #10b981 !important;
+  --el-datepicker-hover-text-color: #10b981 !important;
+  --el-datepicker-inrange-bg-color: rgba(16, 185, 129, 0.1) !important;
+  --el-datepicker-inrange-hover-bg-color: rgba(16, 185, 129, 0.18) !important;
+  --el-datepicker-text-color: #cbd5e1 !important;
+  --el-datepicker-off-text-color: #4b5563 !important;
+  --el-datepicker-border-color: #1e293b !important;
+  --el-datepicker-inner-border-color: #2d3748 !important;
+}
+
+// Range editors use .el-range-input texts (both the toolbar trigger and the
+// panel's own date/time editor row), which Element Plus hardcodes at 12px.
+.el-range-input,
+.el-range-separator {
+  font-size: 10px !important;
 }
 
 // Element Plus dark theme overrides
@@ -751,6 +821,122 @@ html, body, #app {
   }
 }
 
+// ── Unified el-button styling ─────────────────────────────────────────────
+// Single source of truth for the app-wide button look (formerly duplicated as
+// scoped copies in SystemDeploymentView / ProductManagerView / AlarmEventView /
+// EventExportDialog / DeviceAlarmConfigDialog / TemplateDiagramDialog).
+// Circle icon buttons (FUXA panels, sidebar refresh) keep their own designed
+// transparent-border look and are excluded entirely; link text buttons keep a
+// transparent background and Element Plus link colors.
+
+.el-button:not(.is-circle) {
+  border-radius: 9px !important;
+  border: none !important;
+  font-size: 10px !important;
+  font-weight: 400 !important;
+  padding: 2px 8px !important;
+  height: 20px !important;
+  line-height: 16px !important;
+  transition: all 0.2s ease-in-out;
+
+  &:hover {
+    transform: translateY(-0.5px);
+  }
+
+  &.is-link {
+    background-color: transparent !important;
+    padding: 0 2px !important;
+    border-radius: 4px !important;
+    height: auto !important;
+  }
+
+  // The accent fills below would otherwise flatten the disabled state into a
+  // fully-enabled look, so re-add a recognizable affordance.
+  &.is-disabled,
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+
+    &:hover {
+      transform: none;
+    }
+  }
+}
+
+.el-button--primary:not(.is-link):not(.is-circle) {
+  background-color: rgba($accent-green, 0.16) !important;
+  color: #34d399 !important;
+
+  &:hover {
+    background-color: rgba($accent-green, 0.28) !important;
+    color: #6ee7b7 !important;
+  }
+}
+
+// Default buttons carry NO `el-button--default` class in Element Plus - a
+// plain <el-button> renders as bare `el-button`, and an explicit
+// type="default" adds `el-button--default` on top. So target every button
+// that does not have one of the color-carrying type modifiers instead.
+.el-button:not(.is-link):not(.is-circle):not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(.el-button--danger) {
+  background-color: rgba($accent-blue, 0.16) !important;
+  color: #93c5fd !important;
+
+  &:hover {
+    background-color: rgba($accent-blue, 0.28) !important;
+    color: #bfdbfe !important;
+  }
+}
+
+.el-button--success:not(.is-link):not(.is-circle) {
+  background-color: rgba($accent-green, 0.16) !important;
+  color: #34d399 !important;
+
+  &:hover {
+    background-color: rgba($accent-green, 0.28) !important;
+    color: #6ee7b7 !important;
+  }
+}
+
+.el-button--danger:not(.is-link):not(.is-circle) {
+  background-color: rgba($accent-red, 0.16) !important;
+  color: #fca5a5 !important;
+
+  &:hover {
+    background-color: rgba($accent-red, 0.28) !important;
+    color: #fecaca !important;
+  }
+}
+
+// Multi-select tags inside el-select: Element Plus paints them with the light
+// `el-tag--info` palette (near-white fill, dark text) that clashes with the
+// dark theme. Align them with the secondary (blue accent) button look.
+.el-select__selection .el-tag--info {
+  background-color: rgba($accent-blue, 0.16) !important;
+  border: none !important;
+  color: #93c5fd !important;
+
+  .el-tag__close {
+    color: #93c5fd !important;
+
+    &:hover {
+      background-color: rgba($accent-blue, 0.28) !important;
+      color: #bfdbfe !important;
+    }
+  }
+}
+
+// Enum row delete button (alarm rule editors): an icon-only link button
+// collapses to the icon's own box (the `.is-link` rule above sets height
+// auto) and floats at the row top. Give it a real click target centered on
+// the row's inputs. Same specificity as the is-link rule, later in this file
+// -> wins the cascade.
+.el-button.is-link.enum-delete-btn {
+  height: 24px !important;
+  width: 24px !important;
+  align-self: center;
+  font-size: 14px;
+}
+
 // =====================================================================
 // Global Dark Compact Pagination Styling
 // =====================================================================
@@ -930,6 +1116,3 @@ html, body, #app {
     line-height: 20px !important;
   }
 }
-
-
-

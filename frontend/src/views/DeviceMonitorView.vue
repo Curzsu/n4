@@ -1,7 +1,7 @@
 <template>
   <div class="device-monitor-view">
     <header class="monitor-header">
-      <el-button :icon="ArrowLeft" link @click="$router.back()">Back</el-button>
+      <el-button size="small" class="btn-secondary" :icon="ArrowLeft" @click="$router.back()">Back</el-button>
       <h2>{{ deviceName }}</h2>
     </header>
 

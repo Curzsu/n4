@@ -34,9 +34,9 @@ import java.time.Duration;
  *       {@code *-standalone.jar} to a Flink cluster via {@code flink run};
  *       all settings come from command-line arguments.</li>
  *   <li>{@link #run(String, String, String, String, int, String, String, String,
- *       String, String, String, String, String, int)} - embedded mode, called by
- *       the Spring Boot backend ({@code FlinkJobRunner}) with values injected
- *       from {@code application.yaml}.</li>
+ *       String, String, String, String, String, long, long, int, long, long)} -
+ *       embedded mode, called by the Spring Boot backend ({@code FlinkJobRunner})
+ *       with values injected from {@code application.yaml}.</li>
  * </ul>
  */
 public class AlarmProcessingJob {
@@ -55,8 +55,10 @@ public class AlarmProcessingJob {
     private static final String DEFAULT_LATEST_KEY = "alarm:latest";
     private static final String DEFAULT_ACTIVE_KEY = "alarm:active";
     private static final String DEFAULT_NOTIFICATIONS_CHANNEL = "alarm:notifications";
-    private static final String DEFAULT_REALTIME_CHANNEL = "alarm:realtime";
-    private static final String DEFAULT_PERSISTENCE_CHANNEL = "alarm:persist";
+    private static final String DEFAULT_REALTIME_STREAM = "alarm:stream:realtime";
+    private static final String DEFAULT_PERSISTENCE_STREAM = "alarm:stream:persist";
+    private static final long DEFAULT_REALTIME_STREAM_MAXLEN = 100_000;
+    private static final long DEFAULT_PERSISTENCE_STREAM_MAXLEN = 1_000_000;
     private static final String DEFAULT_POINT_RULE_MAP_KEY = "alarm:point:rule";
     private static final int DEFAULT_PARALLELISM = 1;
     /** Defaults for the local TTL caches (see run() javadoc); overridable via CLI args. */
@@ -73,7 +75,7 @@ public class AlarmProcessingJob {
      *   --point-meta-cache-ttl-seconds 60 --rule-cache-ttl-seconds 60
      * </pre>
      * Every key/value pair maps 1:1 onto the {@link #run} arguments; the Redis
-     * key/channel names fall back to the same defaults the backend uses.
+     * key/stream names fall back to the same defaults the backend uses.
      */
     public static void main(String[] args) throws Exception {
         ParameterTool params = ParameterTool.fromArgs(args);
@@ -100,8 +102,10 @@ public class AlarmProcessingJob {
                 params.get("latest-key", DEFAULT_LATEST_KEY),
                 params.get("active-key", DEFAULT_ACTIVE_KEY),
                 params.get("notification-channel", DEFAULT_NOTIFICATIONS_CHANNEL),
-                params.get("realtime-channel", DEFAULT_REALTIME_CHANNEL),
-                params.get("persistence-channel", DEFAULT_PERSISTENCE_CHANNEL),
+                params.get("realtime-stream", DEFAULT_REALTIME_STREAM),
+                params.get("persistence-stream", DEFAULT_PERSISTENCE_STREAM),
+                params.getLong("realtime-stream-maxlen", DEFAULT_REALTIME_STREAM_MAXLEN),
+                params.getLong("persistence-stream-maxlen", DEFAULT_PERSISTENCE_STREAM_MAXLEN),
                 params.get("point-rule-map-key", DEFAULT_POINT_RULE_MAP_KEY),
                 parallelism, pointMetaCacheTtl, ruleCacheTtl);
     }
@@ -130,8 +134,9 @@ public class AlarmProcessingJob {
                            String groupId, String redisHost, int redisPort, String redisPassword,
                            String rulesNumericKey, String rulesEnumKey,
                            String latestRedisKey, String activeRedisKey,
-                           String notificationChannel, String realtimeChannel,
-                           String persistenceChannel, String pointRuleMapKey, int parallelism,
+                           String notificationChannel, String realtimeStream,
+                           String persistenceStream, long realtimeStreamMaxlen,
+                           long persistenceStreamMaxlen, String pointRuleMapKey, int parallelism,
                            long pointMetaTtlSeconds, long ruleCacheTtlSeconds) throws Exception {
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -172,8 +177,9 @@ public class AlarmProcessingJob {
                 new AlarmProcessFunction(redisHost, redisPort,
                 redisPassword,
                         rulesNumericKey, rulesEnumKey,
-                        latestRedisKey, activeRedisKey, notificationChannel, realtimeChannel,
-                        persistenceChannel, pointRuleMapKey,
+                        latestRedisKey, activeRedisKey, notificationChannel, realtimeStream,
+                        persistenceStream, pointRuleMapKey,
+                        realtimeStreamMaxlen, persistenceStreamMaxlen,
                         pointMetaTtlSeconds, ruleCacheTtlSeconds));
 
         alarmStream.print();

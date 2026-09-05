@@ -2,13 +2,13 @@ package com.n4monitor.tdengine;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.n4monitor.alarm.dto.AlarmRecordDto;
+import com.n4monitor.alarm.dto.EventExportFilter;
 import com.n4monitor.alarm.model.PointAlarmState;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.sql.*;
@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -29,13 +30,15 @@ import java.util.concurrent.TimeUnit;
  * <p>
  * Provides two persistence paths:
  * <ol>
- *   <li>Full-detail event persistence: Flink publishes every processed point
- *       frame to Redis channel {@code alarm:persist}; the backend listener
- *       enqueues frames into a bounded buffer which is drained every second
- *       and written as chunked multi-row INSERT statements to supertable
- *       {@code alarm_event}.
+ *   <li>Full-detail event persistence: {@code AlarmStreamConsumer} polls the
+ *       Redis Stream {@code alarm:stream:persist} (consumer group, ack after
+ *       write) and hands frames over in batches, which are written as chunked
+ *       multi-row INSERT statements to supertable {@code alarm_event}. The
+ *       stream itself is the buffer: unacknowledged batches survive any
+ *       backend restart and are replayed, so no audit frame is lost.
  *   <li>Real-time alarm records: writes confirmed alarm lifecycle events to
- *       supertable {@code alarm_realtime} immediately when Flink publishes them.
+ *       supertable {@code alarm_realtime} when polled from the Redis Stream
+ *       {@code alarm:stream:realtime} under the same ack-after-write contract.
  * </ol>
  * <p>
  * Driver: REST mode ({@code jdbc:TAOS-RS}) via taos-jdbcdriver - no native client
@@ -93,22 +96,13 @@ public class TdengineSyncService {
     private static final int REALTIME_QUEUE_CAPACITY = 1000;
 
     /**
-     * Pending flush tasks. Deliberately tiny: each queued task would re-drain
-     * the buffer into memory, and the frames' true shock absorber is the
-     * bounded {@link #persistenceBuffer}; overflow just skips a tick.
+     * Pending event-batch write tasks. Deliberately tiny: the shock absorber
+     * between the producers and this lane is the Redis Stream itself (entries
+     * stay pending until the write succeeded), so more than one queued task
+     * would only re-write the same batch in memory. Overflow fails the batch,
+     * which the stream consumer then retries on its next tick.
      */
     private static final int EVENT_QUEUE_CAPACITY = 2;
-
-    /**
-     * Bounded buffer of pending full-detail frames awaiting the next batch flush.
-     * Large enough to absorb a burst between flush ticks; a full buffer drops
-     * new frames (with a warning) rather than growing without limit.
-     */
-    private static final int PERSISTENCE_BUFFER_CAPACITY = 5000;
-
-    /** Frames published by Flink to {@code alarm:persist}, pending batch flush. */
-    private final ArrayBlockingQueue<PointAlarmState> persistenceBuffer =
-            new ArrayBlockingQueue<>(PERSISTENCE_BUFFER_CAPACITY);
 
     /** Bulk event flushes; slow when TDengine lags, but must not block alarms. */
     private final ExecutorService eventExecutor = new ThreadPoolExecutor(
@@ -116,8 +110,8 @@ public class TdengineSyncService {
             new ArrayBlockingQueue<>(EVENT_QUEUE_CAPACITY),
             namedDaemonFactory("tdengine-event-writer"),
             (r, executor) -> log.warn(
-                    "TDengine event flush is still busy, skipping this flush tick; "
-                            + "frames stay buffered (capacity {})", PERSISTENCE_BUFFER_CAPACITY));
+                    "TDengine event write lane is still busy; the batch stays "
+                            + "pending on the Redis Stream and will be retried"));
 
     /** Alarm lifecycle writes; small volume, latency-sensitive, must not be displaced. */
     private final ExecutorService realtimeExecutor = new ThreadPoolExecutor(
@@ -125,8 +119,8 @@ public class TdengineSyncService {
             new ArrayBlockingQueue<>(REALTIME_QUEUE_CAPACITY),
             namedDaemonFactory("tdengine-realtime-writer"),
             (r, executor) -> log.error(
-                    "TDengine realtime write queue is full (capacity {}), dropping an alarm "
-                            + "lifecycle write; TDengine is falling behind or unreachable",
+                    "TDengine realtime write queue is full (capacity {}), the record stays "
+                            + "pending on the Redis Stream; TDengine is falling behind or unreachable",
                     REALTIME_QUEUE_CAPACITY));
 
     private final WriteChannel eventChannel = new WriteChannel("event");
@@ -320,58 +314,48 @@ public class TdengineSyncService {
     }
 
     /**
-     * Enqueue one processed point frame for full-detail persistence.
-     * Called from {@code AlarmPersistenceListener} (Redis pub/sub {@code alarm:persist})
-     * and from {@code AlarmService} when a user acknowledges an alarm.
-     * Frames are batched and flushed every second by {@link #flushPersistenceBatch()}.
+     * Write one batch of full-detail frames to the {@code alarm_event}
+     * supertable, synchronously on the event write lane. Called by
+     * {@code AlarmStreamConsumer} for each polled stream batch; the boolean
+     * result drives the stream acknowledgement (only a fully written batch is
+     * acked, a failed one is replayed - idempotent thanks to TDengine's
+     * (subtable, ts) upsert).
+     *
+     * @return true if every row of the batch is stored
      */
-    public void enqueuePersistence(PointAlarmState state) {
-        if (state == null || state.getMqttPath() == null) {
-            return;
+    public boolean writeEventFrames(List<PointAlarmState> batch) {
+        if (batch == null || batch.isEmpty()) {
+            return true;
         }
-        if (!persistenceBuffer.offer(state)) {
-            log.warn("Persistence buffer is full (capacity {}), dropping a frame for path={}; "
-                            + "TDengine is falling behind or unreachable",
-                    PERSISTENCE_BUFFER_CAPACITY, state.getMqttPath());
+        try {
+            return eventExecutor.submit(() -> {
+                if (!eventChannel.ensureConnected()) {
+                    log.error("TDengine not available, {} frame(s) stay pending on the stream",
+                            batch.size());
+                    return false;
+                }
+                return writeEventBatch(batch, tdengineConfig.getEventSupertable(), "_ev") == 0;
+            }).get();
+        } catch (RejectedExecutionException e) {
+            log.warn("TDengine event write lane is busy, batch of {} frame(s) stays pending",
+                    batch.size());
+            return false;
+        } catch (Exception e) {
+            log.error("TDengine event batch write failed, batch stays pending", e);
+            return false;
         }
     }
 
     /**
-     * Periodic flush of buffered full-detail frames into the {@code alarm_event}
-     * supertable. Runs every second; a flush with nothing buffered is a no-op
-     * (no SQL issued), so idle points cost nothing.
+     * Write a batch to one supertable using chunked multi-row INSERT
+     * statements. On a statement-level SQL failure only that chunk falls back
+     * to row-by-row writes, so one malformed row cannot silently drop the
+     * frames of neighbouring chunks (and already-written chunks are not
+     * rewritten).
+     *
+     * @return number of rows that could not be stored
      */
-    @Scheduled(fixedRateString = "${tdengine.event-flush-rate-ms:1000}",
-            initialDelayString = "${tdengine.event-flush-initial-delay-ms:3000}")
-    public void flushPersistenceBatch() {
-        if (persistenceBuffer.isEmpty()) {
-            return;
-        }
-        // Drain inside the writer task so a skipped tick loses nothing: frames
-        // simply stay in the bounded buffer until a later tick. Connect before
-        // draining so a TDengine outage does not empty the buffer into the void.
-        eventExecutor.submit(() -> {
-            if (!eventChannel.ensureConnected()) {
-                log.error("TDengine not available, leaving {} frame(s) buffered",
-                        persistenceBuffer.size());
-                return;
-            }
-            List<PointAlarmState> batch = new ArrayList<>(PERSISTENCE_BUFFER_CAPACITY);
-            persistenceBuffer.drainTo(batch);
-            if (batch.isEmpty()) {
-                return;
-            }
-            writeEventBatch(batch, tdengineConfig.getEventSupertable(), "_ev");
-        });
-    }
-
-    /**
-     * Write a drained buffer batch to one supertable using chunked multi-row
-     * INSERT statements. On a statement-level SQL failure only that chunk falls
-     * back to row-by-row writes, so one malformed row cannot silently drop the
-     * frames of neighbouring chunks (and already-written chunks are not rewritten).
-     */
-    private void writeEventBatch(List<PointAlarmState> batch, String supertable, String subtableSuffix) {
+    private int writeEventBatch(List<PointAlarmState> batch, String supertable, String subtableSuffix) {
         List<TdengineSql.Chunk> chunks = TdengineSql.buildChunks(supertable, subtableSuffix, batch);
         int written = 0;
         int failed = 0;
@@ -384,8 +368,9 @@ public class TdengineSyncService {
                 failed += writeRowsIndividually(chunk.rows(), supertable, subtableSuffix);
             }
         }
-        log.debug("Flushed persistence batch: {} rows written, {} failed via {} chunk(s)",
+        log.debug("Wrote event batch: {} rows written, {} failed via {} chunk(s)",
                 written, failed, chunks.size());
+        return failed;
     }
 
     /**
@@ -416,25 +401,38 @@ public class TdengineSyncService {
     }
 
     /**
-     * Write a single real-time alarm record to TDengine.
-     * Called from the Redis pub/sub listener when Flink confirms an alarm.
+     * Write one real-time alarm lifecycle record to TDengine, synchronously on
+     * the realtime write lane. Called by {@code AlarmStreamConsumer} for each
+     * polled stream record; the boolean result drives the stream
+     * acknowledgement (failed writes stay pending and are replayed).
+     *
+     * @return true if the record is stored
      */
-    public void writeRealtimeAlarm(PointAlarmState state) {
-        realtimeExecutor.submit(() -> {
-            try {
+    public boolean writeRealtimeAlarm(PointAlarmState state) {
+        if (state == null || state.getMqttPath() == null) {
+            return true;
+        }
+        try {
+            return realtimeExecutor.submit(() -> {
                 if (!realtimeChannel.ensureConnected()) {
-                    log.error("TDengine not available, dropping realtime alarm: path={}, stage={}",
+                    log.error("TDengine not available, realtime alarm stays pending: path={}, stage={}",
                             state.getMqttPath(), state.getStage());
-                    return;
+                    return false;
                 }
                 writeSingleRow(realtimeChannel, tdengineConfig.getRealtimeSupertable(), "_rt", state);
                 log.info("Wrote realtime alarm to TDengine: path={}, stage={}, level={}",
                         state.getMqttPath(), state.getStage(), state.getLevel());
-            } catch (Exception e) {
-                log.error("Failed to write realtime alarm for path: {}, stage: {}",
-                        state.getMqttPath(), state.getStage(), e);
-            }
-        });
+                return true;
+            }).get();
+        } catch (RejectedExecutionException e) {
+            log.error("TDengine realtime write lane is busy, record stays pending: path={}, stage={}",
+                    state.getMqttPath(), state.getStage());
+            return false;
+        } catch (Exception e) {
+            log.error("Failed to write realtime alarm for path: {}, stage: {} (record stays pending)",
+                    state.getMqttPath(), state.getStage(), e);
+            return false;
+        }
     }
 
     /**
@@ -500,13 +498,14 @@ public class TdengineSyncService {
                 "alarm_message, alarm_location, alarm_status, ack_by, alarm_duration, " +
                 "alarm_stage, alarm_stage_message, alarm_start_time, path FROM " + tdengineConfig.getRealtimeSupertable() +
                 historyWhere(topTs) +
-                // Order by the write timestamp: the indexed primary ts, and the same
-                // insertion-order tiebreaker this query previously used as secondary
-                // key. When two records share the same data_timestamp (e.g. an End +
-                // Start written in the same tick during a level escalation), the
-                // later-written Start always sorts above the earlier-written End.
-                // data_timestamp stays as a secondary key for fully tied rows.
-                " ORDER BY ts DESC, data_timestamp DESC LIMIT " + pageLimit(limit) + " OFFSET " + pageOffset(offset);
+                // Order by the write timestamp only: ts is the indexed primary
+                // key and grows monotonically with insertion, so TDengine
+                // streams the newest rows straight off the index. Rows sharing
+                // one write millisecond (a single INSERT batch) have no defined
+                // relative order; the former data_timestamp secondary sort was
+                // removed as unnecessary - restore it only if same-millisecond
+                // page-border rows ever need a deterministic order again.
+                " ORDER BY ts DESC LIMIT " + pageLimit(limit) + " OFFSET " + pageOffset(offset);
 
         try (Connection readConn = openReadConnection();
              Statement stmt = readConn.createStatement();
@@ -554,7 +553,8 @@ public class TdengineSyncService {
 
     /**
      * Query one page of full-detail records from the alarm_event supertable,
-     * newest first. Same scroll-pagination contract as
+     * newest first (ordered by the write timestamp {@code ts}, the indexed
+     * primary key). Same scroll-pagination contract as
      * {@link #queryClearedAlarms(Long, Integer, Integer)}: snapshot upper bound
      * (topTs) + offset. OFFSET is used instead of a {@code ts < cursor} keyset
      * cursor because bursty batch writes put dozens of rows on the same
@@ -566,9 +566,9 @@ public class TdengineSyncService {
                 "alarm_message, alarm_location, alarm_status, ack_by, alarm_duration, " +
                 "alarm_stage, alarm_stage_message, alarm_start_time, path FROM " + tdengineConfig.getEventSupertable() +
                 historyWhere(topTs) +
-                // Same ordering contract as queryClearedAlarms: indexed primary ts,
-                // later-written rows first, data_timestamp breaks full ties.
-                " ORDER BY ts DESC, data_timestamp DESC LIMIT " + pageLimit(limit) + " OFFSET " + pageOffset(offset);
+                // Same ordering contract as queryClearedAlarms: indexed primary
+                // ts only (see the note there on the removed secondary sort).
+                " ORDER BY ts DESC LIMIT " + pageLimit(limit) + " OFFSET " + pageOffset(offset);
 
         List<AlarmRecordDto> result = new ArrayList<>();
 
@@ -576,40 +576,7 @@ public class TdengineSyncService {
              Statement stmt = readConn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
-                AlarmRecordDto dto = new AlarmRecordDto();
-                Timestamp dataTs = rs.getTimestamp("data_timestamp");
-                if (dataTs != null) {
-                    dto.setTime(LocalDateTime.ofInstant(
-                            Instant.ofEpochMilli(dataTs.getTime()), ZoneId.systemDefault())
-                            .format(TD_TIME_FORMAT));
-                } else {
-                    dto.setTime("-");
-                }
-                dto.setLevel(rs.getString("alarm_level"));
-                dto.setSeverity(rs.getString("alarm_severity"));
-                dto.setValue(rs.getString("point_value"));
-                dto.setSource(rs.getString("alarm_source"));
-                dto.setMessage(rs.getString("alarm_message"));
-                dto.setLocation(rs.getString("alarm_location"));
-                dto.setStatus(rs.getString("alarm_status"));
-                dto.setAckBy(rs.getString("ack_by"));
-                dto.setDuration(rs.getString("alarm_duration"));
-                dto.setStage(rs.getString("alarm_stage"));
-                dto.setStageMessage(rs.getString("alarm_stage_message"));
-                Timestamp startTs = rs.getTimestamp("alarm_start_time");
-                if (startTs != null) {
-                    dto.setAlarmStartTime(LocalDateTime.ofInstant(
-                            Instant.ofEpochMilli(startTs.getTime()), ZoneId.systemDefault())
-                            .format(TD_TIME_FORMAT));
-                } else {
-                    dto.setAlarmStartTime("-");
-                }
-                Timestamp writeTs = rs.getTimestamp("ts");
-                if (writeTs != null) {
-                    dto.setTs(writeTs.getTime());
-                }
-                dto.setPath(rs.getString("path"));
-                result.add(dto);
+                result.add(mapEventRow(rs));
             }
         } catch (SQLException e) {
             // Same as queryClearedAlarms: never tear down a write lane.
@@ -618,6 +585,91 @@ public class TdengineSyncService {
 
         log.info("Queried {} alarm event records from TDengine (limit {}, offset {})",
                 result.size(), pageLimit(limit), pageOffset(offset));
+        return result;
+    }
+
+    /**
+     * Map one {@code alarm_event} row to its DTO. Both {@link
+     * #queryAlarmEvents(Long, Integer, Integer)} and the export page query
+     * select {@link EventExportSql#SELECT_COLUMNS}, so they share this mapper.
+     */
+    private static AlarmRecordDto mapEventRow(ResultSet rs) throws SQLException {
+        AlarmRecordDto dto = new AlarmRecordDto();
+        Timestamp dataTs = rs.getTimestamp("data_timestamp");
+        if (dataTs != null) {
+            dto.setTime(LocalDateTime.ofInstant(
+                    Instant.ofEpochMilli(dataTs.getTime()), ZoneId.systemDefault())
+                    .format(TD_TIME_FORMAT));
+        } else {
+            dto.setTime("-");
+        }
+        dto.setLevel(rs.getString("alarm_level"));
+        dto.setSeverity(rs.getString("alarm_severity"));
+        dto.setValue(rs.getString("point_value"));
+        dto.setSource(rs.getString("alarm_source"));
+        dto.setMessage(rs.getString("alarm_message"));
+        dto.setLocation(rs.getString("alarm_location"));
+        dto.setStatus(rs.getString("alarm_status"));
+        dto.setAckBy(rs.getString("ack_by"));
+        dto.setDuration(rs.getString("alarm_duration"));
+        dto.setStage(rs.getString("alarm_stage"));
+        dto.setStageMessage(rs.getString("alarm_stage_message"));
+        Timestamp startTs = rs.getTimestamp("alarm_start_time");
+        if (startTs != null) {
+            dto.setAlarmStartTime(LocalDateTime.ofInstant(
+                    Instant.ofEpochMilli(startTs.getTime()), ZoneId.systemDefault())
+                    .format(TD_TIME_FORMAT));
+        } else {
+            dto.setAlarmStartTime("-");
+        }
+        Timestamp writeTs = rs.getTimestamp("ts");
+        if (writeTs != null) {
+            dto.setTs(writeTs.getTime());
+        }
+        dto.setPath(rs.getString("path"));
+        return dto;
+    }
+
+    /**
+     * Count the {@code alarm_event} rows matching an export filter. The export
+     * pre-check runs this before any Excel work so an oversized range is
+     * rejected instead of producing a truncated file.
+     *
+     * @throws IllegalStateException when TDengine is unreachable or the query
+     *         fails - the export must fail loudly, never silently produce an
+     *         empty file
+     */
+    public long countAlarmEvents(EventExportFilter filter) {
+        String sql = EventExportSql.count(filter, tdengineConfig.getEventSupertable());
+        try (Connection readConn = openReadConnection();
+             Statement stmt = readConn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            return rs.next() ? rs.getLong(1) : 0L;
+        } catch (SQLException e) {
+            log.error("Failed to count alarm events for export", e);
+            throw new IllegalStateException("Failed to count alarm events for export", e);
+        }
+    }
+
+    /**
+     * Read one ascending page of {@code alarm_event} rows for the Excel export
+     * (oldest first, OFFSET paging - see {@link EventExportSql}). Same failure
+     * contract as {@link #countAlarmEvents(EventExportFilter)}: a query error
+     * aborts the export, it never truncates the file silently.
+     */
+    public List<AlarmRecordDto> queryAlarmEventsPage(EventExportFilter filter, int offset, int limit) {
+        String sql = EventExportSql.page(filter, tdengineConfig.getEventSupertable(), limit, offset);
+        List<AlarmRecordDto> result = new ArrayList<>();
+        try (Connection readConn = openReadConnection();
+             Statement stmt = readConn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                result.add(mapEventRow(rs));
+            }
+        } catch (SQLException e) {
+            log.error("Failed to read alarm events export page (offset {}, limit {})", offset, limit, e);
+            throw new IllegalStateException("Failed to read alarm events for export", e);
+        }
         return result;
     }
 
