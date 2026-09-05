@@ -11,9 +11,8 @@
         {{ tab.label }}
       </div>
       <div class="tab-actions">
-        <el-button type="primary" size="small" @click="openCreateDialog">
-          <el-icon><Plus /></el-icon>
-          <span>Add Rule</span>
+        <el-button type="primary" size="small" class="btn-primary" :icon="Plus" @click="openCreateDialog">
+          Add Rule
         </el-button>
       </div>
     </div>
@@ -220,21 +219,18 @@
                 <el-input v-model="item.message" placeholder="Alarm message" />
               </el-form-item>
               <el-button type="danger" link size="small" class="enum-delete-btn"
-                @click="removeEnumItem(idx)" :disabled="enumFormItems.length <= 1">
-                <el-icon><Delete /></el-icon>
-              </el-button>
+                :icon="Delete" @click="removeEnumItem(idx)" :disabled="enumFormItems.length <= 1" />
             </div>
           </div>
-          <el-button type="primary" link size="small" @click="addEnumItem">
-            <el-icon><Plus /></el-icon>
-            <span>Add Enum Value</span>
+          <el-button type="primary" link size="small" :icon="Plus" @click="addEnumItem">
+            Add Enum Value
           </el-button>
         </template>
       </el-form>
 
       <template #footer>
-        <el-button @click="dialogVisible = false">Cancel</el-button>
-        <el-button type="primary" :loading="saving" @click="handleSave">Save</el-button>
+        <el-button class="btn-secondary" @click="dialogVisible = false">Cancel</el-button>
+        <el-button type="primary" class="btn-primary" :loading="saving" @click="handleSave">Save</el-button>
       </template>
     </el-dialog>
   </div>

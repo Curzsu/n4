@@ -3,11 +3,11 @@
     <!-- Header with Breadcrumbs and Back Button -->
     <div class="view-header">
       <div class="header-left">
-        <el-button 
-          size="small" 
-          :icon="ArrowLeft" 
-          @click="goBack" 
-          class="back-btn"
+        <el-button
+          size="small"
+          :icon="ArrowLeft"
+          @click="goBack"
+          class="btn-secondary"
         >
           Return to Dashboard
         </el-button>
@@ -106,12 +106,11 @@
         </el-table-column>
         <el-table-column label="Action" width="140" fixed="right">
           <template #default="{ row }">
-            <el-button 
-              type="primary" 
-              size="small" 
-              plain
+            <el-button
+              type="primary"
+              link
+              size="small"
               @click="viewMonitorPoints(row as DeviceTreeNode)"
-              class="action-btn"
             >
               View Points
             </el-button>
@@ -323,17 +322,6 @@ watch(() => store.selectedNode?.label, loadConfiguredCabins)
   gap: 12px;
 }
 
-.back-btn {
-  background-color: transparent;
-  border-color: $border-card;
-  color: $text-secondary;
-  &:hover {
-    color: $accent-green;
-    border-color: $accent-green;
-    background-color: rgba($accent-green, 0.05);
-  }
-}
-
 .system-title {
   font-size: 16px;
   font-weight: 600;
@@ -511,16 +499,6 @@ watch(() => store.selectedNode?.label, loadConfiguredCabins)
     background-color: rgba($accent-red, 0.1);
     color: $accent-red;
     .dot { background-color: $accent-red; }
-  }
-}
-
-.action-btn {
-  border-color: rgba($accent-green, 0.3);
-  color: $accent-green;
-  background-color: transparent;
-  &:hover {
-    background-color: $accent-green !important;
-    color: #ffffff !important;
   }
 }
 

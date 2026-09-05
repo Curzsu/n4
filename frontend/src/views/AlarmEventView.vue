@@ -216,44 +216,7 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
-// Button styling copied from SystemDeploymentView.vue (Device Template /
-// Device Deployment buttons) so the Event header matches that look. Scoped
-// on purpose - promoting it to a global style would restyle every el-button
-// in the app.
-:deep(.el-button) {
-  border-radius: 9px !important;
-  border: none !important;
-  font-size: 10px !important;
-  font-weight: 400 !important;
-  padding: 2px 8px !important;
-  height: 20px !important;
-  line-height: 16px !important;
-  transition: all 0.2s ease-in-out;
-
-  &:hover {
-    transform: translateY(-0.5px);
-  }
-}
-
-.btn-primary {
-  background-color: rgba($accent-green, 0.16) !important;
-  color: #34d399 !important;
-
-  &:hover {
-    background-color: rgba($accent-green, 0.28) !important;
-    color: #6ee7b7 !important;
-  }
-}
-
-.btn-secondary {
-  background-color: rgba($accent-blue, 0.16) !important;
-  color: #93c5fd !important;
-
-  &:hover {
-    background-color: rgba($accent-blue, 0.28) !important;
-    color: #bfdbfe !important;
-  }
-}
+// Button styling lives in styles/global.scss (app-wide unified look).
 
 .config-title {
   font-size: 16px;

@@ -1682,55 +1682,5 @@ $bg-dark: #0b1119;
   }
 }
 
-:deep(.el-button) {
-  border-radius: 9px !important;
-  border: none !important;
-  font-size: 10px !important;
-  font-weight: 400 !important;
-  padding: 2px 8px !important;
-  height: 20px !important;
-  line-height: 16px !important;
-  transition: all 0.2s ease-in-out;
-
-  &:hover {
-    transform: translateY(-0.5px);
-  }
-
-  &.is-link {
-    background-color: transparent !important;
-    padding: 0 2px !important;
-    border-radius: 4px !important;
-    height: auto !important;
-  }
-}
-
-.btn-primary, :deep(.el-button--primary:not(.is-link)) {
-  background-color: rgba($accent-green, 0.16) !important;
-  color: #34d399 !important;
-
-  &:hover {
-    background-color: rgba($accent-green, 0.28) !important;
-    color: #6ee7b7 !important;
-  }
-}
-
-.btn-secondary, :deep(.el-button--default:not(.is-link)), :deep(.el-button--info:not(.is-link)) {
-  background-color: rgba($accent-blue, 0.16) !important;
-  color: #93c5fd !important;
-
-  &:hover {
-    background-color: rgba($accent-blue, 0.28) !important;
-    color: #bfdbfe !important;
-  }
-}
-
-.btn-danger, :deep(.el-button--danger:not(.is-link)) {
-  background-color: rgba($accent-red, 0.16) !important;
-  color: #fca5a5 !important;
-
-  &:hover {
-    background-color: rgba($accent-red, 0.28) !important;
-    color: #fecaca !important;
-  }
-}
+// Button styling lives in styles/global.scss (app-wide unified look).
 </style>

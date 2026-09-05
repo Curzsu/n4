@@ -715,4 +715,87 @@ html, body, #app {
   }
 }
 
+// ── Unified el-button styling ─────────────────────────────────────────────
+// Single source of truth for the app-wide button look (formerly duplicated as
+// scoped copies in SystemDeploymentView / ProductManagerView / AlarmEventView /
+// EventExportDialog / DeviceAlarmConfigDialog / TemplateDiagramDialog).
+// Circle icon buttons (FUXA panels, sidebar refresh) keep their own designed
+// transparent-border look and are excluded entirely; link text buttons keep a
+// transparent background and Element Plus link colors.
+
+.el-button:not(.is-circle) {
+  border-radius: 9px !important;
+  border: none !important;
+  font-size: 10px !important;
+  font-weight: 400 !important;
+  padding: 2px 8px !important;
+  height: 20px !important;
+  line-height: 16px !important;
+  transition: all 0.2s ease-in-out;
+
+  &:hover {
+    transform: translateY(-0.5px);
+  }
+
+  &.is-link {
+    background-color: transparent !important;
+    padding: 0 2px !important;
+    border-radius: 4px !important;
+    height: auto !important;
+  }
+
+  // The accent fills below would otherwise flatten the disabled state into a
+  // fully-enabled look, so re-add a recognizable affordance.
+  &.is-disabled,
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+
+    &:hover {
+      transform: none;
+    }
+  }
+}
+
+.el-button--primary:not(.is-link):not(.is-circle) {
+  background-color: rgba($accent-green, 0.16) !important;
+  color: #34d399 !important;
+
+  &:hover {
+    background-color: rgba($accent-green, 0.28) !important;
+    color: #6ee7b7 !important;
+  }
+}
+
+.el-button--default:not(.is-link):not(.is-circle),
+.el-button--info:not(.is-link):not(.is-circle) {
+  background-color: rgba($accent-blue, 0.16) !important;
+  color: #93c5fd !important;
+
+  &:hover {
+    background-color: rgba($accent-blue, 0.28) !important;
+    color: #bfdbfe !important;
+  }
+}
+
+.el-button--success:not(.is-link):not(.is-circle) {
+  background-color: rgba($accent-green, 0.16) !important;
+  color: #34d399 !important;
+
+  &:hover {
+    background-color: rgba($accent-green, 0.28) !important;
+    color: #6ee7b7 !important;
+  }
+}
+
+.el-button--danger:not(.is-link):not(.is-circle) {
+  background-color: rgba($accent-red, 0.16) !important;
+  color: #fca5a5 !important;
+
+  &:hover {
+    background-color: rgba($accent-red, 0.28) !important;
+    color: #fecaca !important;
+  }
+}
+
 

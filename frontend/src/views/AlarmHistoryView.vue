@@ -2,10 +2,7 @@
   <div class="alarm-history-view">
     <div class="config-header">
       <span class="config-title">Alarm History</span>
-      <el-button type="primary" size="small" @click="fetchData">
-        <el-icon><Refresh /></el-icon>
-        <span>Refresh</span>
-      </el-button>
+      <el-button size="small" class="btn-secondary" :icon="Refresh" @click="fetchData">Refresh</el-button>
     </div>
 
     <div ref="tableWrapperRef" class="history-table-wrapper" @scroll.capture="onTableScroll">

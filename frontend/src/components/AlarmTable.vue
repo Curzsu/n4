@@ -20,7 +20,7 @@
           {{ isAllSelected ? 'Deselect All (Current)' : 'Select All (Current)' }}
         </el-button>
         <el-button
-          type="success"
+          class="btn-primary"
           size="small"
           :disabled="selectedIds.size === 0"
           @click="ackSelected"

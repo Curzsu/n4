@@ -3,11 +3,11 @@
     <!-- View Header -->
     <div class="view-header">
       <div class="header-left">
-        <el-button 
-          size="small" 
-          :icon="ArrowLeft" 
-          @click="goBack" 
-          class="back-btn"
+        <el-button
+          size="small"
+          :icon="ArrowLeft"
+          @click="goBack"
+          class="btn-secondary"
         >
           Back
         </el-button>
@@ -205,22 +205,6 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.back-btn {
-  background-color: transparent;
-  border-color: $border-card;
-  color: $text-secondary;
-  border-radius: 9px;
-  font-size: 10px;
-  height: 20px;
-  line-height: 16px;
-  padding: 2px 8px;
-  &:hover {
-    color: $accent-green;
-    border-color: $accent-green;
-    background-color: rgba($accent-green, 0.05);
-  }
 }
 
 .device-title {

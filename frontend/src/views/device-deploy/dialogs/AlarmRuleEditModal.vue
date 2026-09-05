@@ -145,16 +145,14 @@
                 link
                 size="small"
                 class="enum-delete-btn"
+                :icon="Delete"
                 @click="removeEnumItem(idx)"
                 :disabled="enumFormItems.length <= 1"
-              >
-                <el-icon><Delete /></el-icon>
-              </el-button>
+              />
             </div>
           </div>
-          <el-button type="primary" link size="small" @click="addEnumItem">
-            <el-icon><Plus /></el-icon>
-            <span>Add Enum Value</span>
+          <el-button type="primary" link size="small" :icon="Plus" @click="addEnumItem">
+            Add Enum Value
           </el-button>
         </template>
       </el-form>
@@ -162,8 +160,8 @@
 
     <template #footer>
       <div class="dialog-footer">
-        <el-button @click="dialogVisible = false">Cancel</el-button>
-        <el-button type="primary" :loading="saving" @click="handleSave">Save</el-button>
+        <el-button class="btn-secondary" @click="dialogVisible = false">Cancel</el-button>
+        <el-button type="primary" class="btn-primary" :loading="saving" @click="handleSave">Save</el-button>
       </div>
     </template>
   </el-dialog>
