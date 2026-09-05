@@ -73,21 +73,18 @@ When generating or modifying code for this project:
 
 ### Rules
 
-1. **Ask before committing**
-   - At the end of a session that modified files (i.e., there are git changes), ask the user whether the changes should be committed.
-   - If the user chooses to commit, commit directly for them: stage only the task-related files (see rule 4) and run `git commit` locally.
-   - If the user chooses not to commit, leave the changes in the working tree — do not commit.
+1. **Commit directly at the end of a session that modified files**
+   - At the end of a session that modified files (i.e., there are git changes), commit the changes locally without asking for confirmation.
+   - Stage only the task-related files (see rule 4) and run `git commit` locally.
+   - When a session contains several independent tasks, split them into separate commits by task.
 
 2. **Commit messages are written in Chinese**
-   - Both direct commits and suggested commit messages follow the repo's conventional style: an English type prefix (`feat:`/`fix:`/`docs:`/`refactor:`/`chore:`, with optional scope) plus a **Chinese** description, e.g. `feat(deploy): docker compose 新增 Flink 独立部署编排`.
+   - Commit messages follow the repo's conventional style: an English type prefix (`feat:`/`fix:`/`docs:`/`refactor:`/`chore:`, with optional scope) plus a **Chinese** description, e.g. `feat(deploy): docker compose 新增 Flink 独立部署编排`.
    - When the change set is non-trivial, add a short body in Chinese listing the key points.
 
-3. **Offer a suggested commit message when not committing**
-   - When the user declines to commit (or the changes are left uncommitted), include a ready-to-use commit message (in rule 2's format) in the final reply so the user can commit it directly later.
-
-4. **Local commits only — never push**
+3. **Local commits only — never push**
    - Only commit to the **local** repository (`git commit`).
    - **Never push to any remote** (`git push` is forbidden unless the user explicitly asks for a push in that specific instance).
 
-5. **Only commit what was asked**
+4. **Only commit what was asked**
    - Stage only the files related to the task performed in the session. Do not sweep unrelated working-tree changes into the commit.
