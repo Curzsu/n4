@@ -2,6 +2,7 @@ package com.n4monitor.tdengine;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.n4monitor.alarm.dto.AlarmRecordDto;
+import com.n4monitor.alarm.dto.EventExportFilter;
 import com.n4monitor.alarm.model.PointAlarmState;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -575,40 +576,7 @@ public class TdengineSyncService {
              Statement stmt = readConn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
-                AlarmRecordDto dto = new AlarmRecordDto();
-                Timestamp dataTs = rs.getTimestamp("data_timestamp");
-                if (dataTs != null) {
-                    dto.setTime(LocalDateTime.ofInstant(
-                            Instant.ofEpochMilli(dataTs.getTime()), ZoneId.systemDefault())
-                            .format(TD_TIME_FORMAT));
-                } else {
-                    dto.setTime("-");
-                }
-                dto.setLevel(rs.getString("alarm_level"));
-                dto.setSeverity(rs.getString("alarm_severity"));
-                dto.setValue(rs.getString("point_value"));
-                dto.setSource(rs.getString("alarm_source"));
-                dto.setMessage(rs.getString("alarm_message"));
-                dto.setLocation(rs.getString("alarm_location"));
-                dto.setStatus(rs.getString("alarm_status"));
-                dto.setAckBy(rs.getString("ack_by"));
-                dto.setDuration(rs.getString("alarm_duration"));
-                dto.setStage(rs.getString("alarm_stage"));
-                dto.setStageMessage(rs.getString("alarm_stage_message"));
-                Timestamp startTs = rs.getTimestamp("alarm_start_time");
-                if (startTs != null) {
-                    dto.setAlarmStartTime(LocalDateTime.ofInstant(
-                            Instant.ofEpochMilli(startTs.getTime()), ZoneId.systemDefault())
-                            .format(TD_TIME_FORMAT));
-                } else {
-                    dto.setAlarmStartTime("-");
-                }
-                Timestamp writeTs = rs.getTimestamp("ts");
-                if (writeTs != null) {
-                    dto.setTs(writeTs.getTime());
-                }
-                dto.setPath(rs.getString("path"));
-                result.add(dto);
+                result.add(mapEventRow(rs));
             }
         } catch (SQLException e) {
             // Same as queryClearedAlarms: never tear down a write lane.
@@ -617,6 +585,91 @@ public class TdengineSyncService {
 
         log.info("Queried {} alarm event records from TDengine (limit {}, offset {})",
                 result.size(), pageLimit(limit), pageOffset(offset));
+        return result;
+    }
+
+    /**
+     * Map one {@code alarm_event} row to its DTO. Both {@link
+     * #queryAlarmEvents(Long, Integer, Integer)} and the export page query
+     * select {@link EventExportSql#SELECT_COLUMNS}, so they share this mapper.
+     */
+    private static AlarmRecordDto mapEventRow(ResultSet rs) throws SQLException {
+        AlarmRecordDto dto = new AlarmRecordDto();
+        Timestamp dataTs = rs.getTimestamp("data_timestamp");
+        if (dataTs != null) {
+            dto.setTime(LocalDateTime.ofInstant(
+                    Instant.ofEpochMilli(dataTs.getTime()), ZoneId.systemDefault())
+                    .format(TD_TIME_FORMAT));
+        } else {
+            dto.setTime("-");
+        }
+        dto.setLevel(rs.getString("alarm_level"));
+        dto.setSeverity(rs.getString("alarm_severity"));
+        dto.setValue(rs.getString("point_value"));
+        dto.setSource(rs.getString("alarm_source"));
+        dto.setMessage(rs.getString("alarm_message"));
+        dto.setLocation(rs.getString("alarm_location"));
+        dto.setStatus(rs.getString("alarm_status"));
+        dto.setAckBy(rs.getString("ack_by"));
+        dto.setDuration(rs.getString("alarm_duration"));
+        dto.setStage(rs.getString("alarm_stage"));
+        dto.setStageMessage(rs.getString("alarm_stage_message"));
+        Timestamp startTs = rs.getTimestamp("alarm_start_time");
+        if (startTs != null) {
+            dto.setAlarmStartTime(LocalDateTime.ofInstant(
+                    Instant.ofEpochMilli(startTs.getTime()), ZoneId.systemDefault())
+                    .format(TD_TIME_FORMAT));
+        } else {
+            dto.setAlarmStartTime("-");
+        }
+        Timestamp writeTs = rs.getTimestamp("ts");
+        if (writeTs != null) {
+            dto.setTs(writeTs.getTime());
+        }
+        dto.setPath(rs.getString("path"));
+        return dto;
+    }
+
+    /**
+     * Count the {@code alarm_event} rows matching an export filter. The export
+     * pre-check runs this before any Excel work so an oversized range is
+     * rejected instead of producing a truncated file.
+     *
+     * @throws IllegalStateException when TDengine is unreachable or the query
+     *         fails - the export must fail loudly, never silently produce an
+     *         empty file
+     */
+    public long countAlarmEvents(EventExportFilter filter) {
+        String sql = EventExportSql.count(filter, tdengineConfig.getEventSupertable());
+        try (Connection readConn = openReadConnection();
+             Statement stmt = readConn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            return rs.next() ? rs.getLong(1) : 0L;
+        } catch (SQLException e) {
+            log.error("Failed to count alarm events for export", e);
+            throw new IllegalStateException("Failed to count alarm events for export", e);
+        }
+    }
+
+    /**
+     * Read one ascending page of {@code alarm_event} rows for the Excel export
+     * (oldest first, OFFSET paging - see {@link EventExportSql}). Same failure
+     * contract as {@link #countAlarmEvents(EventExportFilter)}: a query error
+     * aborts the export, it never truncates the file silently.
+     */
+    public List<AlarmRecordDto> queryAlarmEventsPage(EventExportFilter filter, int offset, int limit) {
+        String sql = EventExportSql.page(filter, tdengineConfig.getEventSupertable(), limit, offset);
+        List<AlarmRecordDto> result = new ArrayList<>();
+        try (Connection readConn = openReadConnection();
+             Statement stmt = readConn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                result.add(mapEventRow(rs));
+            }
+        } catch (SQLException e) {
+            log.error("Failed to read alarm events export page (offset {}, limit {})", offset, limit, e);
+            throw new IllegalStateException("Failed to read alarm events for export", e);
+        }
         return result;
     }
 

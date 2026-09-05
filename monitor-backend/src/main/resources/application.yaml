@@ -83,6 +83,11 @@ alarm:
     stream-consumer: n4-backend                  # Fixed consumer name: restart recovery replays this consumer's own PEL (single-instance deployments only)
     point-rule-map-key: alarm:point:rule         # Point path -> metadata map (Hash, field=path, value=JSON {"type","alarm_code"})
 
+  # Event page Excel export
+  export:
+    max-rows: 50000                              # Data rows per export; larger ranges are rejected with a 400, never truncated
+    page-size: 5000                              # Rows per TDengine page read while exporting (REST driver buffers whole result sets)
+
 # Dynamic FUXA template binding. Secrets remain in FUXA's MQTT device configuration.
 fuxa:
   base-url: ${FUXA_BASE_URL:http://localhost:1881}
