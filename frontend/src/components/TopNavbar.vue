@@ -25,32 +25,50 @@
         >{{ alarmSummary?.[b.key] || 0 }}</span>
       </div>
       <el-icon class="search-icon"><Search /></el-icon>
-      <div class="user-profile">
-        <el-icon><UserFilled /></el-icon>
-        <span>admin</span>
-      </div>
+      <el-dropdown trigger="click" @command="handleUserCommand">
+        <div class="user-profile">
+          <el-icon><UserFilled /></el-icon>
+          <span class="username">{{ displayName }}</span>
+          <el-icon class="arrow-icon"><ArrowDown /></el-icon>
+        </div>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item command="password">Change Password</el-dropdown-item>
+            <el-dropdown-item command="logs">Audit Logs</el-dropdown-item>
+            <el-dropdown-item divided command="logout">Logout</el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
     </div>
+
+    <ChangePasswordDialog v-model="changePasswordVisible" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Search, UserFilled } from '@element-plus/icons-vue'
+import { Search, UserFilled, ArrowDown } from '@element-plus/icons-vue'
+import { ElMessageBox, ElMessage } from 'element-plus'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
+import { useAuthStore } from '@/stores/auth'
 import { severityColors } from '@/config/severityColors'
+import ChangePasswordDialog from '@/components/ChangePasswordDialog.vue'
 
 const router = useRouter()
 const route = useRoute()
-
 const store = useDashboardStore()
+const authStore = useAuthStore()
 const { summaryData } = useAlarmWebSocket()
 
-// Live alarm counts from the WebSocket stream (same source as Active Alarms).
-// Fall back to the REST snapshot so the badges are non-zero before the first
-// WS frame arrives. Use ?? (not ||) so a real 0 count is honored instead of
-// being masked by the fallback value.
+const changePasswordVisible = ref(false)
+
+const displayName = computed(() => {
+  return authStore.currentUser?.realName || authStore.currentUser?.username || 'User'
+})
+
+// Live alarm counts from the WebSocket stream
 const alarmSummary = computed(() => {
   const live = summaryData.value
   const rest = store.alarmSummary
@@ -62,13 +80,6 @@ const alarmSummary = computed(() => {
   }
 })
 
-// The initial summary is seeded by useAlarmWebSocket on connect, so this
-// component only reads the shared state (previously it duplicated the seed
-// fetch that AlarmSummaryPanel / the WebSocket already performed).
-
-// Badge order left-to-right: Critical, Major, Minor, Warning. Each badge maps
-// to a canonical severity label (used both for the title tooltip and for the
-// Active Alarms query param) and to an AlarmSummary count key.
 const alarmBadges = [
   { key: 'critical', severity: 'Critical' },
   { key: 'major', severity: 'Major' },
@@ -86,8 +97,15 @@ const navTabs = [
 ]
 
 const activeTab = computed(() => {
-  // System second-level routes: device template, device deployment, alarm configuration
-  if (route.path === '/device-template' || route.path === '/device-deployment' || route.path === '/system-deployment' || route.path === '/alarm/config') {
+  const systemPrefixes = [
+    '/device-template',
+    '/device-deployment',
+    '/system-deployment',
+    '/alarm/config',
+    '/system',
+    '/logs',
+  ]
+  if (systemPrefixes.some((p) => route.path.startsWith(p))) {
     return 'System'
   }
   if (route.path === '/event') {
@@ -103,9 +121,7 @@ const routeMap: Record<string, string> = {
   'Dashboard': '/',
   'Alarms': '/alarm',
   'Event': '/event',
-  // System opens its first second-level entry (Device Template);
-  // the remaining entries are reachable via the bottom toolbar on System routes.
-  'System': '/device-template',
+  'System': '/device-deployment',
 }
 
 function handleTabClick(tab: string) {
@@ -115,10 +131,29 @@ function handleTabClick(tab: string) {
   }
 }
 
-// Clicking a severity badge opens Active Alarms pre-filtered to that severity.
-// The query param is consumed by AlarmView -> AlarmTable.
 function handleBadgeClick(severity: string) {
   router.push({ path: '/alarm', query: { severity } })
+}
+
+async function handleUserCommand(command: string) {
+  if (command === 'password') {
+    changePasswordVisible.value = true
+  } else if (command === 'logs') {
+    router.push('/logs')
+  } else if (command === 'logout') {
+    try {
+      await ElMessageBox.confirm('Are you sure you want to log out?', 'Confirm Logout', {
+        type: 'warning',
+        confirmButtonText: 'Logout',
+        cancelButtonText: 'Cancel',
+      })
+      await authStore.logout()
+      ElMessage.success('Logged out successfully')
+      router.push('/login')
+    } catch {
+      // User cancelled
+    }
+  }
 }
 </script>
 
@@ -193,8 +228,6 @@ function handleBadgeClick(severity: string) {
   transition: opacity 0.2s;
 }
 
-// Each badge color is driven by the --badge-color CSS variable, set inline from
-// config/severityColors.ts so the navbar matches the Severity tags exactly.
 .badge {
   padding: 2px 8px;
   border-radius: 4px;
@@ -222,8 +255,25 @@ function handleBadgeClick(severity: string) {
 .user-profile {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   color: $text-secondary;
   font-size: 13px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+
+  &:hover {
+    color: $text-primary;
+    background-color: $bg-card-hover;
+  }
+
+  .username {
+    font-weight: 500;
+  }
+
+  .arrow-icon {
+    font-size: 11px;
+  }
 }
 </style>

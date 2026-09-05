@@ -19,6 +19,7 @@
 
 - 本地开发：仓库根目录执行 `start-n4-monitor.bat`（需 Java 21 / Maven / Node.js）
 - 连接配置：`cp .env.example .env` 后按环境修改（后端与 docker compose 均读取该文件）
+- 自动化回归测试：执行 `scripts\run_regression_test.bat` 或 `python scripts/regression_test.py`
 - 服务器部署：见 [deploy/README.md](deploy/README.md)
 
 ## ⚠️ 安全约定：.env 不入库

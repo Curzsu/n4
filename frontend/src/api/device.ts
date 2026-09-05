@@ -1,10 +1,26 @@
 import request from './request'
 import type { ApiResponse, DeviceTreeNode, FuxaBinding, FuxaCabinSession, MonitorPoint } from './types'
 
+const TOKEN_KEY = 'n4_token'
+
+function getFuxaSessionHeaders(includeJsonContentType = false): HeadersInit {
+  const headers: Record<string, string> = {}
+  const token = localStorage.getItem(TOKEN_KEY)
+  if (token) headers.Authorization = `Bearer ${token}`
+  if (includeJsonContentType) headers['Content-Type'] = 'application/json'
+  return headers
+}
+
+export function getFuxaSessionAccessToken(): string {
+  return localStorage.getItem(TOKEN_KEY) || ''
+}
+
 async function requestCabinSession(url: string, method: 'POST' | 'DELETE'): Promise<FuxaCabinSession> {
   const response = await fetch(url, {
     method,
-    headers: method === 'POST' ? { 'Content-Type': 'application/json' } : undefined,
+    // This path intentionally uses fetch instead of Axios so the page-exit
+    // request can use keepalive. Add the same JWT header as request.ts.
+    headers: getFuxaSessionHeaders(method === 'POST'),
     body: method === 'POST' ? '{}' : undefined,
     credentials: 'same-origin',
   })
@@ -13,6 +29,10 @@ async function requestCabinSession(url: string, method: 'POST' | 'DELETE'): Prom
     throw new Error(payload.message || `FUXA cabin request failed (${response.status})`)
   }
   return payload.data
+}
+
+export function getFuxaSessionAuthorizationHeader(): HeadersInit {
+  return getFuxaSessionHeaders()
 }
 
 export const deviceApi = {

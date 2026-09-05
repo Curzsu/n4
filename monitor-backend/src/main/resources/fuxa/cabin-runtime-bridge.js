@@ -21,9 +21,10 @@ function notifyParent(type, detail = {}) {
   globalThis.parent.postMessage({ type, ...detail }, runtime.parentOrigin || '*');
 }
 
-function rememberCabinParameters(mqttDeviceName, cabinViewName) {
+function rememberCabinParameters(mqttDeviceName, cabinViewName, n4AccessToken) {
   runtime.mqttDeviceName = mqttDeviceName;
   runtime.cabinViewName = cabinViewName;
+  runtime.n4AccessToken = n4AccessToken || '';
 
   // The iframe is preloaded without a cabin-specific URL so it can be reused.
   // Keep the active cabin in the URL without reloading; existing slot-pool
@@ -75,8 +76,12 @@ function waitForViewRender(previousMarkup, timeoutMs = 15000) {
   });
 }
 
-runtime.openCabin ??= async (mqttDeviceName, cabinViewName) => {
+runtime.openCabin ??= async (mqttDeviceName, cabinViewName, n4AccessToken) => {
   if (!mqttDeviceName || !cabinViewName) return;
+
+  // The first URL-driven open happens before N4's postMessage handshake.
+  // Keep a later token-bearing request even when it targets the same view.
+  if (n4AccessToken) runtime.n4AccessToken = n4AccessToken;
 
   const runtimeKey = `${mqttDeviceName}::${cabinViewName}`;
   if (runtime.key === runtimeKey && runtime.state === 'opening') {
@@ -89,7 +94,7 @@ runtime.openCabin ??= async (mqttDeviceName, cabinViewName) => {
 
   runtime.key = runtimeKey;
   runtime.state = 'opening';
-  rememberCabinParameters(mqttDeviceName, cabinViewName);
+  rememberCabinParameters(mqttDeviceName, cabinViewName, n4AccessToken);
   document.documentElement.classList.add('n4-cabin-runtime-mode');
   try {
     const previousMarkup = getMainViewContainer()?.innerHTML || '';
@@ -119,7 +124,7 @@ if (!runtime.bridgeInstalled) {
 
     const request = event.data;
     if (!request || request.type !== 'n4-cabin-runtime:open') return;
-    void runtime.openCabin(request.mqttDeviceName, request.cabinViewName);
+    void runtime.openCabin(request.mqttDeviceName, request.cabinViewName, request.n4AccessToken);
   });
 }
 

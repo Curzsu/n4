@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.n4monitor.mapper.SysPermissionMapper">
+
+    <select id="findById" resultType="com.n4monitor.entity.SysPermission">
+        SELECT * FROM sys_permission WHERE perm_id = #{permId} AND is_deleted = 0
+    </select>
+
+    <select id="findAll" resultType="com.n4monitor.entity.SysPermission">
+        SELECT * FROM sys_permission
+        WHERE is_deleted = 0
+        <if test="status != null">
+            AND status = #{status}
+        </if>
+        ORDER BY sort_order ASC, perm_id ASC
+    </select>
+
+    <select id="findByUserId" resultType="com.n4monitor.entity.SysPermission">
+        SELECT DISTINCT p.*
+        FROM sys_permission p
+        JOIN sys_group_permission gp ON p.perm_id = gp.perm_id
+        JOIN sys_user_group ug ON gp.group_id = ug.group_id
+        JOIN sys_group g ON ug.group_id = g.group_id
+        WHERE ug.user_id = #{userId} AND p.is_deleted = 0 AND p.status = 1 AND g.is_deleted = 0 AND g.status = 1
+        ORDER BY p.sort_order ASC, p.perm_id ASC
+    </select>
+
+    <select id="findCodesByUserId" resultType="string">
+        SELECT DISTINCT p.perm_code
+        FROM sys_permission p
+        JOIN sys_group_permission gp ON p.perm_id = gp.perm_id
+        JOIN sys_user_group ug ON gp.group_id = ug.group_id
+        JOIN sys_group g ON ug.group_id = g.group_id
+        WHERE ug.user_id = #{userId} AND p.is_deleted = 0 AND p.status = 1 AND g.is_deleted = 0 AND g.status = 1
+    </select>
+
+    <insert id="insert" parameterType="com.n4monitor.entity.SysPermission" useGeneratedKeys="true" keyProperty="permId">
+        INSERT INTO sys_permission (perm_name, perm_code, perm_type, parent_id, path, component, icon, sort_order, status)
+        VALUES (#{permName}, #{permCode}, #{permType}, #{parentId}, #{path}, #{component}, #{icon}, #{sortOrder}, #{status})
+    </insert>
+
+    <update id="update" parameterType="com.n4monitor.entity.SysPermission">
+        UPDATE sys_permission
+        SET perm_name = #{permName}, perm_code = #{permCode}, perm_type = #{permType}, parent_id = #{parentId},
+            path = #{path}, component = #{component}, icon = #{icon}, sort_order = #{sortOrder}, status = #{status}
+        WHERE perm_id = #{permId} AND is_deleted = 0
+    </update>
+
+    <update id="logicalDelete">
+        UPDATE sys_permission SET is_deleted = 1 WHERE perm_id = #{permId}
+    </update>
+
+    <select id="countGroupRefs" resultType="int">
+        SELECT COUNT(*) FROM sys_group_permission WHERE perm_id = #{permId}
+    </select>
+</mapper>

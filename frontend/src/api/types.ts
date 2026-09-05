@@ -362,3 +362,127 @@ export interface NavNodeForm {
   mqttServerAddresses?: string
 }
 
+// ===== RBAC & System Management Types =====
+
+export interface PageResult<T> {
+  total: number
+  page: number
+  pageSize: number
+  records?: T[]
+  list?: T[]
+}
+
+export interface Group {
+  groupId: number
+  groupName: string
+  groupCode: string
+  description?: string
+  status: number
+  userCount?: number
+  permissionIds?: number[]
+  createTime?: string
+}
+
+export interface PermissionNode {
+  permId: number
+  permName: string
+  permCode: string
+  permType: number
+  parentId: number
+  path?: string
+  component?: string
+  icon?: string
+  sortOrder: number
+  status: number
+  children?: PermissionNode[]
+}
+
+export interface User {
+  userId: number
+  username: string
+  realName?: string
+  email?: string
+  phone?: string
+  status: number
+  avatar?: string
+  lastLoginTime?: string
+  createTime?: string
+  groups?: Group[]
+}
+
+export interface CurrentUser {
+  userId: number
+  username: string
+  realName?: string
+  avatar?: string
+  groups: Group[]
+  permissions: string[]
+  menus: PermissionNode[]
+}
+
+export interface LoginResponse {
+  token: string
+  user: CurrentUser
+}
+
+export interface OperationLog {
+  logId: number
+  operatorId?: number
+  operatorName?: string
+  module?: string
+  operation?: string
+  businessType?: number
+  method?: string
+  requestMethod?: string
+  requestUri?: string
+  requestParams?: string
+  status?: number
+  errorMsg?: string
+  costTime?: number
+  operatorIp?: string
+  createTime?: string
+}
+
+export interface UserForm {
+  username?: string
+  password?: string
+  realName?: string
+  email?: string
+  phone?: string
+  status: number
+  avatar?: string
+  groupIds?: number[]
+}
+
+export interface GroupForm {
+  groupName: string
+  groupCode: string
+  description?: string
+  status: number
+  permissionIds?: number[]
+}
+
+export interface PermissionForm {
+  permName: string
+  permCode: string
+  permType: number
+  parentId: number
+  path?: string
+  component?: string
+  icon?: string
+  sortOrder: number
+  status: number
+}
+
+export interface LogQuery {
+  operatorName?: string
+  module?: string
+  operation?: string
+  status?: number
+  startTime?: string
+  endTime?: string
+  page: number
+  pageSize: number
+}
+
+

@@ -1,6 +1,7 @@
 package com.n4monitor.config;
 
 import com.n4monitor.common.ApiResponse;
+import com.n4monitor.exception.BusinessException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -34,6 +35,18 @@ public class GlobalExceptionHandler {
     public ApiResponse<Void> handleIllegalArgumentException(IllegalArgumentException e) {
         log.warn("Validation error: {}", e.getMessage());
         return ApiResponse.error(400, e.getMessage());
+    }
+
+    @ExceptionHandler(BusinessException.class)
+    public ApiResponse<Void> handleBusinessException(BusinessException e) {
+        log.warn("Business exception: code={}, msg={}", e.getCode(), e.getMessage());
+        return ApiResponse.error(e.getCode(), e.getMessage());
+    }
+
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ApiResponse<Void> handleAccessDeniedException(org.springframework.security.access.AccessDeniedException e) {
+        log.warn("Access denied: {}", e.getMessage());
+        return ApiResponse.error(403, "Access denied: insufficient permissions");
     }
 
     @ExceptionHandler(Exception.class)

@@ -9,6 +9,7 @@
                    @node-click="store.selectNavNode" />
 
       <div class="layout-content">
+        <FuxaCabinRuntimeHost />
         <slot />
       </div>
 
@@ -53,14 +54,15 @@ import AlarmSummaryPanel from '@/components/AlarmSummaryPanel.vue'
 import AlarmSystemChart from '@/components/charts/AlarmSystemChart.vue'
 import AlarmSourcesChart from '@/components/charts/AlarmSourcesChart.vue'
 import AlarmQuickActions from '@/components/AlarmQuickActions.vue'
+import FuxaCabinRuntimeHost from '@/components/FuxaCabinRuntimeHost.vue'
 import { useDashboardStore } from '@/stores/dashboard'
 
 const route = useRoute()
 const store = useDashboardStore()
 
-// /alarm/config belongs to the System menu and must not use alarm layout panels.
-const systemPaths = ['/device-template', '/device-deployment', '/alarm/config', '/system-deployment']
-const isSystemRoute = computed(() => systemPaths.includes(route.path))
+// /alarm/config and /system routes belong to the System menu and must not use alarm layout panels.
+const systemPaths = ['/device-template', '/device-deployment', '/alarm/config', '/system-deployment', '/logs']
+const isSystemRoute = computed(() => route.path.startsWith('/system') || systemPaths.includes(route.path))
 const isAlarmRoute = computed(() => route.path.startsWith('/alarm') && !isSystemRoute.value)
 // The Event route is a standalone page with no second-level toolbar menu.
 const isEventRoute = computed(() => route.path === '/event')
