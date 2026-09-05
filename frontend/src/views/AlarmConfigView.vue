@@ -599,7 +599,9 @@ onBeforeUnmount(() => {
   gap: 16px;
   .basic-name { flex: 1 1 auto; .el-input { width: 100%; } }
   .basic-type { flex: 0 0 auto; }
-  .el-form-item { margin-bottom: 4px; }
+  // !important beats global.scss `.el-dialog .el-form-item { margin-bottom: 22px !important }`
+  // (the test branch applies 22px to every dialog; this dialog is compact by design).
+  .el-form-item { margin-bottom: 4px !important; }
 }
 
 .level-row {
@@ -609,10 +611,11 @@ onBeforeUnmount(() => {
   .el-form-item {
     // Rows inside one level group sit tight; group separation comes from the
     // divider margins. is-error needs extra room for the absolute-positioned
-    // validation message below the field.
-    margin-bottom: 4px;
+    // validation message below the field. !important beats the global
+    // `.el-dialog .el-form-item { margin-bottom: 22px !important }` rule.
+    margin-bottom: 4px !important;
     &.is-error {
-      margin-bottom: 18px;
+      margin-bottom: 18px !important;
     }
   }
   /* Element Plus sets width:100% on .el-form-item by default, which forces
