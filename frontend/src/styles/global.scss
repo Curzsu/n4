@@ -889,4 +889,16 @@ html, body, #app {
   }
 }
 
+// Enum row delete button (alarm rule editors): an icon-only link button
+// collapses to the icon's own box (the `.is-link` rule above sets height
+// auto) and floats at the row top. Give it a real click target centered on
+// the row's inputs. Same specificity as the is-link rule, later in this file
+// -> wins the cascade.
+.el-button.is-link.enum-delete-btn {
+  height: 24px !important;
+  width: 24px !important;
+  align-self: center;
+  font-size: 14px;
+}
+
 

@@ -545,6 +545,7 @@ defineExpose({
   gap: 16px;
   .basic-name { flex: 1 1 auto; .el-input { width: 100%; } }
   .basic-type { flex: 0 0 auto; }
+  .el-form-item { margin-bottom: 4px; }
 }
 
 .level-row {
