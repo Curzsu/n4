@@ -3,13 +3,8 @@
     <div class="config-header">
       <span class="config-title">Event</span>
       <div class="header-actions">
-        <el-button type="primary" size="small" @click="fetchData">
-          <el-icon><Refresh /></el-icon>
-          <span>Refresh</span>
-        </el-button>
-        <el-button size="small" class="btn-secondary" :icon="Download" @click="exportVisible = true">
-          Export
-        </el-button>
+        <el-button size="small" class="btn-secondary" :icon="Refresh" @click="fetchData">Refresh</el-button>
+        <el-button size="small" class="btn-secondary" :icon="Download" @click="exportVisible = true">Export</el-button>
       </div>
     </div>
 
