@@ -767,8 +767,11 @@ html, body, #app {
   }
 }
 
-.el-button--default:not(.is-link):not(.is-circle),
-.el-button--info:not(.is-link):not(.is-circle) {
+// Default buttons carry NO `el-button--default` class in Element Plus - a
+// plain <el-button> renders as bare `el-button`, and an explicit
+// type="default" adds `el-button--default` on top. So target every button
+// that does not have one of the color-carrying type modifiers instead.
+.el-button:not(.is-link):not(.is-circle):not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(.el-button--danger) {
   background-color: rgba($accent-blue, 0.16) !important;
   color: #93c5fd !important;
 
