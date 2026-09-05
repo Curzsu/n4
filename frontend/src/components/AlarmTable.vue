@@ -1185,17 +1185,26 @@ onBeforeUnmount(() => {
     &::placeholder { color: #6b7280; -webkit-text-fill-color: #6b7280; }
   }
 
-  // Select dark theme
+  // Select dark theme. overflow:hidden keeps multi-select tags inside the box
+  // even while the popper is mid-transition (EP measures tag max-width from a
+  // live snapshot and can briefly compute a too-wide value).
   .el-select__wrapper {
     background-color: #111827;
     box-shadow: 0 0 0 1px #2d3748 inset;
     min-height: 20px;
     padding: 0 4px;
+    overflow: hidden;
     &:hover { box-shadow: 0 0 0 1px #6b7280 inset; }
+  }
+  // EP pulls the tag row 6px left (.is-near) which paints the first tag past
+  // the wrapper's left border; realign it with the placeholder text.
+  .el-select__wrapper .el-select__selection {
+    margin-left: 0 !important;
   }
   .el-select__placeholder { color: #6b7280; font-size: 10px; }
   .el-select__selected-item { color: #e5e7eb; font-size: 10px; }
   .el-select__caret { color: #9ca3af; }
+  .el-select__tags-text { text-overflow: ellipsis; }
   .el-tag {
     height: 14px;
     font-size: 10px;
