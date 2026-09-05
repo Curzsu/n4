@@ -57,15 +57,19 @@ html, body, #app {
 // clashes with the dark theme. Retune through the datepicker variables so
 // single and range pickers both follow the accent palette (green selection,
 // soft green range highlight) regardless of where the panel is teleported.
+// The !important flags are load-bearing: EP re-declares the same variables on
+// `.el-date-range-picker` / `.el-date-picker` with equal specificity, and its
+// component CSS loads after this file, so a plain declaration loses the
+// cascade - custom-property importance beats it regardless of order.
 .el-picker-panel {
-  --el-datepicker-active-color: #10b981;
-  --el-datepicker-hover-text-color: #10b981;
-  --el-datepicker-inrange-bg-color: rgba(16, 185, 129, 0.1);
-  --el-datepicker-inrange-hover-bg-color: rgba(16, 185, 129, 0.18);
-  --el-datepicker-text-color: #cbd5e1;
-  --el-datepicker-off-text-color: #4b5563;
-  --el-datepicker-border-color: #1e293b;
-  --el-datepicker-inner-border-color: #2d3748;
+  --el-datepicker-active-color: #10b981 !important;
+  --el-datepicker-hover-text-color: #10b981 !important;
+  --el-datepicker-inrange-bg-color: rgba(16, 185, 129, 0.1) !important;
+  --el-datepicker-inrange-hover-bg-color: rgba(16, 185, 129, 0.18) !important;
+  --el-datepicker-text-color: #cbd5e1 !important;
+  --el-datepicker-off-text-color: #4b5563 !important;
+  --el-datepicker-border-color: #1e293b !important;
+  --el-datepicker-inner-border-color: #2d3748 !important;
 }
 
 // Range editors use .el-range-input texts (both the toolbar trigger and the
