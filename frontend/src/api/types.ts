@@ -357,6 +357,27 @@ export interface ImportIssue {
   rowNumber?: number
 }
 
+export interface TemplatePreviewItem {
+  sheetName: string
+  templateName: string
+  n4Name: string
+  deviceType?: string
+  manufacturer?: string
+  model?: string
+  pointCount: number
+  action: 'CREATE' | 'REUSE' | 'SKIPPED' | string
+}
+
+export interface DeploymentPreviewItem {
+  sourceFile: string
+  deviceName: string
+  devicePath: string
+  systemName: string
+  templateName?: string
+  pointCount: number
+  action: 'CREATE' | 'REUSE' | string
+}
+
 export interface ImportSummary {
   valid: boolean
   dryRun: boolean
@@ -378,6 +399,8 @@ export interface ImportSummary {
   navigationGroupNames: string[]
   skippedRowCount: number
   issues: ImportIssue[]
+  templatePreviews?: TemplatePreviewItem[]
+  deploymentPreviews?: DeploymentPreviewItem[]
 }
 
 /** Impact preview when deleting navigation nodes */

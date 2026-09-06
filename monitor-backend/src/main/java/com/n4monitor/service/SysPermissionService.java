@@ -15,6 +15,10 @@ import java.util.Map;
 
 @Service
 public class SysPermissionService {
+    private static final Comparator<PermissionTreeDto> PERMISSION_TREE_ORDER =
+            Comparator.comparing(PermissionTreeDto::getSortOrder, Comparator.nullsLast(Integer::compareTo))
+                    .thenComparing(PermissionTreeDto::getPermId, Comparator.nullsLast(Long::compareTo));
+
     private final SysPermissionMapper permissionMapper;
 
     public SysPermissionService(SysPermissionMapper permissionMapper) {
@@ -67,9 +71,7 @@ public class SysPermissionService {
 
     private List<PermissionTreeDto> buildTree(List<SysPermission> permissions) {
         Map<Long, PermissionTreeDto> map = new LinkedHashMap<>();
-        permissions.stream()
-                .sorted(Comparator.comparing(SysPermission::getSortOrder, Comparator.nullsLast(Integer::compareTo)))
-                .forEach(permission -> map.put(permission.getPermId(), toTreeDto(permission)));
+        permissions.forEach(permission -> map.put(permission.getPermId(), toTreeDto(permission)));
         List<PermissionTreeDto> roots = new ArrayList<>();
         for (PermissionTreeDto node : map.values()) {
             if (node.getParentId() == null || node.getParentId() == 0 || !map.containsKey(node.getParentId())) {
@@ -78,7 +80,13 @@ public class SysPermissionService {
                 map.get(node.getParentId()).getChildren().add(node);
             }
         }
+        sortPermissionTree(roots);
         return roots;
+    }
+
+    private void sortPermissionTree(List<PermissionTreeDto> nodes) {
+        nodes.sort(PERMISSION_TREE_ORDER);
+        nodes.forEach(node -> sortPermissionTree(node.getChildren()));
     }
 
     private PermissionTreeDto toTreeDto(SysPermission permission) {

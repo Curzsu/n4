@@ -218,6 +218,26 @@ public class DeploymentTransferService {
         }
 
         AlarmState alarmState = buildAlarmState(pointPlans.values(), stats);
+
+        Map<String, Integer> pointCountByDevice = new HashMap<>();
+        for (PointPlan pointPlan : pointPlans.values()) {
+            pointCountByDevice.merge(pointPlan.devicePlan().deviceKey(), 1, Integer::sum);
+        }
+        for (DevicePlan devicePlan : devicePlans.values()) {
+            boolean isNew = !isActiveDeployment(devicePlan.existingDeployment(), devicePlan.navNodeId());
+            String action = isNew ? "CREATE" : "REUSE";
+            String templateName = devicePlan.template() != null ? devicePlan.template().getDeviceTmplName() : "";
+            int pointCount = pointCountByDevice.getOrDefault(devicePlan.deviceKey(), 0);
+            stats.addDeploymentPreview(new DeploymentPreviewItem(
+                    devicePlan.firstRow().sourceFile(),
+                    devicePlan.firstRow().deviceAlias(),
+                    devicePlan.devicePath(),
+                    devicePlan.systemName(),
+                    templateName,
+                    pointCount,
+                    action));
+        }
+
         if (!stats.valid() || dryRun) {
             return stats.toSummary();
         }

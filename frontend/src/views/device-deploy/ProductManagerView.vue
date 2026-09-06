@@ -454,7 +454,7 @@
     <el-dialog
       v-model="n4TemplateImportDialogVisible"
       title="Import N4 Template Excel"
-      width="520px"
+      width="880px"
       append-to-body
       class="dark-dialog"
     >
@@ -474,23 +474,107 @@
         </div>
         <template #tip>
           <div class="el-upload__tip text-center" style="margin-top: 15px; color: #64748b; font-size: 12px; text-align: center;">
-            The workbook is previewed first. The download below uses the teacher-provided 35-sheet layout and sample data.
-            Edit the required sheets and rows before importing. Existing template data is reused and never reset.
+            {{ n4TemplateImportFile ? `Selected file: ${n4TemplateImportFile.name}` : 'The workbook is previewed first. The download below uses the teacher-provided 35-sheet layout and sample data. Edit the required sheets and rows before importing. Existing template data is reused and never reset.' }}
           </div>
         </template>
       </el-upload>
-      <div v-if="n4TemplateImportResult" class="transfer-result">
-        <div class="transfer-result-title">
-          {{ n4TemplateImportResult.valid ? 'Preview ready' : 'Preview failed' }}
+      <div v-if="n4TemplateImportResult" class="transfer-result" style="margin-top: 20px;">
+        <!-- Summary Statistics Table -->
+        <div style="font-size: 13px; font-weight: 600; color: #cbd5e1; margin-bottom: 8px;">
+          Summary Statistics
         </div>
-        <div class="transfer-result-counts">
-          Templates: {{ n4TemplateImportResult.deviceTemplateCreated }} new,
-          {{ n4TemplateImportResult.deviceTemplateReused }} reused ·
-          Points: {{ n4TemplateImportResult.pointTemplateCreated }} new,
-          {{ n4TemplateImportResult.pointTemplateReused }} reused
+        <el-table
+          :data="templateSummaryTableData"
+          class="custom-table"
+          border
+          size="small"
+          :header-cell-style="headerCellStyle"
+          :cell-style="cellStyle"
+          style="margin-bottom: 16px;"
+        >
+          <el-table-column prop="category" label="Category" min-width="160" align="left" header-align="center" />
+          <el-table-column prop="created" label="New (To Create)" min-width="120" align="center" header-align="center">
+            <template #default="{ row }">
+              <el-tag size="small" type="success" effect="dark">+{{ row.created }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="reused" label="Reused (Existing)" min-width="120" align="center" header-align="center">
+            <template #default="{ row }">
+              <el-tag size="small" type="info" effect="dark">{{ row.reused }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="total" label="Total" min-width="100" align="center" header-align="center" />
+          <el-table-column prop="statusText" label="Status" min-width="100" align="center" header-align="center">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.statusType" effect="plain">{{ row.statusText }}</el-tag>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <!-- Parsed Template Sheets Table -->
+        <div v-if="n4TemplateImportResult.templatePreviews?.length" style="margin-bottom: 16px;">
+          <div style="font-size: 13px; font-weight: 600; color: #cbd5e1; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+            <span>Parsed Template Sheets ({{ n4TemplateImportResult.templatePreviews.length }})</span>
+          </div>
+          <el-table
+            :data="n4TemplateImportResult.templatePreviews"
+            class="custom-table"
+            border
+            size="small"
+            max-height="240"
+            :header-cell-style="headerCellStyle"
+            :cell-style="cellStyle"
+          >
+            <el-table-column type="index" label="#" width="45" align="center" header-align="center" />
+            <el-table-column prop="sheetName" label="Sheet Name" min-width="120" show-overflow-tooltip align="left" header-align="center" />
+            <el-table-column prop="templateName" label="Template Name" min-width="160" show-overflow-tooltip align="left" header-align="center" />
+            <el-table-column prop="n4Name" label="N4 Name" min-width="130" show-overflow-tooltip align="left" header-align="center" />
+            <el-table-column prop="deviceType" label="Device Type" min-width="110" show-overflow-tooltip align="left" header-align="center" />
+            <el-table-column prop="pointCount" label="Points" width="80" align="center" header-align="center">
+              <template #default="{ row }">
+                <span>{{ row.pointCount }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="action" label="Import Action" width="110" align="center" header-align="center">
+              <template #default="{ row }">
+                <el-tag v-if="row.action === 'CREATE'" size="small" type="success" effect="dark">New</el-tag>
+                <el-tag v-else-if="row.action === 'REUSE'" size="small" type="info" effect="dark">Reused</el-tag>
+                <el-tag v-else size="small" type="warning" effect="dark">Skipped</el-tag>
+              </template>
+            </el-table-column>
+          </el-table>
         </div>
-        <div v-for="issue in n4TemplateImportResult.issues" :key="`${issue.code}-${issue.fileName}-${issue.rowNumber}`" class="transfer-issue" :class="issue.severity.toLowerCase()">
-          {{ issue.severity }}: {{ issue.message }}
+
+        <!-- Issues Table -->
+        <div v-if="n4TemplateImportResult.issues?.length" style="margin-top: 12px;">
+          <div style="font-size: 13px; font-weight: 600; color: #f87171; margin-bottom: 8px;">
+            Validation Issues ({{ n4TemplateImportResult.issues.length }})
+          </div>
+          <el-table
+            :data="n4TemplateImportResult.issues"
+            class="custom-table"
+            border
+            size="small"
+            max-height="180"
+            :header-cell-style="headerCellStyle"
+            :cell-style="cellStyle"
+          >
+            <el-table-column prop="severity" label="Level" width="90" align="center" header-align="center">
+              <template #default="{ row }">
+                <el-tag size="small" :type="row.severity === 'ERROR' ? 'danger' : 'warning'" effect="dark">
+                  {{ row.severity }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="code" label="Code" width="150" show-overflow-tooltip align="left" header-align="center" />
+            <el-table-column prop="fileName" label="Sheet" width="120" show-overflow-tooltip align="left" header-align="center" />
+            <el-table-column prop="rowNumber" label="Row" width="60" align="center" header-align="center">
+              <template #default="{ row }">
+                {{ row.rowNumber ?? '-' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="message" label="Message" min-width="220" show-overflow-tooltip align="left" header-align="center" />
+          </el-table>
         </div>
       </div>
       <template #footer>
@@ -500,6 +584,14 @@
           </el-button>
           <div>
             <el-button class="btn-secondary" @click="closeN4TemplateImport">Close</el-button>
+            <el-button
+              class="btn-secondary"
+              :loading="n4TemplateImportLoading"
+              :disabled="!n4TemplateImportFile"
+              @click="handleManualPreviewN4Template"
+            >
+              Preview
+            </el-button>
             <el-button
               type="primary"
               class="btn-primary"
@@ -579,6 +671,29 @@ const n4TemplateDownloadLoading = ref(false)
 const n4TemplateImportFile = ref<File | null>(null)
 const n4TemplateImportResult = ref<ImportSummary | null>(null)
 const n4TemplateUploadRef = ref<UploadInstance>()
+
+const templateSummaryTableData = computed(() => {
+  const res = n4TemplateImportResult.value
+  if (!res) return []
+  return [
+    {
+      category: 'Device Templates',
+      created: res.deviceTemplateCreated,
+      reused: res.deviceTemplateReused,
+      total: res.deviceTemplateCreated + res.deviceTemplateReused,
+      statusText: res.valid ? 'Ready' : 'Failed',
+      statusType: res.valid ? 'success' : 'danger',
+    },
+    {
+      category: 'Point Templates',
+      created: res.pointTemplateCreated,
+      reused: res.pointTemplateReused,
+      total: res.pointTemplateCreated + res.pointTemplateReused,
+      statusText: res.valid ? 'Ready' : 'Failed',
+      statusType: res.valid ? 'success' : 'danger',
+    },
+  ]
+})
 
 function handleTemplateSelectionChange(val: any[]) {
   selectedTemplates.value = val
@@ -1452,6 +1567,19 @@ async function handleN4TemplateFileChange(uploadFile: any) {
   n4TemplateImportLoading.value = true
   try {
     n4TemplateImportResult.value = await templateApi.importWorkbook(rawFile, true)
+  } catch (err: any) {
+    n4TemplateImportResult.value = null
+    ElMessage.error(err.message || 'Template workbook preview failed')
+  } finally {
+    n4TemplateImportLoading.value = false
+  }
+}
+
+async function handleManualPreviewN4Template() {
+  if (!n4TemplateImportFile.value) return
+  n4TemplateImportLoading.value = true
+  try {
+    n4TemplateImportResult.value = await templateApi.importWorkbook(n4TemplateImportFile.value, true)
   } catch (err: any) {
     n4TemplateImportResult.value = null
     ElMessage.error(err.message || 'Template workbook preview failed')

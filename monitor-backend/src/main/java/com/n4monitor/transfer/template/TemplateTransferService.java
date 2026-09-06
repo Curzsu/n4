@@ -87,6 +87,15 @@ public class TemplateTransferService {
                         sheet.sheetName(),
                         null);
                 stats.skippedRow();
+                stats.addTemplatePreview(new TemplatePreviewItem(
+                        sheet.sheetName(),
+                        sheet.deviceTemplateName(),
+                        n4Name,
+                        sheet.deviceType(),
+                        sheet.manufacturer(),
+                        sheet.model(),
+                        sheet.points().size(),
+                        "SKIPPED"));
                 continue;
             }
             if (!plannedN4Names.add(n4Name)) {
@@ -96,6 +105,15 @@ public class TemplateTransferService {
                         sheet.sheetName(),
                         null);
                 stats.skippedRow();
+                stats.addTemplatePreview(new TemplatePreviewItem(
+                        sheet.sheetName(),
+                        sheet.deviceTemplateName(),
+                        n4Name,
+                        sheet.deviceType(),
+                        sheet.manufacturer(),
+                        sheet.model(),
+                        sheet.points().size(),
+                        "SKIPPED"));
                 continue;
             }
 
@@ -126,6 +144,16 @@ public class TemplateTransferService {
             for (int index = 0; index < pointReuseCount; index++) {
                 stats.pointTemplateReused();
             }
+            String action = createTemplate ? "CREATE" : "REUSE";
+            stats.addTemplatePreview(new TemplatePreviewItem(
+                    sheet.sheetName(),
+                    sheet.deviceTemplateName(),
+                    n4Name,
+                    sheet.deviceType(),
+                    sheet.manufacturer(),
+                    sheet.model(),
+                    sheet.points().size(),
+                    action));
             plans.add(new TemplatePlan(sheet, existingByName));
             if (createTemplate) {
                 DeviceTemplate planned = buildTemplate(sheet);

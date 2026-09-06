@@ -509,6 +509,10 @@ class DeploymentTransferServiceTest {
         assertThat(summary.valid()).isTrue();
         assertThat(summary.deviceDeploymentCreated()).isZero();
         assertThat(summary.deviceDeploymentReused()).isEqualTo(1);
+        assertThat(summary.deploymentPreviews()).hasSize(1);
+        assertThat(summary.deploymentPreviews().get(0).deviceName()).isEqualTo("MVP_A1_Collector");
+        assertThat(summary.deploymentPreviews().get(0).action()).isEqualTo("REUSE");
+        assertThat(summary.deploymentPreviews().get(0).pointCount()).isEqualTo(1);
         verify(deviceDeploymentMapper, never()).insert(any(DeviceDeployment.class));
     }
 

@@ -44,6 +44,7 @@
         v-else
         :data="visibleTreeData"
         :props="treeProps"
+        :indent="16"
         node-key="id"
         default-expand-all
         highlight-current
@@ -478,7 +479,7 @@ watch(searchText, (val) => {
     height: 22px !important;
     border-radius: 4px;
     margin: 1px 0;
-    padding: 0 4px !important;
+    padding-right: 4px !important;
 
     &:hover {
       background-color: #1a2332 !important;

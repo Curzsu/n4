@@ -1,5 +1,8 @@
 package com.n4monitor.transfer;
 
+import com.n4monitor.transfer.deployment.DeploymentPreviewItem;
+import com.n4monitor.transfer.template.TemplatePreviewItem;
+
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -26,6 +29,8 @@ public final class ImportStats {
     private int skippedRowCount;
     private boolean committed;
     private final List<ImportIssue> issues = new ArrayList<>();
+    private final List<TemplatePreviewItem> templatePreviews = new ArrayList<>();
+    private final List<DeploymentPreviewItem> deploymentPreviews = new ArrayList<>();
 
     public ImportStats(boolean dryRun) {
         this.dryRun = dryRun;
@@ -105,6 +110,18 @@ public final class ImportStats {
         issues.add(new ImportIssue("ERROR", code, message, fileName, rowNumber));
     }
 
+    public void addTemplatePreview(TemplatePreviewItem item) {
+        if (item != null) {
+            templatePreviews.add(item);
+        }
+    }
+
+    public void addDeploymentPreview(DeploymentPreviewItem item) {
+        if (item != null) {
+            deploymentPreviews.add(item);
+        }
+    }
+
     public boolean valid() {
         return issues.stream().noneMatch(issue -> "ERROR".equals(issue.severity()));
     }
@@ -134,6 +151,8 @@ public final class ImportStats {
                 navigationGroupCreated,
                 List.copyOf(navigationGroupNames),
                 skippedRowCount,
-                issues);
+                issues,
+                List.copyOf(templatePreviews),
+                List.copyOf(deploymentPreviews));
     }
 }
