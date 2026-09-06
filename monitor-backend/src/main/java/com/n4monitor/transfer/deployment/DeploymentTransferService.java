@@ -53,6 +53,7 @@ public class DeploymentTransferService {
     private static final String KEY_SEPARATOR = "\u0000";
     private static final int DEFAULT_NAV_MAX_LEVEL = 2;
     private static final int POINT_BATCH_SIZE = 500;
+    private static final int ALARM_CODE_BATCH_SIZE = 500;
     private static final int POINT_LOOKUP_BATCH_SIZE = 5000;
 
     private final DeploymentCsvParser csvParser;
@@ -252,7 +253,7 @@ public class DeploymentTransferService {
                 devicePlans.values(), navNodes, allNavNodes);
         Map<String, Long> deviceIds = persistDevices(devicePlans.values(), navigationNodeIds);
         persistPointTemplateBackfills(pointPlans.values());
-        persistPoints(pointPlans.values(), deviceIds);
+        persistPoints(pointPlans.values(), deviceIds, alarmState.rowAlarmNames());
         persistAlarmRules(alarmState.plans());
         persistAlarmCodeLinks(pointPlans.values(), deviceIds, alarmState.rowAlarmNames());
         stats.committed();
@@ -599,12 +600,18 @@ public class DeploymentTransferService {
         }
     }
 
-    private void persistPoints(Iterable<PointPlan> plans, Map<String, Long> deviceIds) {
+    private void persistPoints(
+            Iterable<PointPlan> plans,
+            Map<String, Long> deviceIds,
+            Map<String, String> rowAlarmNames) {
         List<PointDeployment> pending = new ArrayList<>();
+        List<PointDeployment> alarmCodeUpdates = new ArrayList<>();
         for (PointPlan plan : plans) {
             DeploymentCsvRow row = plan.row();
             Long deviceId = deviceIds.get(plan.devicePlan().deviceKey());
             PointDeployment point = buildPoint(row, plan.pointTemplate(), deviceId);
+            String alarmCode = rowAlarmNames.get(rowKey(row));
+            point.setAlarmCode(alarmCode);
             if (plan.existingPoint() == null) {
                 pending.add(point);
                 if (pending.size() >= POINT_BATCH_SIZE) {
@@ -620,10 +627,21 @@ public class DeploymentTransferService {
                         || hasImportedMetadataChanged(plan.existingPoint(), point)) {
                     pointDeploymentMapper.updateImportedMetadata(point);
                 }
+                if (alarmCode != null && !Objects.equals(plan.existingPoint().getAlarmCode(), alarmCode)) {
+                    PointDeployment alarmCodeUpdate = new PointDeployment();
+                    alarmCodeUpdate.setN4Address(row.mqttPath());
+                    alarmCodeUpdate.setAlarmCode(alarmCode);
+                    alarmCodeUpdates.add(alarmCodeUpdate);
+                }
             }
         }
         if (!pending.isEmpty()) {
             pointDeploymentMapper.insertBatch(pending);
+        }
+        for (int start = 0; start < alarmCodeUpdates.size(); start += ALARM_CODE_BATCH_SIZE) {
+            int end = Math.min(start + ALARM_CODE_BATCH_SIZE, alarmCodeUpdates.size());
+            pointDeploymentMapper.updateAlarmCodesBatch(
+                    new ArrayList<>(alarmCodeUpdates.subList(start, end)));
         }
     }
 
@@ -935,12 +953,6 @@ public class DeploymentTransferService {
                     deviceTemplateAlarmCodes.putIfAbsent(plan.devicePlan().template().getDeviceTmplId(), alarmName);
                     deploymentAlarmCodes.putIfAbsent(
                             deviceIds.get(plan.devicePlan().deviceKey()), alarmName);
-                }
-            }
-            if (alarmName != null) {
-                PointDeployment existingPoint = plan.existingPoint();
-                if (existingPoint == null || !Objects.equals(existingPoint.getAlarmCode(), alarmName)) {
-                    pointDeploymentMapper.updateAlarmCodeByN4Address(plan.row().mqttPath(), alarmName);
                 }
             }
         }

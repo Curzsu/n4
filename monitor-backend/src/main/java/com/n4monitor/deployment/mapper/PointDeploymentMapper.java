@@ -38,5 +38,5 @@ public interface PointDeploymentMapper {
 
     int updateImportedMetadata(PointDeployment point);
 
-    int updateAlarmCodeByN4Address(@Param("n4Address") String n4Address, @Param("alarmCode") String alarmCode);
+    int updateAlarmCodesBatch(@Param("points") List<PointDeployment> points);
 }

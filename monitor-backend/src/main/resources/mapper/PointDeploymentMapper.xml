@@ -144,10 +144,18 @@
         WHERE point_deploy_id = #{pointDeployId}
     </update>
 
-    <update id="updateAlarmCodeByN4Address">
+    <update id="updateAlarmCodesBatch">
         UPDATE point_deployment
-        SET alarm_code = #{alarmCode}, update_time = NOW()
-        WHERE n4_address = #{n4Address}
+        SET alarm_code = CASE n4_address
+        <foreach collection="points" item="point">
+            WHEN #{point.n4Address} THEN #{point.alarmCode}
+        </foreach>
+        END,
+            update_time = NOW()
+        WHERE n4_address IN
+        <foreach collection="points" item="point" open="(" separator="," close=")">
+            #{point.n4Address}
+        </foreach>
     </update>
 
 </mapper>

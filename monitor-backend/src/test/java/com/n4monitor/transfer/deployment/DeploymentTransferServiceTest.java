@@ -252,6 +252,13 @@ class DeploymentTransferServiceTest {
 
         assertThat(summary.valid()).isTrue();
         assertThat(summary.committed()).isTrue();
+        var pointCaptor = org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(pointDeploymentMapper).insertBatch(pointCaptor.capture());
+        @SuppressWarnings("unchecked")
+        List<PointDeployment> importedPoints = (List<PointDeployment>) pointCaptor.getValue();
+        assertThat(importedPoints)
+                .extracting(PointDeployment::getAlarmCode)
+                .containsExactly("Communication_status_1_00", "Communication_status_1_01");
         verify(deviceDeploymentMapper).updateAlarmCode(100L, "Communication_status_1_00");
         verify(deviceDeploymentMapper).updateAlarmCode(101L, "Communication_status_1_01");
     }
@@ -1019,7 +1026,106 @@ class DeploymentTransferServiceTest {
 
         assertThat(summary.valid()).isTrue();
         assertThat(summary.committed()).isTrue();
-        verify(pointDeploymentMapper, never()).updateAlarmCodeByN4Address(
-                existingPoint.getN4Address(), "Temperature_00");
+        verify(pointDeploymentMapper, never()).updateAlarmCodesBatch(
+                org.mockito.ArgumentMatchers.anyList());
+    }
+
+    @Test
+    void updatesChangedAlarmCodesInOneBatch() {
+        DeviceTemplateMapper deviceTemplateMapper = mock(DeviceTemplateMapper.class);
+        PointTemplateMapper pointTemplateMapper = mock(PointTemplateMapper.class);
+        DeviceDeploymentMapper deviceDeploymentMapper = mock(DeviceDeploymentMapper.class);
+        PointDeploymentMapper pointDeploymentMapper = mock(PointDeploymentMapper.class);
+        NavNodeMapper navNodeMapper = mock(NavNodeMapper.class);
+        AlarmRuleEnumMapper alarmRuleEnumMapper = mock(AlarmRuleEnumMapper.class);
+        AlarmRuleNumericMapper alarmRuleNumericMapper = mock(AlarmRuleNumericMapper.class);
+        AlarmRuleSyncService alarmRuleSyncService = mock(AlarmRuleSyncService.class);
+
+        DeviceTemplate template = new DeviceTemplate();
+        template.setDeviceTmplId(1L);
+        template.setN4Name("Collector");
+        template.setIsDeleted(false);
+
+        PointTemplate pointTemplate = new PointTemplate();
+        pointTemplate.setPointTmplId(10L);
+        pointTemplate.setDeviceTmplId(1L);
+        pointTemplate.setPointName("Temperature");
+        pointTemplate.setType("numeric");
+        pointTemplate.setUnit("C");
+        pointTemplate.setIsDeleted(false);
+
+        DeviceDeployment existingDevice = new DeviceDeployment();
+        existingDevice.setDeviceDeployId(20L);
+        existingDevice.setDeviceTmplId(1L);
+        existingDevice.setSystemName("A1_MVP_A1/MVP_A1");
+        existingDevice.setDeviceDeployName("MVP_A1_00_Collector_00");
+        existingDevice.setIsDeleted(false);
+
+        PointDeployment existingPoint = new PointDeployment();
+        existingPoint.setPointDeployId(30L);
+        existingPoint.setPointTmplId(10L);
+        existingPoint.setDeviceDeployId(20L);
+        existingPoint.setAlarmCode("OldAlarm");
+        existingPoint.setPointName("Temperature");
+        existingPoint.setN4Address("A1_MVP_A1/MVP_A1/MVP_A1_00_Collector_00/Temperature");
+        existingPoint.setDataType(null);
+        existingPoint.setUnit("C");
+        existingPoint.setDisplayPrecision(0);
+        existingPoint.setAllPath("all/path");
+        existingPoint.setType("numeric");
+        existingPoint.setIsDeleted(false);
+
+        AlarmRuleNumericEntity existingRule = new AlarmRuleNumericEntity();
+        existingRule.setAlarmName("Temperature_00");
+        existingRule.setPointType("numeric");
+        existingRule.setTimeDelay(0);
+        existingRule.setHighValue("10");
+        existingRule.setHighSeverity("Major");
+        existingRule.setHighMessage("High");
+        existingRule.setLowValue("0");
+        existingRule.setLowSeverity("Major");
+        existingRule.setLowMessage("Low");
+
+        when(deviceTemplateMapper.findAllIncludingDeleted()).thenReturn(List.of(template));
+        when(pointTemplateMapper.findAllIncludingDeleted()).thenReturn(List.of(pointTemplate));
+        when(deviceDeploymentMapper.findAllIncludingDeleted()).thenReturn(List.of(existingDevice));
+        when(pointDeploymentMapper.findAllIncludingDeleted()).thenReturn(List.of(existingPoint));
+        when(pointDeploymentMapper.findAllByN4Addresses(List.of(existingPoint.getN4Address())))
+                .thenReturn(List.of(existingPoint));
+        when(navNodeMapper.findAll()).thenReturn(List.of());
+        when(alarmRuleEnumMapper.findAll()).thenReturn(List.of());
+        when(alarmRuleNumericMapper.findAll()).thenReturn(List.of(existingRule));
+
+        DeploymentTransferService service = new DeploymentTransferService(
+                new DeploymentCsvParser(),
+                deviceTemplateMapper,
+                pointTemplateMapper,
+                deviceDeploymentMapper,
+                pointDeploymentMapper,
+                navNodeMapper,
+                alarmRuleEnumMapper,
+                alarmRuleNumericMapper,
+                alarmRuleSyncService);
+
+        String csv = String.join("\n",
+                "*path,*name,*type,allPath,mqttPath,alarmTimeDelay,alarmClass,"
+                        + "outOfRangeAlgorithmHighLimit,outOfRangeAlgorithmHighLimitText,"
+                        + "outOfRangeAlgorithmLowLimit,outOfRangeAlgorithmLowLimitText",
+                "MVP_A1_00_Collector_00,Temperature,numeric,all/path,"
+                        + "A1_MVP_A1/MVP_A1/MVP_A1_00_Collector_00/Temperature,0,Major,10,High,0,Low");
+        MockMultipartFile file = new MockMultipartFile(
+                "files", "deployment.csv", "text/csv", csv.getBytes(StandardCharsets.UTF_8));
+
+        var summary = service.importFiles(List.of(file), false);
+
+        assertThat(summary.valid()).isTrue();
+        assertThat(summary.committed()).isTrue();
+        var batchCaptor = org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(pointDeploymentMapper).updateAlarmCodesBatch(batchCaptor.capture());
+        @SuppressWarnings("unchecked")
+        List<PointDeployment> updates = (List<PointDeployment>) batchCaptor.getValue();
+        assertThat(updates).hasSize(1);
+        assertThat(updates.get(0).getN4Address()).isEqualTo(existingPoint.getN4Address());
+        assertThat(updates.get(0).getAlarmCode()).isEqualTo("Temperature_00");
     }
 }
