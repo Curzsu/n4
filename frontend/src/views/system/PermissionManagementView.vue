@@ -31,6 +31,7 @@
         <el-table-column prop="permName" label="Permission Name" min-width="200" align="left" header-align="center" show-overflow-tooltip :resizable="false">
           <template #default="{ row }">
             <span class="tree-perm-name">
+              <span class="permission-order">{{ row.displayOrder }}</span>
               <el-icon v-if="row.icon" class="perm-icon"><component :is="row.icon" v-if="isValidIcon(row.icon)" /><Lock v-else /></el-icon>
               <span>{{ row.permName }}</span>
             </span>
@@ -154,6 +155,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, Lock, Setting, User, Bell, Monitor, Clock, List, Coin, SetUp, Document, Tools } from '@element-plus/icons-vue'
 import { permissionApi } from '@/api/permission'
 import type { PermissionForm, PermissionNode } from '@/api/types'
+import { buildPermissionTreeView, type PermissionViewNode } from '@/utils/permissionTree'
 
 const knownIcons = { Lock, Setting, User, Bell, Monitor, Clock, List, Coin, SetUp, Document, Tools }
 
@@ -163,7 +165,7 @@ function isValidIcon(name?: string) {
 
 const loading = ref(false)
 const saving = ref(false)
-const permissionTree = ref<PermissionNode[]>([])
+const permissionTree = ref<PermissionViewNode[]>([])
 const formVisible = ref(false)
 const editingPermission = ref<PermissionNode | null>(null)
 const currentParent = ref<PermissionNode | null>(null)
@@ -208,7 +210,7 @@ const cellStyle = {
 async function loadTree() {
   loading.value = true
   try {
-    permissionTree.value = await permissionApi.tree()
+    permissionTree.value = buildPermissionTreeView(await permissionApi.tree())
   } catch (e) {
     console.error('Failed to load permissions:', e)
     ElMessage.error('Failed to load permissions')
@@ -346,6 +348,19 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+
+  .permission-order {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 30px;
+    color: $accent-blue;
+    font-family: monospace;
+    font-size: 10px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
   .perm-icon {
     font-size: 12px;
     color: $text-secondary;

@@ -30,6 +30,7 @@ declare module 'vue' {
     DeviceListView: typeof import('./components/DeviceListView.vue')['default']
     ElapsedDuration: typeof import('./components/ElapsedDuration.vue')['default']
     ElButton: typeof import('element-plus/es')['ElButton']
+    ElButtonGroup: typeof import('element-plus/es')['ElButtonGroup']
     ElCascader: typeof import('element-plus/es')['ElCascader']
     ElCheckbox: typeof import('element-plus/es')['ElCheckbox']
     ElCheckboxGroup: typeof import('element-plus/es')['ElCheckboxGroup']

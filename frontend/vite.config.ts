@@ -1,47 +1,51 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 import { fileURLToPath, URL } from 'node:url'
 
-export default defineConfig({
-  cacheDir: '.vite-cache',
-  plugins: [
-    vue(),
-    // Element Plus on-demand: template components are auto-imported with
-    // their styles; ElMessage/ElMessageBox keep explicit imports in code and
-    // load their styles from main.ts. The v-loading directive is registered
-    // manually in main.ts (resolvers cover components only).
-    AutoImport({
-      resolvers: [ElementPlusResolver()],
-      dts: 'src/auto-imports.d.ts',
-    }),
-    Components({
-      resolvers: [ElementPlusResolver()],
-      dts: 'src/components.d.ts',
-    }),
-  ],
-  resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
-    },
-  },
-  server: {
-    port: 5173,
-    proxy: {
-      '/api': {
-        target: `http://localhost:${process.env.VITE_BACKEND_PORT || '8088'}`,
-        changeOrigin: true,
-      },
-      '/ws': {
-        target: `ws://localhost:${process.env.VITE_BACKEND_PORT || '8088'}`,
-        ws: true,
-        changeOrigin: true,
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, fileURLToPath(new URL('..', import.meta.url)), '')
+  const backendPort = process.env.VITE_BACKEND_PORT || env.VITE_BACKEND_PORT || env.SERVER_PORT || process.env.SERVER_PORT || '8088'
+
+  return {
+    cacheDir: '.vite-cache',
+    plugins: [
+      vue(),
+      // Element Plus on-demand: template components are auto-imported with
+      // their styles; ElMessage/ElMessageBox keep explicit imports in code and
+      // load their styles from main.ts. The v-loading directive is registered
+      // manually in main.ts (resolvers cover components only).
+      AutoImport({
+        resolvers: [ElementPlusResolver()],
+        dts: 'src/auto-imports.d.ts',
+      }),
+      Components({
+        resolvers: [ElementPlusResolver()],
+        dts: 'src/components.d.ts',
+      }),
+    ],
+    resolve: {
+      alias: {
+        '@': fileURLToPath(new URL('./src', import.meta.url)),
       },
     },
-  },
-  css: {
+    server: {
+      port: 5173,
+      proxy: {
+        '/api': {
+          target: `http://localhost:${backendPort}`,
+          changeOrigin: true,
+        },
+        '/ws': {
+          target: `ws://localhost:${backendPort}`,
+          ws: true,
+          changeOrigin: true,
+        },
+      },
+    },
+    css: {
     preprocessorOptions: {
       scss: {
         additionalData: `@use "@/styles/variables" as *;`,
@@ -61,4 +65,5 @@ export default defineConfig({
       },
     },
   },
+}
 })

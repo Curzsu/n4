@@ -9,10 +9,35 @@
         WHERE is_deleted = 0
     </select>
 
+    <select id="findAllIncludingDeleted" resultType="com.n4monitor.deployment.entity.PointDeployment">
+        SELECT point_deploy_id, point_tmpl_id, device_deploy_id, alarm_code, point_name,
+               n4_address, point_code, data_type, unit, display_precision,
+               all_path, type, conversion_scale, conversion_offset, poll_frequency,
+               address_format, modbus_address, number_of_bits,
+               is_deleted, create_time, update_time
+        FROM point_deployment
+        ORDER BY point_deploy_id
+    </select>
+
+    <select id="findAllByN4Addresses" resultType="com.n4monitor.deployment.entity.PointDeployment">
+        SELECT point_deploy_id, point_tmpl_id, device_deploy_id, alarm_code, point_name,
+               n4_address, point_code, data_type, unit, display_precision,
+               all_path, type, conversion_scale, conversion_offset, poll_frequency,
+               address_format, modbus_address, number_of_bits,
+               is_deleted, create_time, update_time
+        FROM point_deployment
+        WHERE n4_address IN
+        <foreach collection="n4Addresses" item="n4Address" open="(" separator="," close=")">
+            #{n4Address}
+        </foreach>
+    </select>
+
     <select id="findByDeviceDeployId" resultType="com.n4monitor.deployment.entity.PointDeployment">
         SELECT point_deploy_id, point_tmpl_id, device_deploy_id, alarm_code, point_name,
-               n4_address, point_code, register, point_type, data_type, unit, display_precision,
-               all_path, type, is_deleted, create_time, update_time
+               n4_address, point_code, data_type, unit, display_precision,
+               all_path, type, conversion_scale, conversion_offset, poll_frequency,
+               address_format, modbus_address, number_of_bits,
+               is_deleted, create_time, update_time
         FROM point_deployment
         WHERE device_deploy_id = #{deviceDeployId} AND is_deleted = 0
         ORDER BY point_deploy_id
@@ -20,8 +45,10 @@
 
     <select id="findByPointDeployId" resultType="com.n4monitor.deployment.entity.PointDeployment">
         SELECT point_deploy_id, point_tmpl_id, device_deploy_id, alarm_code, point_name,
-               n4_address, point_code, register, point_type, data_type, unit, display_precision,
-               all_path, type, is_deleted, create_time, update_time
+               n4_address, point_code, data_type, unit, display_precision,
+               all_path, type, conversion_scale, conversion_offset, poll_frequency,
+               address_format, modbus_address, number_of_bits,
+               is_deleted, create_time, update_time
         FROM point_deployment
         WHERE point_deploy_id = #{pointDeployId} AND is_deleted = 0
     </select>
@@ -29,25 +56,29 @@
     <insert id="insert" useGeneratedKeys="true" keyProperty="pointDeployId">
         INSERT INTO point_deployment (
             point_tmpl_id, device_deploy_id, alarm_code, point_name, n4_address,
-            point_code, register, point_type, data_type, unit, display_precision,
-            all_path, type
+            point_code, data_type, unit, display_precision, all_path, type,
+            conversion_scale, conversion_offset, poll_frequency, address_format,
+            modbus_address, number_of_bits
         ) VALUES (
             #{pointTmplId}, #{deviceDeployId}, #{alarmCode}, #{pointName}, #{n4Address},
-            #{pointCode}, #{register}, #{pointType}, #{dataType}, #{unit}, #{displayPrecision},
-            #{allPath}, #{type}
+            #{pointCode}, #{dataType}, #{unit}, #{displayPrecision}, #{allPath}, #{type},
+            #{conversionScale}, #{conversionOffset}, #{pollFrequency}, #{addressFormat},
+            #{modbusAddress}, #{numberOfBits}
         )
     </insert>
 
     <insert id="insertBatch">
         INSERT INTO point_deployment (
             point_tmpl_id, device_deploy_id, alarm_code, point_name, n4_address,
-            point_code, register, point_type, data_type, unit, display_precision,
-            all_path, type
+            point_code, data_type, unit, display_precision, all_path, type,
+            conversion_scale, conversion_offset, poll_frequency, address_format,
+            modbus_address, number_of_bits
         ) VALUES
         <foreach collection="points" item="p" separator=",">
             (#{p.pointTmplId}, #{p.deviceDeployId}, #{p.alarmCode}, #{p.pointName}, #{p.n4Address},
-             #{p.pointCode}, #{p.register}, #{p.pointType}, #{p.dataType}, #{p.unit}, #{p.displayPrecision},
-             #{p.allPath}, #{p.type})
+             #{p.pointCode}, #{p.dataType}, #{p.unit}, #{p.displayPrecision}, #{p.allPath}, #{p.type},
+             #{p.conversionScale}, #{p.conversionOffset}, #{p.pollFrequency}, #{p.addressFormat},
+             #{p.modbusAddress}, #{p.numberOfBits})
         </foreach>
     </insert>
 
@@ -57,13 +88,16 @@
             point_name = #{pointName},
             n4_address = #{n4Address},
             point_code = #{pointCode},
-            register = #{register},
-            point_type = #{pointType},
-            data_type = #{dataType},
             unit = #{unit},
             display_precision = #{displayPrecision},
             all_path = #{allPath},
             type = #{type},
+            conversion_scale = #{conversionScale},
+            conversion_offset = #{conversionOffset},
+            poll_frequency = #{pollFrequency},
+            address_format = #{addressFormat},
+            modbus_address = #{modbusAddress},
+            number_of_bits = #{numberOfBits},
             update_time = NOW()
         WHERE point_deploy_id = #{pointDeployId}
     </update>
@@ -81,5 +115,39 @@
     <delete id="deleteByDeviceDeployId">
         DELETE FROM point_deployment WHERE device_deploy_id = #{deviceDeployId}
     </delete>
+
+    <update id="restore">
+        UPDATE point_deployment
+        SET is_deleted = 0, update_time = NOW()
+        WHERE point_deploy_id = #{pointDeployId}
+    </update>
+
+    <update id="updateImportedMetadata">
+        UPDATE point_deployment
+        SET point_tmpl_id = #{pointTmplId},
+            device_deploy_id = #{deviceDeployId},
+            point_name = #{pointName},
+            n4_address = #{n4Address},
+            point_code = #{pointCode},
+            data_type = NULL,
+            unit = #{unit},
+            display_precision = #{displayPrecision},
+            all_path = #{allPath},
+            type = #{type},
+            conversion_scale = #{conversionScale},
+            conversion_offset = #{conversionOffset},
+            poll_frequency = #{pollFrequency},
+            address_format = #{addressFormat},
+            modbus_address = #{modbusAddress},
+            number_of_bits = #{numberOfBits},
+            update_time = NOW()
+        WHERE point_deploy_id = #{pointDeployId}
+    </update>
+
+    <update id="updateAlarmCodeByN4Address">
+        UPDATE point_deployment
+        SET alarm_code = #{alarmCode}, update_time = NOW()
+        WHERE n4_address = #{n4Address}
+    </update>
 
 </mapper>

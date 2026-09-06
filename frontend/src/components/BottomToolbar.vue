@@ -10,20 +10,26 @@
       <span class="toolbar-label">{{ item.label }}</span>
       <span v-if="item.badge" class="toolbar-badge">{{ item.badge }}</span>
     </div>
+    <ChangePasswordDialog v-model="changePasswordVisible" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Bell, TrendCharts, Document, Tools, Setting, Clock, Cpu, Operation, User, Key, Lock, Tickets } from '@element-plus/icons-vue'
+import { Bell, TrendCharts, Document, Tools, Setting, Clock, Cpu, Operation, Lock } from '@element-plus/icons-vue'
+import { ElMessageBox, ElMessage } from 'element-plus'
 import { useAlarmWebSocket } from '@/composables/useAlarmWebSocket'
+import { useAuthStore } from '@/stores/auth'
+import ChangePasswordDialog from '@/components/ChangePasswordDialog.vue'
 
 // Real-time active alarm count (sum of all severities) shared across the app
 // via the WebSocket singleton. Mirrors the Active Alarms table row count.
 const { activeAlarmCount } = useAlarmWebSocket()
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
+const changePasswordVisible = ref(false)
 
 // System second-level routes take precedence over the /alarm prefix check
 const systemPaths = [
@@ -59,15 +65,16 @@ const alarmItems = computed(() => [
   },
 ])
 
+const isAuthorityRoute = computed(() =>
+  (route.path.startsWith('/system') && route.path !== '/system-deployment') || route.path === '/logs'
+)
+
 // System second-level menu
 const systemItems = computed(() => [
   { label: 'Device Template', icon: Cpu, badge: null, active: route.path === '/device-template', to: '/device-template' },
   { label: 'Device Deployment', icon: Operation, badge: null, active: route.path === '/device-deployment' || route.path === '/system-deployment', to: '/device-deployment' },
   { label: 'Alarm Configuration', icon: Setting, badge: null, active: route.path === '/alarm/config', to: '/alarm/config' },
-  { label: 'User Management', icon: User, badge: null, active: route.path === '/system/users', to: '/system/users' },
-  { label: 'Role Management', icon: Key, badge: null, active: route.path === '/system/groups', to: '/system/groups' },
-  { label: 'Permissions', icon: Lock, badge: null, active: route.path === '/system/permissions', to: '/system/permissions' },
-  { label: 'Audit Logs', icon: Tickets, badge: null, active: route.path === '/logs', to: '/logs' },
+  { label: 'Authority Management', icon: Lock, badge: null, active: isAuthorityRoute.value, to: '/system/users' },
 ])
 
 // Items shown on all other routes
@@ -87,9 +94,28 @@ const toolbarItems = computed(() => {
   return defaultItems.value
 })
 
-function onItemClick(item: { to?: string }) {
-  if (item.to) {
+function onItemClick(item: { to?: string; action?: string }) {
+  if (item.action === 'change-password') {
+    changePasswordVisible.value = true
+  } else if (item.action === 'logout') {
+    handleLogout()
+  } else if (item.to) {
     router.push(item.to)
+  }
+}
+
+async function handleLogout() {
+  try {
+    await ElMessageBox.confirm('Are you sure you want to log out?', 'Confirm Logout', {
+      type: 'warning',
+      confirmButtonText: 'Logout',
+      cancelButtonText: 'Cancel',
+    })
+    await authStore.logout()
+    ElMessage.success('Logged out successfully')
+    router.push('/login')
+  } catch {
+    // User cancelled
   }
 }
 </script>

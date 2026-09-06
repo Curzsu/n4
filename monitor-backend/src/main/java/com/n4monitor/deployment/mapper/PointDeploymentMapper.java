@@ -13,6 +13,10 @@ public interface PointDeploymentMapper {
     /** Query path + alarm_code for all non-deleted points, used to sync the rule mapping to Redis */
     List<PointDeploymentEntity> findAllForRuleMap();
 
+    List<PointDeployment> findAllIncludingDeleted();
+
+    List<PointDeployment> findAllByN4Addresses(@Param("n4Addresses") List<String> n4Addresses);
+
     List<PointDeployment> findByDeviceDeployId(@Param("deviceDeployId") Long deviceDeployId);
 
     PointDeployment findByPointDeployId(@Param("pointDeployId") Long pointDeployId);
@@ -29,4 +33,10 @@ public interface PointDeploymentMapper {
                          @Param("nodeName") String nodeName);
 
     int deleteByDeviceDeployId(@Param("deviceDeployId") Long deviceDeployId);
+
+    int restore(@Param("pointDeployId") Long pointDeployId);
+
+    int updateImportedMetadata(PointDeployment point);
+
+    int updateAlarmCodeByN4Address(@Param("n4Address") String n4Address, @Param("alarmCode") String alarmCode);
 }

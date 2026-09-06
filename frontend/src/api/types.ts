@@ -261,10 +261,8 @@ export interface PointTemplateItem {
   deviceTmplId?: number
   alarmCode?: string
   pointName: string
-  /** DI|DO|AI|AO */
-  pointType?: string
   /** numeric|enum|boolean|string */
-  dataType?: string
+  type?: string
   unit?: string
   displayPrecision?: number
   isReal?: boolean
@@ -337,12 +335,72 @@ export interface PointDeploymentItem {
   pointName: string
   n4Address?: string
   pointCode?: string
-  register?: string
-  pointType?: string
+  type?: string
   dataType?: string
   unit?: string
   displayPrecision?: number
+  allPath?: string
+  conversionScale?: number
+  conversionOffset?: number
+  pollFrequency?: string
+  addressFormat?: string
+  modbusAddress?: string
+  numberOfBits?: number
   isReal?: boolean
+}
+
+export interface ImportIssue {
+  severity: 'WARNING' | 'ERROR' | string
+  code: string
+  message: string
+  fileName?: string
+  rowNumber?: number
+}
+
+export interface TemplatePreviewItem {
+  sheetName: string
+  templateName: string
+  n4Name: string
+  deviceType?: string
+  manufacturer?: string
+  model?: string
+  pointCount: number
+  action: 'CREATE' | 'REUSE' | 'SKIPPED' | string
+}
+
+export interface DeploymentPreviewItem {
+  sourceFile: string
+  deviceName: string
+  devicePath: string
+  systemName: string
+  templateName?: string
+  pointCount: number
+  action: 'CREATE' | 'REUSE' | string
+}
+
+export interface ImportSummary {
+  valid: boolean
+  dryRun: boolean
+  committed: boolean
+  sourceFileCount: number
+  sourceRowCount: number
+  deviceTemplateCreated: number
+  deviceTemplateReused: number
+  pointTemplateCreated: number
+  pointTemplateReused: number
+  pointTemplateBackfilled: number
+  deviceDeploymentCreated: number
+  deviceDeploymentReused: number
+  pointDeploymentCreated: number
+  pointDeploymentReused: number
+  enumRuleCreated: number
+  numericRuleCreated: number
+  navigationGroupCreated: number
+  navigationGroupNames: string[]
+  skippedRowCount: number
+  issues: ImportIssue[]
+  templatePreviews?: TemplatePreviewItem[]
+  deploymentPreviews?: DeploymentPreviewItem[]
 }
 
 /** Impact preview when deleting navigation nodes */

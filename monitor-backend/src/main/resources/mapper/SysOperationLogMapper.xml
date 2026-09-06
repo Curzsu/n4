@@ -17,7 +17,7 @@
             AND operator_name LIKE CONCAT('%', #{operatorName}, '%')
         </if>
         <if test="module != null and module != ''">
-            AND module = #{module}
+            AND module LIKE CONCAT('%', #{module}, '%')
         </if>
         <if test="operation != null and operation != ''">
             AND operation LIKE CONCAT('%', #{operation}, '%')

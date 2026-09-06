@@ -1,5 +1,5 @@
 import request from './request'
-import type { DeviceDeployment, PointDeploymentItem } from './types'
+import type { DeviceDeployment, ImportSummary, PointDeploymentItem } from './types'
 
 export const deploymentApi = {
   listAll(): Promise<DeviceDeployment[]> {
@@ -28,5 +28,27 @@ export const deploymentApi = {
   },
   remove(deviceDeployId: number): Promise<string> {
     return request.delete(`/api/deployments/${deviceDeployId}`)
+  },
+  importFiles(files: File[], dryRun = false): Promise<ImportSummary> {
+    const formData = new FormData()
+    for (const file of files) {
+      formData.append('files', file)
+    }
+    return request.post('/api/deployments/import', formData, {
+      params: { dryRun },
+      timeout: 120000,
+    })
+  },
+  downloadImportTemplate(): Promise<Blob> {
+    return request.get('/api/deployments/import-template', {
+      responseType: 'blob',
+      timeout: 120000,
+    })
+  },
+  exportSnapshot(): Promise<Blob> {
+    return request.get('/api/deployments/export', {
+      responseType: 'blob',
+      timeout: 120000,
+    })
   },
 }

@@ -16,7 +16,6 @@ import java.util.regex.Pattern;
 public class TemplateService {
 
     private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("^[a-zA-Z0-9_\\-\\.\\s()]+$");
-    private static final Set<String> VALID_POINT_TYPES = Set.of("DI", "DO", "AI", "AO");
     private static final Set<String> VALID_DATA_TYPES = Set.of("numeric", "enum", "boolean", "string");
 
     /**
@@ -118,8 +117,7 @@ public class TemplateService {
 
         existing.setAlarmCode(point.getAlarmCode());
         existing.setPointName(point.getPointName().trim());
-        existing.setPointType(point.getPointType());
-        existing.setDataType(point.getDataType());
+        existing.setType(point.getType());
         existing.setUnit(point.getUnit() == null ? null : point.getUnit().trim());
         existing.setDisplayPrecision(point.getDisplayPrecision());
         pointTemplateMapper.update(existing);
@@ -183,22 +181,18 @@ public class TemplateService {
             throw new IllegalArgumentException("Point name contains invalid characters");
         }
 
-        if (point.getPointType() != null && !point.getPointType().trim().isEmpty()) {
-            String pt = point.getPointType().trim().toUpperCase();
-            if (!VALID_POINT_TYPES.contains(pt)) {
-                throw new IllegalArgumentException("Invalid point type: " + point.getPointType() + ". Must be one of " + VALID_POINT_TYPES);
-            }
-            point.setPointType(pt);
+        if ((point.getType() == null || point.getType().trim().isEmpty())
+                && point.getDataType() != null && !point.getDataType().trim().isEmpty()) {
+            point.setType(point.getDataType());
         }
-
-        if (point.getDataType() == null || point.getDataType().trim().isEmpty()) {
-            point.setDataType("numeric");
+        if (point.getType() == null || point.getType().trim().isEmpty()) {
+            point.setType("numeric");
         } else {
-            String dt = point.getDataType().trim().toLowerCase();
+            String dt = point.getType().trim().toLowerCase();
             if (!VALID_DATA_TYPES.contains(dt)) {
-                throw new IllegalArgumentException("Invalid data type: " + point.getDataType() + ". Must be one of " + VALID_DATA_TYPES);
+                throw new IllegalArgumentException("Invalid point type: " + point.getType() + ". Must be one of " + VALID_DATA_TYPES);
             }
-            point.setDataType(dt);
+            point.setType(dt);
         }
 
         if (point.getUnit() != null && point.getUnit().trim().length() > 50) {

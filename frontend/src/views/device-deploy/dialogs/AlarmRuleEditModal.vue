@@ -232,7 +232,7 @@ async function open(point: PointTemplateItem) {
   loading.value = true
 
   try {
-    const rawType = (point.dataType || '').toLowerCase()
+    const rawType = (point.type || '').toLowerCase()
     const isEnum = rawType === 'enum' || rawType === 'boolean'
     const targetType = isEnum ? 'ENUM' : 'NUMERIC'
     const targetAlarmCode = point.alarmCode?.trim()

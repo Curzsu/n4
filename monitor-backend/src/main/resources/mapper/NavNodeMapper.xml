@@ -11,6 +11,13 @@
         ORDER BY sort_order, node_id
     </select>
 
+    <select id="findAllIncludingDeleted" resultType="com.n4monitor.dashboard.entity.NavNode">
+        SELECT node_id, parent_id, node_name, node_level, node_type, max_level, icon, sort_order,
+               mqtt_server_addresses, is_deleted, create_time, update_time
+        FROM system_deployment
+        ORDER BY sort_order, node_id
+    </select>
+
     <select id="countDevicesByNode" resultType="map">
         SELECT dd.nav_node_id AS nodeId,
                COUNT(*) AS deviceCount,
@@ -86,13 +93,28 @@
         WHERE node_id = #{nodeId}
     </update>
 
+    <update id="restore">
+        UPDATE system_deployment
+        SET node_name             = #{nodeName},
+            parent_id             = #{parentId},
+            node_level            = #{nodeLevel},
+            node_type             = #{nodeType},
+            max_level             = #{maxLevel},
+            icon                  = #{icon},
+            sort_order            = #{sortOrder},
+            mqtt_server_addresses = #{mqttServerAddresses},
+            is_deleted            = 0,
+            update_time           = NOW()
+        WHERE node_id = #{nodeId}
+    </update>
+
     <update id="logicalDelete">
         UPDATE system_deployment
         SET is_deleted = 1, update_time = NOW()
         WHERE node_id = #{nodeId}
     </update>
 
-    <!-- ===== 设备挂载相关 ===== -->
+    <!-- ===== Device Mount Operations ===== -->
 
     <select id="findUnmountedDevices" resultType="map">
         SELECT dd.device_deploy_id   AS deviceDeployId,

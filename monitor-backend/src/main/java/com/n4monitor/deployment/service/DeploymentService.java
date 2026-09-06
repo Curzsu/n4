@@ -29,7 +29,6 @@ public class DeploymentService {
     private static final Pattern IPV4_PATTERN = Pattern.compile("^(?:(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)$");
     private static final Pattern IPV6_PATTERN = Pattern.compile("^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$");
     private static final Pattern MAC_PATTERN = Pattern.compile("^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$");
-    private static final Set<String> VALID_POINT_TYPES = Set.of("DI", "DO", "AI", "AO");
     private static final Set<String> VALID_DATA_TYPES = Set.of("numeric", "enum", "boolean", "string");
 
     private final DeviceDeploymentMapper deviceDeploymentMapper;
@@ -116,9 +115,8 @@ public class DeploymentService {
             String n4Addr = buildPointN4Address(node.getNodeName(), pointName);
             p.setN4Address(n4Addr);
             p.setAllPath(n4Addr);
-            p.setPointType(tp.getPointType());
-            p.setDataType(tp.getDataType());
-            p.setType(tp.getDataType() != null ? tp.getDataType() : "numeric");
+            p.setDataType(null);
+            p.setType(tp.getType() != null ? tp.getType() : "numeric");
             p.setUnit(tp.getUnit());
             p.setDisplayPrecision(tp.getDisplayPrecision());
             newPoints.add(p);
@@ -204,9 +202,8 @@ public class DeploymentService {
         existing.setPointName(point.getPointName().trim());
         existing.setN4Address(point.getN4Address());
         existing.setPointCode(point.getPointCode());
-        existing.setRegister(point.getRegister());
-        existing.setPointType(point.getPointType());
-        existing.setDataType(point.getDataType());
+        existing.setType(point.getType());
+        existing.setDataType(null);
         existing.setUnit(point.getUnit() == null ? null : point.getUnit().trim());
         existing.setDisplayPrecision(point.getDisplayPrecision());
         pointDeploymentMapper.update(existing);
@@ -283,22 +280,18 @@ public class DeploymentService {
             throw new IllegalArgumentException("Point name cannot exceed 150 characters");
         }
 
-        if (point.getPointType() != null && !point.getPointType().trim().isEmpty()) {
-            String pt = point.getPointType().trim().toUpperCase();
-            if (!VALID_POINT_TYPES.contains(pt)) {
-                throw new IllegalArgumentException("Invalid point type: " + point.getPointType());
-            }
-            point.setPointType(pt);
+        if ((point.getType() == null || point.getType().trim().isEmpty())
+                && point.getDataType() != null && !point.getDataType().trim().isEmpty()) {
+            point.setType(point.getDataType());
         }
-
-        if (point.getDataType() == null || point.getDataType().trim().isEmpty()) {
-            throw new IllegalArgumentException("Point data type cannot be empty");
+        if (point.getType() == null || point.getType().trim().isEmpty()) {
+            throw new IllegalArgumentException("Point type cannot be empty");
         } else {
-            String dt = point.getDataType().trim().toLowerCase();
+            String dt = point.getType().trim().toLowerCase();
             if (!VALID_DATA_TYPES.contains(dt)) {
-                throw new IllegalArgumentException("Invalid data type: " + point.getDataType());
+                throw new IllegalArgumentException("Invalid point type: " + point.getType());
             }
-            point.setDataType(dt);
+            point.setType(dt);
         }
 
         if (point.getUnit() != null && point.getUnit().trim().length() > 50) {

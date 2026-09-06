@@ -38,8 +38,7 @@
         />
       </div>
       <div class="filter-actions">
-        <el-button size="small" class="btn-primary" @click="handleSearch">Search</el-button>
-        <el-button size="small" class="btn-secondary" @click="handleReset">Reset</el-button>
+        <el-button size="small" class="btn-primary" :icon="Search" @click="handleSearch">Search</el-button>
       </div>
     </div>
 
@@ -72,7 +71,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="createTime" label="Created At" width="160" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
-        <el-table-column label="Actions" width="180" align="center" header-align="center" :resizable="false">
+        <el-table-column label="Actions" width="180" align="center" header-align="center" fixed="right" :resizable="false">
           <template #default="{ row }">
             <div class="action-btn-grid">
               <div class="action-col">
@@ -177,7 +176,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { ElTree } from 'element-plus'
-import { Plus, Refresh } from '@element-plus/icons-vue'
+import { Plus, Refresh, Search } from '@element-plus/icons-vue'
 import { groupApi } from '@/api/group'
 import { permissionApi } from '@/api/permission'
 import type { Group, GroupForm, PermissionNode } from '@/api/types'
@@ -233,11 +232,6 @@ async function loadGroups() {
 
 function handleSearch() {
   // filteredGroups updates reactively
-}
-
-function handleReset() {
-  query.groupName = ''
-  query.groupCode = ''
 }
 
 function openCreate() {
@@ -422,7 +416,6 @@ onMounted(() => {
   }
 
   .filter-actions {
-    margin-left: auto;
     display: flex;
     align-items: center;
     gap: 6px;

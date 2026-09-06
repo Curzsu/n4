@@ -24,11 +24,27 @@
       </div>
     </div>
 
-    <!-- Sidebar Navigation Tree -->
+    <!-- Sidebar Navigation Tree / Authority Menu -->
     <div class="sidebar-tree" v-if="!isCollapsed" v-loading="loading || false">
+      <!-- Authority Navigation items -->
+      <div v-if="isAuthorityRoute" class="authority-menu">
+        <div
+          v-for="item in filteredAuthorityItems"
+          :key="item.label"
+          :class="['authority-menu-item', { active: item.active }]"
+          @click="handleAuthorityItemClick(item)"
+        >
+          <el-icon class="authority-item-icon"><component :is="item.icon" /></el-icon>
+          <span class="authority-item-label">{{ item.label }}</span>
+        </div>
+      </div>
+
+      <!-- Device Tree -->
       <el-tree
+        v-else
         :data="visibleTreeData"
         :props="treeProps"
+        :indent="16"
         node-key="id"
         default-expand-all
         highlight-current
@@ -63,6 +79,24 @@
       </el-tree>
     </div>
 
+    <!-- Collapsed Authority Menu -->
+    <div v-else-if="isAuthorityRoute" class="authority-menu-collapsed">
+      <el-tooltip
+        v-for="item in filteredAuthorityItems"
+        :key="item.label"
+        :content="item.label"
+        placement="right"
+        effect="dark"
+      >
+        <div
+          :class="['authority-menu-item', { active: item.active }]"
+          @click="handleAuthorityItemClick(item)"
+        >
+          <el-icon class="authority-item-icon"><component :is="item.icon" /></el-icon>
+        </div>
+      </el-tooltip>
+    </div>
+
     <!-- Sidebar Footer / Collapse Trigger -->
     <div class="sidebar-footer">
       <span class="collapse-btn" @click="toggleCollapse">
@@ -70,12 +104,15 @@
         <span v-if="!isCollapsed">Collapse Sidebar</span>
       </span>
     </div>
+
+    <!-- Change Password Dialog -->
+    <ChangePasswordDialog v-model="changePasswordVisible" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   Location,
   Search,
@@ -89,16 +126,114 @@ import {
   Box,
   Monitor,
   DataLine,
-  DataAnalysis
+  DataAnalysis,
+  User,
+  Key,
+  Lock,
+  Tickets,
+  EditPen,
+  SwitchButton,
 } from '@element-plus/icons-vue'
 import type { TreeNodeData } from 'element-plus'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useDashboardStore } from '@/stores/dashboard'
+import { useAuthStore } from '@/stores/auth'
+import ChangePasswordDialog from '@/components/ChangePasswordDialog.vue'
 import type { NavTreeNode, UiTreeNode } from '@/api/types'
 import type ElTree from 'element-plus/es/components/tree/index'
 
+interface AuthorityMenuItem {
+  label: string
+  icon: any
+  active?: boolean
+  to?: string
+  action?: 'change-password' | 'logout'
+}
+
 const route = useRoute()
+const router = useRouter()
 const store = useDashboardStore()
+const authStore = useAuthStore()
+
+const changePasswordVisible = ref(false)
+
+const isAuthorityRoute = computed(() =>
+  (route.path.startsWith('/system') && route.path !== '/system-deployment') || route.path === '/logs'
+)
+
+const authorityMenuItems = computed<AuthorityMenuItem[]>(() => [
+  {
+    label: 'User Management',
+    icon: User,
+    active: route.path === '/system/users',
+    to: '/system/users',
+  },
+  {
+    label: 'Role Management',
+    icon: Key,
+    active: route.path === '/system/groups',
+    to: '/system/groups',
+  },
+  {
+    label: 'Permissions',
+    icon: Lock,
+    active: route.path === '/system/permissions',
+    to: '/system/permissions',
+  },
+  {
+    label: 'Audit Logs',
+    icon: Tickets,
+    active: route.path === '/logs',
+    to: '/logs',
+  },
+  {
+    label: 'Change Password',
+    icon: EditPen,
+    active: false,
+    action: 'change-password',
+  },
+  {
+    label: 'Logout',
+    icon: SwitchButton,
+    active: false,
+    action: 'logout',
+  },
+])
+
+const filteredAuthorityItems = computed(() => {
+  if (!searchText.value.trim()) {
+    return authorityMenuItems.value
+  }
+  const q = searchText.value.trim().toLowerCase()
+  return authorityMenuItems.value.filter((item) =>
+    item.label.toLowerCase().includes(q)
+  )
+})
+
+function handleAuthorityItemClick(item: AuthorityMenuItem) {
+  if (item.action === 'change-password') {
+    changePasswordVisible.value = true
+  } else if (item.action === 'logout') {
+    handleLogout()
+  } else if (item.to) {
+    router.push(item.to)
+  }
+}
+
+async function handleLogout() {
+  try {
+    await ElMessageBox.confirm('Are you sure you want to log out?', 'Confirm Logout', {
+      type: 'warning',
+      confirmButtonText: 'Logout',
+      cancelButtonText: 'Cancel',
+    })
+    await authStore.logout()
+    ElMessage.success('Logged out successfully')
+    router.push('/login')
+  } catch {
+    // Cancelled by user
+  }
+}
 
 const props = defineProps<{
   mode?: 'default' | 'nav'
@@ -344,7 +479,7 @@ watch(searchText, (val) => {
     height: 22px !important;
     border-radius: 4px;
     margin: 1px 0;
-    padding: 0 4px !important;
+    padding-right: 4px !important;
 
     &:hover {
       background-color: #1a2332 !important;
@@ -448,5 +583,66 @@ watch(searchText, (val) => {
   cursor: pointer;
   transition: color 0.2s;
   &:hover { color: $text-primary; }
+}
+
+.authority-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.authority-menu-collapsed {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+  align-items: center;
+}
+
+.authority-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: $text-secondary;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 11px;
+  user-select: none;
+
+  &:hover {
+    color: $text-primary;
+    background-color: #1a2332;
+  }
+
+  &.active {
+    background-color: rgba(16, 185, 129, 0.16);
+    color: #34d399;
+    font-weight: 600;
+
+    .authority-item-icon {
+      color: $accent-green;
+    }
+  }
+
+  .authority-item-icon {
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+
+  .authority-item-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.authority-menu-collapsed .authority-menu-item {
+  justify-content: center;
+  padding: 8px 0;
+  width: 36px;
+  height: 36px;
 }
 </style>

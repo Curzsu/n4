@@ -11,6 +11,8 @@ public interface DeviceTemplateMapper {
 
     List<DeviceTemplate> findAllWithPointCount();
 
+    List<DeviceTemplate> findAllIncludingDeleted();
+
     DeviceTemplate findByDeviceTmplId(@Param("deviceTmplId") Long deviceTmplId);
 
     int insert(DeviceTemplate template);
@@ -18,4 +20,8 @@ public interface DeviceTemplateMapper {
     int update(DeviceTemplate template);
 
     int logicalDelete(@Param("deviceTmplId") Long deviceTmplId);
+
+    int restore(@Param("deviceTmplId") Long deviceTmplId);
+
+    int updateAlarmCode(@Param("deviceTmplId") Long deviceTmplId, @Param("alarmCode") String alarmCode);
 }

@@ -1,5 +1,5 @@
 import request from './request'
-import type { DeviceTemplate, PointTemplateItem } from './types'
+import type { DeviceTemplate, ImportSummary, PointTemplateItem } from './types'
 
 export const templateApi = {
   listTemplates(): Promise<DeviceTemplate[]> {
@@ -28,5 +28,25 @@ export const templateApi = {
   },
   deletePoint(pointId: number): Promise<string> {
     return request.delete(`/api/templates/points/${pointId}`)
+  },
+  importWorkbook(file: File, dryRun = false): Promise<ImportSummary> {
+    const formData = new FormData()
+    formData.append('file', file)
+    return request.post('/api/templates/import', formData, {
+      params: { dryRun },
+      timeout: 120000,
+    })
+  },
+  downloadImportTemplate(): Promise<Blob> {
+    return request.get('/api/templates/import-template', {
+      responseType: 'blob',
+      timeout: 120000,
+    })
+  },
+  exportSnapshot(): Promise<Blob> {
+    return request.get('/api/templates/export', {
+      responseType: 'blob',
+      timeout: 120000,
+    })
   },
 }

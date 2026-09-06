@@ -13,71 +13,43 @@
     <!-- Filter bar -->
     <div class="filter-bar">
       <div class="filter-item">
-        <span class="filter-label">Operator:</span>
         <el-input
           v-model="query.operatorName"
           size="small"
-          placeholder="Operator"
+          placeholder="Filter operator..."
+          :prefix-icon="User"
           clearable
-          style="width: 120px"
+          style="width: 160px"
           @keyup.enter="handleSearch"
         />
       </div>
       <div class="filter-item">
-        <span class="filter-label">Module:</span>
-        <el-input
-          v-model="query.module"
-          size="small"
-          placeholder="e.g. User"
-          clearable
-          style="width: 120px"
-          @keyup.enter="handleSearch"
-        />
-      </div>
-      <div class="filter-item">
-        <span class="filter-label">Operation:</span>
         <el-input
           v-model="query.operation"
           size="small"
-          placeholder="e.g. Add"
+          placeholder="Filter operation..."
+          :prefix-icon="Operation"
           clearable
-          style="width: 120px"
+          style="width: 170px"
           @keyup.enter="handleSearch"
         />
       </div>
       <div class="filter-item">
-        <span class="filter-label">Status:</span>
-        <el-select
-          v-model="query.status"
-          size="small"
-          placeholder="All"
-          clearable
-          style="width: 90px"
-          popper-class="alarm-config-popper"
-          @change="handleSearch"
-        >
-          <el-option label="Success" :value="1" />
-          <el-option label="Failed" :value="0" />
-        </el-select>
-      </div>
-      <div class="filter-item">
-        <span class="filter-label">Time:</span>
         <el-date-picker
           v-model="dateRange"
           type="datetimerange"
           size="small"
           range-separator="-"
-          start-placeholder="Start"
-          end-placeholder="End"
+          start-placeholder="Start Time"
+          end-placeholder="End Time"
           value-format="YYYY-MM-DDTHH:mm:ss"
-          style="width: 270px"
+          style="width: 290px"
           popper-class="alarm-datepicker-popper"
           @change="handleSearch"
         />
       </div>
       <div class="filter-actions">
-        <el-button size="small" class="btn-primary" @click="handleSearch">Search</el-button>
-        <el-button size="small" class="btn-secondary" @click="handleReset">Reset</el-button>
+        <el-button size="small" class="btn-primary" :icon="Search" @click="handleSearch">Search</el-button>
       </div>
     </div>
 
@@ -95,15 +67,101 @@
         v-loading="loading"
       >
         <el-table-column prop="logId" label="ID" width="55" align="left" header-align="center" :resizable="false" />
-        <el-table-column prop="operatorName" label="Operator" width="110" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
-        <el-table-column prop="module" label="Module" width="120" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
-        <el-table-column prop="operation" label="Operation" min-width="140" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+        <el-table-column prop="operatorName" label="Operator" width="110" align="left" header-align="center" show-overflow-tooltip :resizable="false">
+          <template #header>
+            <div class="header-cell">
+              <el-popover v-model:visible="filterPopover.operatorName" :trigger="'manual' as never" placement="bottom" :width="180" popper-class="audit-log-filter-popper" @show="syncDraft('operatorName')">
+                <template #reference>
+                  <span class="header-label" :class="{ 'filter-active': hasFilter('operatorName') }" @click.stop="toggleFilterPopover('operatorName')">
+                    Operator
+                    <el-icon v-if="hasFilter('operatorName')" class="filter-icon active"><Filter /></el-icon>
+                  </span>
+                </template>
+                <div class="filter-panel" @click.stop @mousedown.stop>
+                  <el-input v-model="draft.operatorName" placeholder="Fuzzy match" size="small" clearable style="width: 100%" @keyup.enter="applyFilter('operatorName')" />
+                  <div class="header-filter-actions">
+                    <el-button size="small" @click="resetFilter('operatorName')">Reset</el-button>
+                    <el-button size="small" @click="cancelFilter('operatorName')">Cancel</el-button>
+                    <el-button size="small" type="primary" @click="applyFilter('operatorName')">OK</el-button>
+                  </div>
+                </div>
+              </el-popover>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="module" label="Module" width="120" align="left" header-align="center" show-overflow-tooltip :resizable="false">
+          <template #header>
+            <div class="header-cell">
+              <el-popover v-model:visible="filterPopover.module" :trigger="'manual' as never" placement="bottom" :width="180" popper-class="audit-log-filter-popper" @show="syncDraft('module')">
+                <template #reference>
+                  <span class="header-label" :class="{ 'filter-active': hasFilter('module') }" @click.stop="toggleFilterPopover('module')">
+                    Module
+                    <el-icon v-if="hasFilter('module')" class="filter-icon active"><Filter /></el-icon>
+                  </span>
+                </template>
+                <div class="filter-panel" @click.stop @mousedown.stop>
+                  <el-input v-model="draft.module" placeholder="Fuzzy match" size="small" clearable style="width: 100%" @keyup.enter="applyFilter('module')" />
+                  <div class="header-filter-actions">
+                    <el-button size="small" @click="resetFilter('module')">Reset</el-button>
+                    <el-button size="small" @click="cancelFilter('module')">Cancel</el-button>
+                    <el-button size="small" type="primary" @click="applyFilter('module')">OK</el-button>
+                  </div>
+                </div>
+              </el-popover>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="operation" label="Operation" min-width="140" align="left" header-align="center" show-overflow-tooltip :resizable="false">
+          <template #header>
+            <div class="header-cell">
+              <el-popover v-model:visible="filterPopover.operation" :trigger="'manual' as never" placement="bottom" :width="200" popper-class="audit-log-filter-popper" @show="syncDraft('operation')">
+                <template #reference>
+                  <span class="header-label" :class="{ 'filter-active': hasFilter('operation') }" @click.stop="toggleFilterPopover('operation')">
+                    Operation
+                    <el-icon v-if="hasFilter('operation')" class="filter-icon active"><Filter /></el-icon>
+                  </span>
+                </template>
+                <div class="filter-panel" @click.stop @mousedown.stop>
+                  <el-input v-model="draft.operation" placeholder="Fuzzy match" size="small" clearable style="width: 100%" @keyup.enter="applyFilter('operation')" />
+                  <div class="header-filter-actions">
+                    <el-button size="small" @click="resetFilter('operation')">Reset</el-button>
+                    <el-button size="small" @click="cancelFilter('operation')">Cancel</el-button>
+                    <el-button size="small" type="primary" @click="applyFilter('operation')">OK</el-button>
+                  </div>
+                </div>
+              </el-popover>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column label="Type" width="85" align="left" header-align="center" :resizable="false">
           <template #default="{ row }">
             <span :class="['type-badge', businessTypeClass(row.businessType)]">{{ businessTypeLabel(row.businessType) }}</span>
           </template>
         </el-table-column>
         <el-table-column label="Status" width="85" align="left" header-align="center" :resizable="false">
+          <template #header>
+            <div class="header-cell">
+              <el-popover v-model:visible="filterPopover.status" :trigger="'manual' as never" placement="bottom" :width="150" popper-class="audit-log-filter-popper" @show="syncDraft('status')">
+                <template #reference>
+                  <span class="header-label" :class="{ 'filter-active': hasFilter('status') }" @click.stop="toggleFilterPopover('status')">
+                    Status
+                    <el-icon v-if="hasFilter('status')" class="filter-icon active"><Filter /></el-icon>
+                  </span>
+                </template>
+                <div class="filter-panel" @click.stop @mousedown.stop>
+                  <el-select v-model="draft.status" :teleported="false" clearable placeholder="Select" size="small" style="width: 100%" popper-class="audit-log-filter-select-popper">
+                    <el-option label="Success" :value="1" />
+                    <el-option label="Failed" :value="0" />
+                  </el-select>
+                  <div class="header-filter-actions">
+                    <el-button size="small" @click="resetFilter('status')">Reset</el-button>
+                    <el-button size="small" @click="cancelFilter('status')">Cancel</el-button>
+                    <el-button size="small" type="primary" @click="applyFilter('status')">OK</el-button>
+                  </div>
+                </div>
+              </el-popover>
+            </div>
+          </template>
           <template #default="{ row }">
             <span :class="['status-badge', row.status === 1 ? 'active' : 'disabled']">
               {{ row.status === 1 ? 'Success' : 'Failed' }}
@@ -116,7 +174,40 @@
           </template>
         </el-table-column>
         <el-table-column prop="operatorIp" label="IP Address" width="110" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
-        <el-table-column prop="createTime" label="Timestamp" width="145" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
+        <el-table-column prop="createTime" label="Timestamp" width="145" align="left" header-align="center" show-overflow-tooltip :resizable="false">
+          <template #header>
+            <div class="header-cell">
+              <el-popover v-model:visible="filterPopover.createTime" :trigger="'manual' as never" placement="bottom" :width="320" popper-class="audit-log-filter-popper" @show="syncDraft('createTime')">
+                <template #reference>
+                  <span class="header-label" :class="{ 'filter-active': hasFilter('createTime') }" @click.stop="toggleFilterPopover('createTime')">
+                    Timestamp
+                    <el-icon v-if="hasFilter('createTime')" class="filter-icon active"><Filter /></el-icon>
+                  </span>
+                </template>
+                <div class="filter-panel" @click.stop @mousedown.stop>
+                  <el-date-picker
+                    v-model="draft.createTime"
+                    :teleported="false"
+                    type="datetimerange"
+                    single-panel
+                    size="small"
+                    format="YYYY-MM-DD HH:mm:ss"
+                    value-format="YYYY-MM-DDTHH:mm:ss"
+                    start-placeholder="Start"
+                    end-placeholder="End"
+                    style="width: 100%"
+                    popper-class="audit-log-datepicker-popper"
+                  />
+                  <div class="header-filter-actions">
+                    <el-button size="small" @click="resetFilter('createTime')">Reset</el-button>
+                    <el-button size="small" @click="cancelFilter('createTime')">Cancel</el-button>
+                    <el-button size="small" type="primary" @click="applyFilter('createTime')">OK</el-button>
+                  </div>
+                </div>
+              </el-popover>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column label="Actions" width="75" align="center" header-align="center" :resizable="false">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="openDetail(row as OperationLog)">
@@ -185,7 +276,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { Refresh } from '@element-plus/icons-vue'
+import { Filter, Refresh, User, Operation, Search } from '@element-plus/icons-vue'
 import { logApi } from '@/api/log'
 import type { LogQuery, OperationLog } from '@/api/types'
 
@@ -200,6 +291,24 @@ const query = reactive<LogQuery>({
   status: undefined,
   page: 1,
   pageSize: 20,
+})
+
+type LogFilterField = 'operatorName' | 'module' | 'operation' | 'status' | 'createTime'
+
+const filterPopover = reactive<Record<LogFilterField, boolean>>({
+  operatorName: false,
+  module: false,
+  operation: false,
+  status: false,
+  createTime: false,
+})
+
+const draft = reactive({
+  operatorName: '',
+  module: '',
+  operation: '',
+  status: undefined as number | undefined,
+  createTime: null as [string, string] | null,
 })
 
 const detailVisible = ref(false)
@@ -245,6 +354,92 @@ function formatParams(params?: string): string {
   }
 }
 
+function toggleFilterPopover(field: LogFilterField) {
+  filterPopover[field] = !filterPopover[field]
+}
+
+function syncDraft(field: LogFilterField) {
+  switch (field) {
+    case 'operatorName':
+      draft.operatorName = query.operatorName || ''
+      break
+    case 'module':
+      draft.module = query.module || ''
+      break
+    case 'operation':
+      draft.operation = query.operation || ''
+      break
+    case 'status':
+      draft.status = query.status
+      break
+    case 'createTime':
+      draft.createTime = dateRange.value ? [...dateRange.value] : null
+      break
+  }
+}
+
+function applyFilter(field: LogFilterField) {
+  switch (field) {
+    case 'operatorName':
+      query.operatorName = draft.operatorName.trim()
+      break
+    case 'module':
+      query.module = draft.module.trim()
+      break
+    case 'operation':
+      query.operation = draft.operation.trim()
+      break
+    case 'status':
+      query.status = draft.status
+      break
+    case 'createTime':
+      dateRange.value = draft.createTime ? [...draft.createTime] : null
+      break
+  }
+  filterPopover[field] = false
+  handleSearch()
+}
+
+function cancelFilter(field: LogFilterField) {
+  filterPopover[field] = false
+}
+
+function resetFilter(field: LogFilterField) {
+  switch (field) {
+    case 'operatorName':
+      draft.operatorName = ''
+      query.operatorName = ''
+      break
+    case 'module':
+      draft.module = ''
+      query.module = ''
+      break
+    case 'operation':
+      draft.operation = ''
+      query.operation = ''
+      break
+    case 'status':
+      draft.status = undefined
+      query.status = undefined
+      break
+    case 'createTime':
+      draft.createTime = null
+      dateRange.value = null
+      break
+  }
+  handleSearch()
+}
+
+function hasFilter(field: LogFilterField): boolean {
+  switch (field) {
+    case 'operatorName': return !!query.operatorName?.trim()
+    case 'module': return !!query.module?.trim()
+    case 'operation': return !!query.operation?.trim()
+    case 'status': return query.status != null
+    case 'createTime': return Boolean(dateRange.value?.some(Boolean))
+  }
+}
+
 async function loadLogs() {
   loading.value = true
   try {
@@ -265,15 +460,6 @@ function handleSearch() {
   loadLogs()
 }
 
-function handleReset() {
-  query.operatorName = ''
-  query.module = ''
-  query.operation = ''
-  query.status = undefined
-  dateRange.value = null
-  query.page = 1
-  loadLogs()
-}
 
 async function openDetail(row: OperationLog) {
   detail.value = await logApi.detail(row.logId)
@@ -315,6 +501,46 @@ onMounted(() => {
   gap: 6px;
 }
 
+.header-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.header-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+  font-size: 10px;
+  color: $text-secondary;
+
+  &.filter-active {
+    color: $accent-green;
+  }
+}
+
+.filter-icon {
+  font-size: 10px;
+
+  &.active {
+    color: $accent-green;
+  }
+}
+
+.filter-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.header-filter-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 2px;
+}
+
 .filter-bar {
   display: flex;
   align-items: center;
@@ -340,7 +566,6 @@ onMounted(() => {
   }
 
   .filter-actions {
-    margin-left: auto;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -622,5 +847,186 @@ onMounted(() => {
 
 :deep(.el-loading-mask) {
   background-color: rgba(10, 14, 23, 0.7);
+}
+</style>
+
+<!-- Global styles for teleported audit log filter popovers -->
+<style lang="scss">
+.audit-log-filter-popper.el-popover.el-popper {
+  background-color: #0a0e17;
+  border: 1px solid #2d3748;
+  color: #e5e7eb;
+  padding: 6px !important;
+  min-width: 120px;
+
+  .el-popper__arrow::before {
+    background-color: #0a0e17;
+    border-color: #2d3748;
+  }
+
+  .el-button {
+    height: 18px;
+    min-height: 18px;
+    padding: 0 4px;
+    margin: 0 2px;
+    font-size: 10px;
+    line-height: 18px;
+
+    span {
+      font-size: 10px;
+    }
+  }
+
+  .el-input__wrapper,
+  .el-select__wrapper {
+    background-color: #111827;
+    box-shadow: 0 0 0 1px #2d3748 inset;
+    padding: 0 4px;
+
+    &:hover {
+      box-shadow: 0 0 0 1px #6b7280 inset;
+    }
+  }
+
+  .el-input__inner {
+    color: #e5e7eb;
+    font-size: 10px;
+    height: 20px;
+    line-height: 20px;
+
+    &::placeholder {
+      color: #6b7280;
+      -webkit-text-fill-color: #6b7280;
+    }
+  }
+
+  .el-select__wrapper {
+    min-height: 20px;
+  }
+
+  .el-select__placeholder,
+  .el-select__selected-item {
+    font-size: 10px;
+  }
+
+  .el-select__placeholder {
+    color: #6b7280;
+  }
+
+  .el-select__selected-item {
+    color: #e5e7eb;
+  }
+
+  .el-select__caret {
+    color: #9ca3af;
+  }
+
+  .el-date-editor--datetimerange {
+    width: 100% !important;
+    height: 20px;
+
+    .el-input__wrapper {
+      height: 20px;
+    }
+
+    .el-range-separator {
+      color: #6b7280;
+      font-size: 10px;
+      line-height: 20px;
+    }
+
+    .el-range__icon {
+      font-size: 10px;
+      line-height: 20px;
+    }
+  }
+}
+
+.audit-log-filter-select-popper.el-select__popper {
+  .el-select-dropdown {
+    background-color: #111827;
+    border: 1px solid #2d3748;
+  }
+
+  .el-select-dropdown__item {
+    color: #9ca3af;
+    font-size: 10px;
+    height: 22px;
+    line-height: 22px;
+    padding: 0 8px;
+
+    &:hover,
+    &.is-hovering {
+      background-color: #1a2332;
+      color: #e5e7eb;
+    }
+
+    &.is-selected {
+      color: #10b981;
+    }
+  }
+
+  .el-popper__arrow::before {
+    background-color: #111827;
+    border-color: #2d3748;
+  }
+}
+
+.audit-log-datepicker-popper.el-popper {
+  .el-picker-panel,
+  .el-time-panel {
+    background-color: #111827;
+    border: 1px solid #2d3748;
+    color: #e5e7eb;
+  }
+
+  .el-picker-panel__icon-btn,
+  .el-date-range-picker__header {
+    color: #9ca3af;
+  }
+
+  .el-date-range-picker__content.is-left {
+    border-right-color: #2d3748;
+  }
+
+  .el-date-table th {
+    color: #9ca3af;
+    font-size: 10px;
+    padding: 2px 0;
+  }
+
+  .el-date-table td {
+    padding: 1px 0;
+  }
+
+  .el-date-table td .el-date-table-cell {
+    height: 20px;
+    padding: 0;
+  }
+
+  .el-date-table td .el-date-table-cell__text {
+    color: #e5e7eb;
+    font-size: 10px;
+    height: 20px;
+    line-height: 20px;
+  }
+
+  .el-date-table td.today .el-date-table-cell__text {
+    color: #10b981;
+  }
+
+  .el-date-table td.current:not(.disabled) .el-date-table-cell__text {
+    background-color: #10b981;
+    color: #0a0e17;
+  }
+
+  .el-date-table td.disabled .el-date-table-cell__text {
+    color: #4b5563;
+  }
+
+  .el-popper__arrow::before {
+    background-color: #111827;
+    border-color: #2d3748;
+  }
 }
 </style>

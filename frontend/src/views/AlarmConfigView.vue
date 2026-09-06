@@ -17,6 +17,18 @@
       </div>
     </div>
 
+    <!-- Search Bar -->
+    <div class="search-box-table">
+      <el-input
+        v-model="searchQuery"
+        placeholder="Search alarm rules..."
+        size="small"
+        :prefix-icon="Search"
+        clearable
+        class="search-bar"
+      />
+    </div>
+
     <!-- Numeric table: v-if so only the active tab's table mounts (~1000 combined
          rows otherwise make the initial render take seconds in dev mode).
          Rows are windowed: only the first numericVisible rows mount; scrolling
@@ -55,8 +67,8 @@
         </el-table-column>
         <template #append>
           <div class="table-window-hint">
-            Showing {{ displayedNumeric.length }} of {{ numericData.length }} numeric rules
-            <span v-if="displayedNumeric.length < numericData.length"> - scroll to bottom to load more</span>
+            Showing {{ displayedNumeric.length }} of {{ filteredNumericData.length }} numeric rules
+            <span v-if="displayedNumeric.length < filteredNumericData.length"> - scroll to bottom to load more</span>
           </div>
         </template>
       </el-table>
@@ -80,8 +92,8 @@
         </el-table-column>
         <template #append>
           <div class="table-window-hint">
-            Showing {{ displayedEnum.length }} of {{ enumData.length }} enum rules
-            <span v-if="displayedEnum.length < enumData.length"> - scroll to bottom to load more</span>
+            Showing {{ displayedEnum.length }} of {{ filteredEnumData.length }} enum rules
+            <span v-if="displayedEnum.length < filteredEnumData.length"> - scroll to bottom to load more</span>
           </div>
         </template>
       </el-table>
@@ -240,7 +252,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import type { ComponentPublicInstance } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Delete } from '@element-plus/icons-vue'
+import { Plus, Delete, Search } from '@element-plus/icons-vue'
 import { alarmApi } from '@/api/alarm'
 import type { NumericRuleItem, EnumRuleItem } from '@/api/types'
 
@@ -250,6 +262,7 @@ const tableWrapperRef = ref<HTMLElement | null>(null)
 const tableHeight = ref(400)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
+const searchQuery = ref('')
 
 const severityOptions = ['Critical', 'Major', 'Minor', 'Warning']
 const enumSeverityOptions = ['Critical', 'Major', 'Minor', 'Warning']
@@ -264,6 +277,28 @@ const activeTab = ref('numeric')
 const numericData = ref<NumericRuleItem[]>([])
 const enumData = ref<EnumRuleItem[]>([])
 
+const filteredNumericData = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return numericData.value
+  return numericData.value.filter((item) =>
+    (item.alarmName && item.alarmName.toLowerCase().includes(q)) ||
+    (item.highHighMessage && item.highHighMessage.toLowerCase().includes(q)) ||
+    (item.highMessage && item.highMessage.toLowerCase().includes(q)) ||
+    (item.lowMessage && item.lowMessage.toLowerCase().includes(q)) ||
+    (item.lowLowMessage && item.lowLowMessage.toLowerCase().includes(q))
+  )
+})
+
+const filteredEnumData = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return enumData.value
+  return enumData.value.filter((item) =>
+    (item.alarmName && item.alarmName.toLowerCase().includes(q)) ||
+    (item.enumMeaning && item.enumMeaning.toLowerCase().includes(q)) ||
+    (item.message && item.message.toLowerCase().includes(q))
+  )
+})
+
 // Windowed rendering: the two tables hold ~1000 combined rows and mounting
 // them at once takes seconds. Only the first WINDOW_BATCH rows render; the
 // capture-phase scroll listener on each table wrapper (scroll does not bubble,
@@ -275,18 +310,18 @@ const WINDOW_BOTTOM_THRESHOLD_PX = 40
 
 const numericVisible = ref(WINDOW_BATCH)
 const enumVisible = ref(WINDOW_BATCH)
-const displayedNumeric = computed(() => numericData.value.slice(0, numericVisible.value))
-const displayedEnum = computed(() => enumData.value.slice(0, enumVisible.value))
+const displayedNumeric = computed(() => filteredNumericData.value.slice(0, numericVisible.value))
+const displayedEnum = computed(() => filteredEnumData.value.slice(0, enumVisible.value))
 
 function onTableScroll(event: Event, type: 'numeric' | 'enum') {
   const el = event.target as HTMLElement
   if (el.scrollTop + el.clientHeight < el.scrollHeight - WINDOW_BOTTOM_THRESHOLD_PX) {
     return
   }
-  if (type === 'numeric' && numericVisible.value < numericData.value.length) {
-    numericVisible.value = Math.min(numericVisible.value + WINDOW_BATCH, numericData.value.length)
-  } else if (type === 'enum' && enumVisible.value < enumData.value.length) {
-    enumVisible.value = Math.min(enumVisible.value + WINDOW_BATCH, enumData.value.length)
+  if (type === 'numeric' && numericVisible.value < filteredNumericData.value.length) {
+    numericVisible.value = Math.min(numericVisible.value + WINDOW_BATCH, filteredNumericData.value.length)
+  } else if (type === 'enum' && enumVisible.value < filteredEnumData.value.length) {
+    enumVisible.value = Math.min(enumVisible.value + WINDOW_BATCH, filteredEnumData.value.length)
   }
 }
 
@@ -576,6 +611,35 @@ onBeforeUnmount(() => {
   transition: all 0.2s;
   &:hover { color: $text-primary; background-color: $bg-card-hover; }
   &.active { color: $accent-green; border-bottom-color: $accent-green; }
+}
+
+.search-box-table {
+  width: 240px;
+  flex-shrink: 0;
+
+  :deep(.el-input__wrapper) {
+    background-color: #0b1119 !important;
+    height: 20px !important;
+    min-height: 20px !important;
+    line-height: 20px !important;
+    padding: 0 6px !important;
+    border-radius: 4px !important;
+    border: 1px solid #1e293b !important;
+    box-shadow: none !important;
+    font-size: 10px !important;
+  }
+
+  :deep(.el-input__inner) {
+    font-size: 10px !important;
+    height: 20px !important;
+    line-height: 20px !important;
+    color: #e5e7eb !important;
+
+    &::placeholder {
+      font-size: 10px !important;
+      color: #64748b !important;
+    }
+  }
 }
 
 .config-table-wrapper {

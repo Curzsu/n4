@@ -21,6 +21,13 @@
         ORDER BY dd.device_deploy_id
     </select>
 
+    <select id="findAllIncludingDeleted" resultType="com.n4monitor.deployment.entity.DeviceDeployment">
+        SELECT <include refid="joinTemplateCols"/>
+        FROM device_deployment dd
+        LEFT JOIN device_template dt ON dd.device_tmpl_id = dt.device_tmpl_id
+        ORDER BY dd.device_deploy_id
+    </select>
+
     <select id="findByNavNodeId" resultType="com.n4monitor.deployment.entity.DeviceDeployment">
         SELECT <include refid="joinTemplateCols"/>
         FROM device_deployment dd
@@ -85,6 +92,18 @@
     <update id="logicalDelete">
         UPDATE device_deployment
         SET is_deleted = 1, update_time = NOW()
+        WHERE device_deploy_id = #{deviceDeployId}
+    </update>
+
+    <update id="restore">
+        UPDATE device_deployment
+        SET is_deleted = 0, update_time = NOW()
+        WHERE device_deploy_id = #{deviceDeployId}
+    </update>
+
+    <update id="updateAlarmCode">
+        UPDATE device_deployment
+        SET alarm_code = #{alarmCode}, update_time = NOW()
         WHERE device_deploy_id = #{deviceDeployId}
     </update>
 
