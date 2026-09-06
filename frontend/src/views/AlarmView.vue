@@ -67,6 +67,11 @@ const initialSeverity = computed(() => {
   display: flex;
   gap: 12px;
   flex-shrink: 0;
+  // The alarm table ends at the content area's inner edge, but the scrollport
+  // extends 16px further (the container's bottom padding). With only the 12px
+  // flex gap the chart cards' top edge would peek ~4px above the bottom
+  // toolbar; this extra margin pushes the row safely below the fold line.
+  margin-top: 12px;
 }
 
 .chart-item {

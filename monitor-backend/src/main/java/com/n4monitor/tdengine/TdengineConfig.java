@@ -8,7 +8,11 @@ import org.springframework.context.annotation.Configuration;
  * TDengine database configuration.
  * <p>
  * All values are read from {@code application.yaml} under the {@code tdengine} prefix.
- * Uses REST mode (jdbc:TAOS-RS) to avoid native library dependency.
+ * Defaults to REST mode ({@code jdbc:TAOS-RS}, port 6041) - measured faster than
+ * WebSocket for this project's batched-statement workload (the WS fetch protocol
+ * adds a round trip per query, and plain text SQL gains nothing from WS binary
+ * binding). WebSocket mode ({@code jdbc:TAOS-WS}) stays available by changing
+ * the URL only.
  */
 @Data
 @Configuration
@@ -32,4 +36,11 @@ public class TdengineConfig {
 
     /** Supertable name for full-detail point event persistence (every processed frame) */
     private String eventSupertable;
+
+    /**
+     * Recent-write window (days) applied to history queries so they prune by
+     * the indexed primary timestamp instead of scanning the full KEEP range.
+     * 0 disables the window filter.
+     */
+    private int queryWindowDays = 7;
 }

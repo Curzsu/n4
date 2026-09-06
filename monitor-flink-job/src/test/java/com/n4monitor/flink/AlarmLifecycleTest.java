@@ -42,7 +42,7 @@ class AlarmLifecycleTest {
         assertThat(notify.get(0).path("stage").asText()).isEqualTo("start");
         assertThat(notify.get(0).path("timestamp").asLong()).isEqualTo(T0);
 
-        var realtime = h.publishedOn(AlarmHarness.REALTIME_CHANNEL);
+        var realtime = h.publishedOn(AlarmHarness.REALTIME_STREAM);
         assertThat(realtime).hasSize(1);
         assertThat(realtime.get(0).path("timestamp").asLong()).isEqualTo(T0);
 
@@ -66,7 +66,7 @@ class AlarmLifecycleTest {
         assertThat(active.getAlarmStartTime()).isEqualTo(T0);
         // Continue publishes nothing - no notify, no realtime record.
         assertThat(h.publishedOn(AlarmHarness.NOTIFY_CHANNEL)).isEmpty();
-        assertThat(h.publishedOn(AlarmHarness.REALTIME_CHANNEL)).isEmpty();
+        assertThat(h.publishedOn(AlarmHarness.REALTIME_STREAM)).isEmpty();
     }
 
     @Test
@@ -76,7 +76,7 @@ class AlarmLifecycleTest {
         h.process(h.newFunction(), h.point(PATH, "95", T0 + 3_000));
 
         // Realtime gets the End record first, then the new Start.
-        var realtime = h.publishedOn(AlarmHarness.REALTIME_CHANNEL);
+        var realtime = h.publishedOn(AlarmHarness.REALTIME_STREAM);
         assertThat(realtime).hasSize(2);
         assertThat(realtime.get(0).path("stage").asText()).isEqualTo("end");
         assertThat(realtime.get(0).path("stageMessage").asText()).isEqualTo("End - High to High-High");
@@ -120,7 +120,7 @@ class AlarmLifecycleTest {
         assertThat(notify.get(0).path("stage").asText()).isEqualTo("end");
         assertThat(notify.get(0).path("timestamp").asLong()).isEqualTo(T0);
 
-        var realtime = h.publishedOn(AlarmHarness.REALTIME_CHANNEL);
+        var realtime = h.publishedOn(AlarmHarness.REALTIME_STREAM);
         assertThat(realtime).hasSize(1);
         assertThat(realtime.get(0).path("stage").asText()).isEqualTo("end");
         assertThat(realtime.get(0).path("timestamp").asLong()).isEqualTo(T0 + 9_000);
@@ -139,7 +139,7 @@ class AlarmLifecycleTest {
         var notify = h.publishedOn(AlarmHarness.NOTIFY_CHANNEL);
         assertThat(notify).hasSize(1);
         assertThat(notify.get(0).path("stage").asText()).isEqualTo("end");
-        var realtime = h.publishedOn(AlarmHarness.REALTIME_CHANNEL);
+        var realtime = h.publishedOn(AlarmHarness.REALTIME_STREAM);
         assertThat(realtime).hasSize(1);
         assertThat(realtime.get(0).path("stage").asText()).isEqualTo("end");
     }
@@ -165,7 +165,7 @@ class AlarmLifecycleTest {
         // Frozen record stays untouched, no publishes.
         assertThat(h.activeOf(PATH).getStage()).isEqualTo("end");
         assertThat(h.publishedOn(AlarmHarness.NOTIFY_CHANNEL)).isEmpty();
-        assertThat(h.publishedOn(AlarmHarness.REALTIME_CHANNEL)).isEmpty();
+        assertThat(h.publishedOn(AlarmHarness.REALTIME_STREAM)).isEmpty();
     }
 
     // ── Deadband (hysteresis) gate ───────────────────────────────────────────

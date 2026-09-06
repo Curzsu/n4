@@ -11,9 +11,8 @@
         {{ tab.label }}
       </div>
       <div class="tab-actions">
-        <el-button type="primary" size="small" @click="openCreateDialog">
-          <el-icon><Plus /></el-icon>
-          <span>Add Rule</span>
+        <el-button type="primary" size="small" class="btn-primary" :icon="Plus" @click="openCreateDialog">
+          Add Rule
         </el-button>
       </div>
     </div>
@@ -30,9 +29,12 @@
       />
     </div>
 
-    <!-- Numeric table -->
-    <div v-show="activeTab === 'numeric'" class="config-table-wrapper">
-      <el-table :data="filteredNumericData" :height="tableHeight" style="width: 100%"
+    <!-- Numeric table: v-if so only the active tab's table mounts (~1000 combined
+         rows otherwise make the initial render take seconds in dev mode).
+         Rows are windowed: only the first numericVisible rows mount; scrolling
+         near the bottom appends the next batch (onTableScroll). -->
+    <div v-if="activeTab === 'numeric'" :ref="setTableWrapperRef" class="config-table-wrapper" @scroll.capture="onTableScroll($event, 'numeric')">
+      <el-table :data="displayedNumeric" row-key="id" :height="tableHeight" style="width: 100%"
         :header-cell-style="headerCellStyle" :cell-style="cellStyle" size="small" border v-loading="loading">
         <el-table-column prop="alarmName" label="Alarm Name" width="200" show-overflow-tooltip />
         <el-table-column prop="timeDelay" label="Time Delay(s)" width="80" align="center" />
@@ -63,12 +65,18 @@
             <el-button type="danger" link size="small" @click="handleDelete(row)">Delete</el-button>
           </template>
         </el-table-column>
+        <template #append>
+          <div class="table-window-hint">
+            Showing {{ displayedNumeric.length }} of {{ filteredNumericData.length }} numeric rules
+            <span v-if="displayedNumeric.length < filteredNumericData.length"> - scroll to bottom to load more</span>
+          </div>
+        </template>
       </el-table>
     </div>
 
-    <!-- Enum table -->
-    <div v-show="activeTab === 'enum'" class="config-table-wrapper">
-      <el-table :data="filteredEnumData" :height="tableHeight" style="width: 100%"
+    <!-- Enum table: v-if, same reason as the numeric table -->
+    <div v-if="activeTab === 'enum'" :ref="setTableWrapperRef" class="config-table-wrapper" @scroll.capture="onTableScroll($event, 'enum')">
+      <el-table :data="displayedEnum" row-key="id" :height="tableHeight" style="width: 100%"
         :header-cell-style="headerCellStyle" :cell-style="cellStyle" size="small" border v-loading="loading">
         <el-table-column prop="alarmName" label="Alarm Name" width="200" show-overflow-tooltip />
         <el-table-column prop="timeDelay" label="Time Delay(s)" width="80" align="center" />
@@ -82,6 +90,12 @@
             <el-button type="danger" link size="small" @click="handleDelete(row)">Delete</el-button>
           </template>
         </el-table-column>
+        <template #append>
+          <div class="table-window-hint">
+            Showing {{ displayedEnum.length }} of {{ filteredEnumData.length }} enum rules
+            <span v-if="displayedEnum.length < filteredEnumData.length"> - scroll to bottom to load more</span>
+          </div>
+        </template>
       </el-table>
     </div>
 
@@ -217,28 +231,26 @@
                 <el-input v-model="item.message" placeholder="Alarm message" />
               </el-form-item>
               <el-button type="danger" link size="small" class="enum-delete-btn"
-                @click="removeEnumItem(idx)" :disabled="enumFormItems.length <= 1">
-                <el-icon><Delete /></el-icon>
-              </el-button>
+                :icon="Delete" @click="removeEnumItem(idx)" :disabled="enumFormItems.length <= 1" />
             </div>
           </div>
-          <el-button type="primary" link size="small" @click="addEnumItem">
-            <el-icon><Plus /></el-icon>
-            <span>Add Enum Value</span>
+          <el-button type="primary" link size="small" :icon="Plus" @click="addEnumItem">
+            Add Enum Value
           </el-button>
         </template>
       </el-form>
 
       <template #footer>
-        <el-button @click="dialogVisible = false">Cancel</el-button>
-        <el-button type="primary" :loading="saving" @click="handleSave">Save</el-button>
+        <el-button class="btn-secondary" @click="dialogVisible = false">Cancel</el-button>
+        <el-button type="primary" class="btn-primary" :loading="saving" @click="handleSave">Save</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import type { ComponentPublicInstance } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Delete, Search } from '@element-plus/icons-vue'
 import { alarmApi } from '@/api/alarm'
@@ -246,6 +258,7 @@ import type { NumericRuleItem, EnumRuleItem } from '@/api/types'
 
 const loading = ref(false)
 const saving = ref(false)
+const tableWrapperRef = ref<HTMLElement | null>(null)
 const tableHeight = ref(400)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
@@ -285,6 +298,32 @@ const filteredEnumData = computed(() => {
     (item.message && item.message.toLowerCase().includes(q))
   )
 })
+
+// Windowed rendering: the two tables hold ~1000 combined rows and mounting
+// them at once takes seconds. Only the first WINDOW_BATCH rows render; the
+// capture-phase scroll listener on each table wrapper (scroll does not bubble,
+// but capture reaches the wrapper from the inner scrollbar) appends the next
+// batch when the scrollbar nears the bottom. Full arrays stay in memory -
+// edit dialogs, delete and any future filtering keep operating on whole sets.
+const WINDOW_BATCH = 50
+const WINDOW_BOTTOM_THRESHOLD_PX = 40
+
+const numericVisible = ref(WINDOW_BATCH)
+const enumVisible = ref(WINDOW_BATCH)
+const displayedNumeric = computed(() => filteredNumericData.value.slice(0, numericVisible.value))
+const displayedEnum = computed(() => filteredEnumData.value.slice(0, enumVisible.value))
+
+function onTableScroll(event: Event, type: 'numeric' | 'enum') {
+  const el = event.target as HTMLElement
+  if (el.scrollTop + el.clientHeight < el.scrollHeight - WINDOW_BOTTOM_THRESHOLD_PX) {
+    return
+  }
+  if (type === 'numeric' && numericVisible.value < filteredNumericData.value.length) {
+    numericVisible.value = Math.min(numericVisible.value + WINDOW_BATCH, filteredNumericData.value.length)
+  } else if (type === 'enum' && enumVisible.value < filteredEnumData.value.length) {
+    enumVisible.value = Math.min(enumVisible.value + WINDOW_BATCH, filteredEnumData.value.length)
+  }
+}
 
 // Form data (union of all three types; only relevant fields used per type)
 const formData = ref<any>({})
@@ -346,6 +385,9 @@ async function fetchRules() {
     ])
     numericData.value = nums
     enumData.value = enums
+    // Fresh data landed: restart the window so the view starts from the top.
+    numericVisible.value = WINDOW_BATCH
+    enumVisible.value = WINDOW_BATCH
   } catch (e) {
     console.error('Failed to fetch alarm rules:', e)
     ElMessage.error('Failed to load alarm rules')
@@ -501,14 +543,41 @@ async function handleDelete(row: any) {
   }
 }
 
+// Size the table from the measured wrapper height instead of a magic
+// window.innerHeight offset: the wrapper is the flex child that already
+// absorbs the real page chrome (top navbar, bottom toolbar, paddings), so
+// the table fills the viewport exactly and leaves no blank strip above the
+// bottom menu bar. The ResizeObserver keeps it in sync on window resizes.
+let wrapperResizeObserver: ResizeObserver | null = null
+
 function updateTableHeight() {
-  tableHeight.value = Math.max(300, window.innerHeight - 200)
+  if (tableWrapperRef.value) {
+    tableHeight.value = Math.max(300, tableWrapperRef.value.clientHeight)
+  }
+}
+
+// Function template ref: the numeric/enum wrappers are v-if alternated, so a
+// tab switch swaps the mounted element; rebind the observer on every swap.
+function setTableWrapperRef(el: Element | ComponentPublicInstance | null) {
+  wrapperResizeObserver?.disconnect()
+  const node = el instanceof HTMLElement ? el : null
+  tableWrapperRef.value = node
+  if (node) {
+    if (!wrapperResizeObserver) {
+      wrapperResizeObserver = new ResizeObserver(updateTableHeight)
+    }
+    wrapperResizeObserver.observe(node)
+    updateTableHeight()
+  }
 }
 
 onMounted(() => {
-  updateTableHeight()
-  window.addEventListener('resize', updateTableHeight)
   fetchRules()
+})
+
+onBeforeUnmount(() => {
+  wrapperResizeObserver?.disconnect()
+  wrapperResizeObserver = null
 })
 </script>
 
@@ -578,12 +647,25 @@ onMounted(() => {
   min-height: 0;
 }
 
+// Footer inside the el-table #append slot: tells the user how much of the
+// windowed list is currently mounted and that scrolling loads more.
+.table-window-hint {
+  padding: 6px 10px;
+  font-size: 10px;
+  color: #6b7280;
+  background-color: #111827;
+  border-bottom: 1px solid #1f2937;
+}
+
 .basic-row {
   display: flex;
   align-items: flex-start;
   gap: 16px;
   .basic-name { flex: 1 1 auto; .el-input { width: 100%; } }
   .basic-type { flex: 0 0 auto; }
+  // !important beats global.scss `.el-dialog .el-form-item { margin-bottom: 22px !important }`
+  // (the test branch applies 22px to every dialog; this dialog is compact by design).
+  .el-form-item { margin-bottom: 4px !important; }
 }
 
 .level-row {
@@ -591,9 +673,13 @@ onMounted(() => {
   align-items: flex-start;
   gap: 12px;
   .el-form-item {
-    margin-bottom: 22px;
+    // Rows inside one level group sit tight; group separation comes from the
+    // divider margins. is-error needs extra room for the absolute-positioned
+    // validation message below the field. !important beats the global
+    // `.el-dialog .el-form-item { margin-bottom: 22px !important }` rule.
+    margin-bottom: 4px !important;
     &.is-error {
-      margin-bottom: 24px;
+      margin-bottom: 18px !important;
     }
   }
   /* Element Plus sets width:100% on .el-form-item by default, which forces
@@ -623,9 +709,9 @@ onMounted(() => {
 }
 
 .type-hint {
-  padding: 24px 12px;
+  padding: 10px 12px;
   color: $text-muted;
-  font-size: 13px;
+  font-size: 10px;
   text-align: center;
 }
 
@@ -698,6 +784,7 @@ onMounted(() => {
   .el-dialog__body { color: $text-primary; }
 }
 :deep(.el-divider__text) { background-color: $bg-card; color: $text-secondary; }
+:deep(.el-divider--horizontal) { margin: 12px 0; }
 :deep(.el-form-item__label) { color: $text-secondary; }
 :deep(.el-input__wrapper) {
   background-color: $bg-dark;

@@ -139,6 +139,8 @@ export interface AlarmRecord {
   stage?: string
   stageMessage?: string
   path?: string
+  /** Raw write timestamp (epoch millis) from the events API; cursor for scroll pagination. */
+  ts?: number
 }
 
 export interface SeverityItem {

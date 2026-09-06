@@ -2,13 +2,13 @@
   <div class="alarm-event-view">
     <div class="config-header">
       <span class="config-title">Event</span>
-      <el-button type="primary" size="small" @click="fetchData">
-        <el-icon><Refresh /></el-icon>
-        <span>Refresh</span>
-      </el-button>
+      <div class="header-actions">
+        <el-button size="small" class="btn-secondary" :icon="Refresh" @click="fetchData">Refresh</el-button>
+        <el-button size="small" class="btn-secondary" :icon="Download" @click="exportVisible = true">Export</el-button>
+      </div>
     </div>
 
-    <div class="event-table-wrapper">
+    <div ref="tableWrapperRef" class="event-table-wrapper" @scroll.capture="onTableScroll">
       <el-table
         :data="tableData"
         :height="tableHeight"
@@ -45,23 +45,49 @@
           </template>
         </el-table-column>
         <el-table-column prop="ackBy" label="Ack. By" width="100" show-overflow-tooltip />
+        <template #append>
+          <div class="table-window-hint">
+            <template v-if="loadingMore">Loading more...</template>
+            <template v-else-if="hasMore">
+              Showing {{ tableData.length }} records - scroll to bottom to load earlier ones
+            </template>
+            <template v-else>Showing all {{ tableData.length }} records</template>
+          </div>
+        </template>
       </el-table>
     </div>
+
+    <EventExportDialog v-model:visible="exportVisible" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { Refresh } from '@element-plus/icons-vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { Refresh, Download } from '@element-plus/icons-vue'
 import { alarmApi } from '@/api/alarm'
 import { normalizeRecord } from '@/utils/alarm'
 import { getSeverityColor } from '@/config/severityColors'
 import { formatDuration } from '@/utils/time'
+import EventExportDialog from '@/components/EventExportDialog.vue'
 import type { AlarmRecord } from '@/api/types'
 
 const loading = ref(false)
+const loadingMore = ref(false)
 const tableData = ref<AlarmRecord[]>([])
+const tableWrapperRef = ref<HTMLElement | null>(null)
 const tableHeight = ref(400)
+const exportVisible = ref(false)
+
+// Scroll pagination: each request asks for EVENT_PAGE_SIZE rows. Entering the
+// page or hitting Refresh pins snapshotTs to that wall-clock instant; every
+// page of the session (first one included) queries ts <= snapshotTs, and later
+// pages pass it back with an offset, so rows written afterwards never shift
+// the ordering and pages stay stable. hasMore turns false once a page comes
+// back short of the page size.
+const EVENT_PAGE_SIZE = 50
+const SCROLL_BOTTOM_THRESHOLD_PX = 40
+const snapshotTs = ref<number | null>(null)
+const hasMore = ref(true)
 
 const headerCellStyle = {
   backgroundColor: '#0d1117',
@@ -89,17 +115,26 @@ function severityStyle(row: AlarmRecord): Record<string, string> {
   }
 }
 
+function toRecords(raw: AlarmRecord[]): AlarmRecord[] {
+  // Keep status as-is from the database (empty stays empty, no default Unack);
+  // other fields go through the shared normalizer for consistent formatting.
+  return raw.map((r) => {
+    const record = normalizeRecord(r)
+    record.status = r.status || ''
+    return record
+  })
+}
+
 async function fetchData() {
   loading.value = true
   try {
-    const raw = await alarmApi.getAlarmEvents()
-    // Keep status as-is from the database (empty stays empty, no default Unack);
-    // other fields go through the shared normalizer for consistent formatting.
-    tableData.value = raw.map((r) => {
-      const record = normalizeRecord(r)
-      record.status = r.status || ''
-      return record
-    })
+    // Pin the snapshot to the moment the user enters or hits Refresh: every
+    // page of this browsing session queries strictly before this instant, so
+    // rows written afterwards never shift the ordering under the reader.
+    snapshotTs.value = Date.now()
+    const raw = await alarmApi.getAlarmEvents({ topTs: snapshotTs.value, limit: EVENT_PAGE_SIZE })
+    tableData.value = toRecords(raw)
+    hasMore.value = raw.length >= EVENT_PAGE_SIZE
   } catch (e) {
     console.error('Failed to fetch alarm events:', e)
   } finally {
@@ -107,14 +142,56 @@ async function fetchData() {
   }
 }
 
+async function loadMore() {
+  if (loadingMore.value || !hasMore.value) return
+  loadingMore.value = true
+  try {
+    const raw = await alarmApi.getAlarmEvents({
+      topTs: snapshotTs.value ?? undefined,
+      offset: tableData.value.length,
+      limit: EVENT_PAGE_SIZE,
+    })
+    tableData.value.push(...toRecords(raw))
+    hasMore.value = raw.length >= EVENT_PAGE_SIZE
+  } catch (e) {
+    console.error('Failed to load more alarm events:', e)
+  } finally {
+    loadingMore.value = false
+  }
+}
+
+function onTableScroll(event: Event) {
+  const el = event.target as HTMLElement
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - SCROLL_BOTTOM_THRESHOLD_PX) {
+    loadMore()
+  }
+}
+
+// Size the table from the measured wrapper height instead of a magic
+// window.innerHeight offset: the wrapper is the flex child that already
+// absorbs the real page chrome (top navbar, paddings), so the table fills
+// the viewport exactly and leaves no blank strip below it. The
+// ResizeObserver keeps it in sync on window resizes.
+let wrapperResizeObserver: ResizeObserver | null = null
+
 function updateTableHeight() {
-  tableHeight.value = Math.max(300, window.innerHeight - 200)
+  if (tableWrapperRef.value) {
+    tableHeight.value = Math.max(300, tableWrapperRef.value.clientHeight)
+  }
 }
 
 onMounted(() => {
   updateTableHeight()
-  window.addEventListener('resize', updateTableHeight)
+  if (tableWrapperRef.value) {
+    wrapperResizeObserver = new ResizeObserver(updateTableHeight)
+    wrapperResizeObserver.observe(tableWrapperRef.value)
+  }
   fetchData()
+})
+
+onBeforeUnmount(() => {
+  wrapperResizeObserver?.disconnect()
+  wrapperResizeObserver = null
 })
 </script>
 
@@ -133,6 +210,14 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+// Button styling lives in styles/global.scss (app-wide unified look).
+
 .config-title {
   font-size: 16px;
   font-weight: 600;
@@ -142,6 +227,15 @@ onMounted(() => {
 .event-table-wrapper {
   flex: 1;
   min-height: 0;
+}
+
+// Footer inside the el-table #append slot: scroll-pagination status.
+.table-window-hint {
+  padding: 6px 10px;
+  font-size: 10px;
+  color: #6b7280;
+  background-color: #111827;
+  border-bottom: 1px solid #1f2937;
 }
 
 .severity-tag {

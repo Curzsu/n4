@@ -9,6 +9,7 @@
                    @node-click="store.selectNavNode" />
 
       <div class="layout-content">
+        <FuxaCabinRuntimeHost />
         <slot />
       </div>
 
@@ -53,6 +54,7 @@ import AlarmSummaryPanel from '@/components/AlarmSummaryPanel.vue'
 import AlarmSystemChart from '@/components/charts/AlarmSystemChart.vue'
 import AlarmSourcesChart from '@/components/charts/AlarmSourcesChart.vue'
 import AlarmQuickActions from '@/components/AlarmQuickActions.vue'
+import FuxaCabinRuntimeHost from '@/components/FuxaCabinRuntimeHost.vue'
 import { useDashboardStore } from '@/stores/dashboard'
 
 const route = useRoute()

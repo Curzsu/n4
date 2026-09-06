@@ -20,7 +20,7 @@
           {{ isAllSelected ? 'Deselect All (Current)' : 'Select All (Current)' }}
         </el-button>
         <el-button
-          type="success"
+          class="btn-primary"
           size="small"
           :disabled="selectedIds.size === 0"
           @click="ackSelected"
@@ -1157,15 +1157,17 @@ onBeforeUnmount(() => {
     border-color: #2d3748;
   }
 
-  // Compact buttons - minimal size to prevent overflow
+  // Compact buttons - minimal size to prevent overflow. The !important flags
+  // are required to beat the app-wide unified button base in global.scss
+  // (which flags its declarations too; this scope is more specific).
   .el-button {
-    height: 18px;
-    padding: 0 4px;
-    margin: 0 2px;
-    font-size: 10px;
-    line-height: 18px;
-    min-height: 18px;
-    span { font-size: 10px; }
+    height: 18px !important;
+    padding: 0 4px !important;
+    margin: 0 2px !important;
+    font-size: 10px !important;
+    line-height: 18px !important;
+    min-height: 18px !important;
+    span { font-size: 10px !important; }
   }
 
   // Input dark theme
@@ -1183,17 +1185,26 @@ onBeforeUnmount(() => {
     &::placeholder { color: #6b7280; -webkit-text-fill-color: #6b7280; }
   }
 
-  // Select dark theme
+  // Select dark theme. overflow:hidden keeps multi-select tags inside the box
+  // even while the popper is mid-transition (EP measures tag max-width from a
+  // live snapshot and can briefly compute a too-wide value).
   .el-select__wrapper {
     background-color: #111827;
     box-shadow: 0 0 0 1px #2d3748 inset;
     min-height: 20px;
     padding: 0 4px;
+    overflow: hidden;
     &:hover { box-shadow: 0 0 0 1px #6b7280 inset; }
+  }
+  // EP pulls the tag row 6px left (.is-near) which paints the first tag past
+  // the wrapper's left border; realign it with the placeholder text.
+  .el-select__wrapper .el-select__selection {
+    margin-left: 0 !important;
   }
   .el-select__placeholder { color: #6b7280; font-size: 10px; }
   .el-select__selected-item { color: #e5e7eb; font-size: 10px; }
   .el-select__caret { color: #9ca3af; }
+  .el-select__tags-text { text-overflow: ellipsis; }
   .el-tag {
     height: 14px;
     font-size: 10px;

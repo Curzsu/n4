@@ -68,3 +68,23 @@ When generating or modifying code for this project:
 | Documentation (.md reports) | Chinese |
 | Code blocks in docs | English |
 | Technical terms in Chinese text | English (inline) |
+
+## Git Commit Policy
+
+### Rules
+
+1. **Commit directly at the end of a session that modified files**
+   - At the end of a session that modified files (i.e., there are git changes), commit the changes locally without asking for confirmation.
+   - Stage only the task-related files (see rule 4) and run `git commit` locally.
+   - When a session contains several independent tasks, split them into separate commits by task.
+
+2. **Commit messages are written in Chinese**
+   - Commit messages follow the repo's conventional style: an English type prefix (`feat:`/`fix:`/`docs:`/`refactor:`/`chore:`, with optional scope) plus a **Chinese** description, e.g. `feat(deploy): docker compose 新增 Flink 独立部署编排`.
+   - When the change set is non-trivial, add a short body in Chinese listing the key points.
+
+3. **Local commits only — never push**
+   - Only commit to the **local** repository (`git commit`).
+   - **Never push to any remote** (`git push` is forbidden unless the user explicitly asks for a push in that specific instance).
+
+4. **Only commit what was asked**
+   - Stage only the files related to the task performed in the session. Do not sweep unrelated working-tree changes into the commit.

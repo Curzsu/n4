@@ -34,9 +34,9 @@ import java.time.Duration;
  *       {@code *-standalone.jar} to a Flink cluster via {@code flink run};
  *       all settings come from command-line arguments.</li>
  *   <li>{@link #run(String, String, String, String, int, String, String, String,
- *       String, String, String, String, String, int)} - embedded mode, called by
- *       the Spring Boot backend ({@code FlinkJobRunner}) with values injected
- *       from {@code application.yaml}.</li>
+ *       String, String, String, String, String, long, long, int, long, long)} -
+ *       embedded mode, called by the Spring Boot backend ({@code FlinkJobRunner})
+ *       with values injected from {@code application.yaml}.</li>
  * </ul>
  */
 public class AlarmProcessingJob {
@@ -55,10 +55,14 @@ public class AlarmProcessingJob {
     private static final String DEFAULT_LATEST_KEY = "alarm:latest";
     private static final String DEFAULT_ACTIVE_KEY = "alarm:active";
     private static final String DEFAULT_NOTIFICATIONS_CHANNEL = "alarm:notifications";
-    private static final String DEFAULT_REALTIME_CHANNEL = "alarm:realtime";
-    private static final String DEFAULT_PERSISTENCE_CHANNEL = "alarm:persist";
+    private static final String DEFAULT_REALTIME_STREAM = "alarm:stream:realtime";
+    private static final String DEFAULT_PERSISTENCE_STREAM = "alarm:stream:persist";
+    private static final long DEFAULT_REALTIME_STREAM_MAXLEN = 100_000;
+    private static final long DEFAULT_PERSISTENCE_STREAM_MAXLEN = 1_000_000;
     private static final String DEFAULT_POINT_RULE_MAP_KEY = "alarm:point:rule";
     private static final int DEFAULT_PARALLELISM = 1;
+    /** Defaults for the local TTL caches (see run() javadoc); overridable via CLI args. */
+    static final long DEFAULT_CACHE_TTL_SECONDS = 60;
 
     /**
      * Standalone entry point for submission to a dedicated Flink cluster:
@@ -67,10 +71,11 @@ public class AlarmProcessingJob {
      *   --kafka-broker kafka:9092 --kafka-topic obix-mqtt-points \
      *   --group-id n4-flink-alarm-processor-prod \
      *   --redis-host redis --redis-port 6379 --redis-password secret \
-     *   --parallelism 4
+     *   --parallelism 4 \
+     *   --point-meta-cache-ttl-seconds 60 --rule-cache-ttl-seconds 60
      * </pre>
      * Every key/value pair maps 1:1 onto the {@link #run} arguments; the Redis
-     * key/channel names fall back to the same defaults the backend uses.
+     * key/stream names fall back to the same defaults the backend uses.
      */
     public static void main(String[] args) throws Exception {
         ParameterTool params = ParameterTool.fromArgs(args);
@@ -82,10 +87,13 @@ public class AlarmProcessingJob {
         int redisPort = params.getInt("redis-port", DEFAULT_REDIS_PORT);
         String redisPassword = params.get("redis-password", "");
         int parallelism = params.getInt("parallelism", DEFAULT_PARALLELISM);
+        long pointMetaCacheTtl = params.getLong("point-meta-cache-ttl-seconds", DEFAULT_CACHE_TTL_SECONDS);
+        long ruleCacheTtl = params.getLong("rule-cache-ttl-seconds", DEFAULT_CACHE_TTL_SECONDS);
 
         log.info("Standalone submission parameters: kafka={} topic={} groupId={} " +
-                        "redis={}:{} parallelism={}",
-                kafkaBroker, kafkaTopic, groupId, redisHost, redisPort, parallelism);
+                        "redis={}:{} parallelism={} pointMetaCacheTtl={}s ruleCacheTtl={}s",
+                kafkaBroker, kafkaTopic, groupId, redisHost, redisPort, parallelism,
+                pointMetaCacheTtl, ruleCacheTtl);
 
         run(kafkaBroker, kafkaTopic, groupId,
                 redisHost, redisPort, redisPassword,
@@ -94,10 +102,12 @@ public class AlarmProcessingJob {
                 params.get("latest-key", DEFAULT_LATEST_KEY),
                 params.get("active-key", DEFAULT_ACTIVE_KEY),
                 params.get("notification-channel", DEFAULT_NOTIFICATIONS_CHANNEL),
-                params.get("realtime-channel", DEFAULT_REALTIME_CHANNEL),
-                params.get("persistence-channel", DEFAULT_PERSISTENCE_CHANNEL),
+                params.get("realtime-stream", DEFAULT_REALTIME_STREAM),
+                params.get("persistence-stream", DEFAULT_PERSISTENCE_STREAM),
+                params.getLong("realtime-stream-maxlen", DEFAULT_REALTIME_STREAM_MAXLEN),
+                params.getLong("persistence-stream-maxlen", DEFAULT_PERSISTENCE_STREAM_MAXLEN),
                 params.get("point-rule-map-key", DEFAULT_POINT_RULE_MAP_KEY),
-                parallelism);
+                parallelism, pointMetaCacheTtl, ruleCacheTtl);
     }
 
     /**
@@ -110,13 +120,24 @@ public class AlarmProcessingJob {
      * task, making the read-modify-write on Redis {@code alarm:active} safe
      * under parallel execution. Ensure the Kafka topic has at least as many
      * partitions as the configured parallelism, otherwise some tasks stay idle.
+     * <p>
+     * The two cache TTL arguments control how long each subtask keeps rules and
+     * point metadata in its local {@code TtlCache} before re-reading Redis:
+     * {@code pointMetaTtlSeconds} for the point-rule map entries and
+     * {@code ruleCacheTtlSeconds} for the numeric/enum rule objects. Rule and
+     * deployment edits take effect within one TTL window without a job restart.
+     * In embedded mode these come from {@code alarm.flink.point-meta-cache-ttl-seconds}
+     * and {@code alarm.flink.rule-cache-ttl-seconds}; in standalone mode from the
+     * {@code --point-meta-cache-ttl-seconds} / {@code --rule-cache-ttl-seconds} args.
      */
     public static void run(String kafkaBroker, String kafkaTopic,
                            String groupId, String redisHost, int redisPort, String redisPassword,
                            String rulesNumericKey, String rulesEnumKey,
                            String latestRedisKey, String activeRedisKey,
-                           String notificationChannel, String realtimeChannel,
-                           String persistenceChannel, String pointRuleMapKey, int parallelism) throws Exception {
+                           String notificationChannel, String realtimeStream,
+                           String persistenceStream, long realtimeStreamMaxlen,
+                           long persistenceStreamMaxlen, String pointRuleMapKey, int parallelism,
+                           long pointMetaTtlSeconds, long ruleCacheTtlSeconds) throws Exception {
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(parallelism);
@@ -156,8 +177,10 @@ public class AlarmProcessingJob {
                 new AlarmProcessFunction(redisHost, redisPort,
                 redisPassword,
                         rulesNumericKey, rulesEnumKey,
-                        latestRedisKey, activeRedisKey, notificationChannel, realtimeChannel,
-                        persistenceChannel, pointRuleMapKey));
+                        latestRedisKey, activeRedisKey, notificationChannel, realtimeStream,
+                        persistenceStream, pointRuleMapKey,
+                        realtimeStreamMaxlen, persistenceStreamMaxlen,
+                        pointMetaTtlSeconds, ruleCacheTtlSeconds));
 
         alarmStream.print();
 

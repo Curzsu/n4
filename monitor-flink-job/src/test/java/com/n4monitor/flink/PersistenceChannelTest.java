@@ -27,7 +27,7 @@ class PersistenceChannelTest {
         h.seedNumericRule("RULE1", h.numericRule("1", 0));
         h.process(h.newFunction(), h.point(PATH, "50", TS));
         assertThat(h.consoleOutput()).contains("normal");
-        assertThat(h.publishedOn(AlarmHarness.PERSISTENCE_CHANNEL)).hasSize(1);
+        assertThat(h.publishedOn(AlarmHarness.PERSISTENCE_STREAM)).hasSize(1);
     }
 
     @Test
@@ -36,7 +36,7 @@ class PersistenceChannelTest {
         h.seedNumericRule("RULE1", h.numericRule("1", 0));
         h.process(h.newFunction(), h.point(PATH, "95", TS));
         assertThat(h.consoleOutput()).contains("level=High");
-        assertThat(h.publishedOn(AlarmHarness.PERSISTENCE_CHANNEL)).hasSize(1);
+        assertThat(h.publishedOn(AlarmHarness.PERSISTENCE_STREAM)).hasSize(1);
     }
 
     @Test
@@ -44,7 +44,7 @@ class PersistenceChannelTest {
         h.seedMeta(PATH, "string", "RULE1");
         h.process(h.newFunction(), h.point(PATH, "hello", TS));
         assertThat(h.consoleOutput()).contains("string type, skipped");
-        assertThat(h.publishedOn(AlarmHarness.PERSISTENCE_CHANNEL)).hasSize(1);
+        assertThat(h.publishedOn(AlarmHarness.PERSISTENCE_STREAM)).hasSize(1);
     }
 
     @Test
@@ -52,7 +52,7 @@ class PersistenceChannelTest {
         h.seedMeta(PATH, "numeric", "");
         h.process(h.newFunction(), h.point(PATH, "95", TS));
         assertThat(h.consoleOutput()).contains("no alarm_code");
-        assertThat(h.publishedOn(AlarmHarness.PERSISTENCE_CHANNEL)).hasSize(1);
+        assertThat(h.publishedOn(AlarmHarness.PERSISTENCE_STREAM)).hasSize(1);
     }
 
     @Test
@@ -66,14 +66,14 @@ class PersistenceChannelTest {
         h.seedEnumRules("RULE1", java.util.List.of(rule));
         h.process(h.newFunction(), h.point(PATH, "false", TS));
         assertThat(h.consoleOutput()).contains("unknown enum value, skipped");
-        assertThat(h.publishedOn(AlarmHarness.PERSISTENCE_CHANNEL)).hasSize(1);
+        assertThat(h.publishedOn(AlarmHarness.PERSISTENCE_STREAM)).hasSize(1);
     }
 
     @Test
     void nullPathIsNotPersisted() throws Exception {
         h.process(h.newFunction(), h.point(null, "42", TS));
         assertThat(h.consoleOutput()).contains("[SKIP] path is null");
-        assertThat(h.publishedOn(AlarmHarness.PERSISTENCE_CHANNEL)).isEmpty();
+        assertThat(h.publishedOn(AlarmHarness.PERSISTENCE_STREAM)).isEmpty();
     }
 
     @Test
@@ -81,7 +81,7 @@ class PersistenceChannelTest {
         h.seedMeta(PATH, "numeric", "RULE1");
         h.seedNumericRule("RULE1", h.numericRule("1", 0));
         h.process(h.newFunction(), h.point(PATH, "50", TS));
-        JsonNode frame = h.publishedOn(AlarmHarness.PERSISTENCE_CHANNEL).get(0);
+        JsonNode frame = h.publishedOn(AlarmHarness.PERSISTENCE_STREAM).get(0);
         assertThat(frame.get("timestamp").asLong()).isEqualTo(TS);
         assertThat(frame.get("mqttPath").asText()).isEqualTo(PATH);
         assertThat(frame.get("value").asText()).isEqualTo("50");
@@ -103,7 +103,7 @@ class PersistenceChannelTest {
         h.process(fn, h.point(PATH, "85", TS + 1000));
         h.process(fn, h.point(PATH, "95", TS + 2000));
         assertThat(h.consoleOutput()).contains("pending");
-        List<JsonNode> frames = h.publishedOn(AlarmHarness.PERSISTENCE_CHANNEL);
+        List<JsonNode> frames = h.publishedOn(AlarmHarness.PERSISTENCE_STREAM);
         assertThat(frames).hasSize(3);
         for (JsonNode frame : frames) {
             assertThat(frame.get("timeDelay").asInt()).isEqualTo(30);

@@ -2,13 +2,10 @@
   <div class="alarm-history-view">
     <div class="config-header">
       <span class="config-title">Alarm History</span>
-      <el-button type="primary" size="small" @click="fetchData">
-        <el-icon><Refresh /></el-icon>
-        <span>Refresh</span>
-      </el-button>
+      <el-button size="small" class="btn-secondary" :icon="Refresh" @click="fetchData">Refresh</el-button>
     </div>
 
-    <div class="history-table-wrapper">
+    <div ref="tableWrapperRef" class="history-table-wrapper" @scroll.capture="onTableScroll">
       <el-table
         :data="tableData"
         :height="tableHeight"
@@ -44,13 +41,22 @@
           </template>
         </el-table-column>
         <el-table-column prop="ackBy" label="Ack. By" width="100" show-overflow-tooltip />
+        <template #append>
+          <div class="table-window-hint">
+            <template v-if="loadingMore">Loading more...</template>
+            <template v-else-if="hasMore">
+              Showing {{ tableData.length }} records - scroll to bottom to load earlier ones
+            </template>
+            <template v-else>Showing all {{ tableData.length }} records</template>
+          </div>
+        </template>
       </el-table>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { alarmApi } from '@/api/alarm'
 import { normalizeRecord } from '@/utils/alarm'
@@ -59,8 +65,20 @@ import { formatDuration } from '@/utils/time'
 import type { AlarmRecord } from '@/api/types'
 
 const loading = ref(false)
+const loadingMore = ref(false)
 const tableData = ref<AlarmRecord[]>([])
+const tableWrapperRef = ref<HTMLElement | null>(null)
 const tableHeight = ref(400)
+
+// Scroll pagination, same contract as AlarmEventView: entering the page or
+// hitting Refresh pins snapshotTs to that wall-clock instant; every page of
+// the session queries ts <= snapshotTs and later pages pass it back with an
+// offset, so rows written afterwards never shift the ordering under the
+// reader. hasMore turns false once a page comes back short of the page size.
+const HISTORY_PAGE_SIZE = 50
+const SCROLL_BOTTOM_THRESHOLD_PX = 40
+const snapshotTs = ref<number | null>(null)
+const hasMore = ref(true)
 
 const headerCellStyle = {
   backgroundColor: '#0d1117',
@@ -91,8 +109,11 @@ function severityStyle(row: AlarmRecord): Record<string, string> {
 async function fetchData() {
   loading.value = true
   try {
-    const raw = await alarmApi.getClearedAlarms()
+    // Pin the snapshot to the moment the user enters or hits Refresh.
+    snapshotTs.value = Date.now()
+    const raw = await alarmApi.getClearedAlarms({ topTs: snapshotTs.value, limit: HISTORY_PAGE_SIZE })
     tableData.value = raw.map(normalizeRecord)
+    hasMore.value = raw.length >= HISTORY_PAGE_SIZE
   } catch (e) {
     console.error('Failed to fetch alarm history:', e)
   } finally {
@@ -100,14 +121,56 @@ async function fetchData() {
   }
 }
 
+async function loadMore() {
+  if (loadingMore.value || !hasMore.value) return
+  loadingMore.value = true
+  try {
+    const raw = await alarmApi.getClearedAlarms({
+      topTs: snapshotTs.value ?? undefined,
+      offset: tableData.value.length,
+      limit: HISTORY_PAGE_SIZE,
+    })
+    tableData.value.push(...raw.map(normalizeRecord))
+    hasMore.value = raw.length >= HISTORY_PAGE_SIZE
+  } catch (e) {
+    console.error('Failed to load more alarm history:', e)
+  } finally {
+    loadingMore.value = false
+  }
+}
+
+function onTableScroll(event: Event) {
+  const el = event.target as HTMLElement
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - SCROLL_BOTTOM_THRESHOLD_PX) {
+    loadMore()
+  }
+}
+
+// Size the table from the measured wrapper height instead of a magic
+// window.innerHeight offset: the wrapper is the flex child that already
+// absorbs the real page chrome (top navbar, bottom toolbar, paddings), so
+// the table fills the viewport exactly and leaves no blank strip above the
+// bottom menu bar. The ResizeObserver keeps it in sync on window resizes.
+let wrapperResizeObserver: ResizeObserver | null = null
+
 function updateTableHeight() {
-  tableHeight.value = Math.max(300, window.innerHeight - 200)
+  if (tableWrapperRef.value) {
+    tableHeight.value = Math.max(300, tableWrapperRef.value.clientHeight)
+  }
 }
 
 onMounted(() => {
   updateTableHeight()
-  window.addEventListener('resize', updateTableHeight)
+  if (tableWrapperRef.value) {
+    wrapperResizeObserver = new ResizeObserver(updateTableHeight)
+    wrapperResizeObserver.observe(tableWrapperRef.value)
+  }
   fetchData()
+})
+
+onBeforeUnmount(() => {
+  wrapperResizeObserver?.disconnect()
+  wrapperResizeObserver = null
 })
 </script>
 
@@ -135,6 +198,15 @@ onMounted(() => {
 .history-table-wrapper {
   flex: 1;
   min-height: 0;
+}
+
+// Footer inside the el-table #append slot: scroll-pagination status.
+.table-window-hint {
+  padding: 6px 10px;
+  font-size: 10px;
+  color: #6b7280;
+  background-color: #111827;
+  border-bottom: 1px solid #1f2937;
 }
 
 .severity-tag {
