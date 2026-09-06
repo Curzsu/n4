@@ -201,7 +201,7 @@ ON DUPLICATE KEY UPDATE `group_id` = VALUES(`group_id`);
 -- Seed Data: Default Admin User (Password BCrypt of 'admin123' is $2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2)
 -- ----------------------------
 INSERT INTO `sys_user` (`user_id`, `username`, `password`, `real_name`, `email`, `phone`, `status`) VALUES
-(1, 'admin', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', 'System Administrator', 'admin@n4-monitor.local', '13800000000', 1)
+(1, 'admin', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', 'n4-dhu', 'admin@n4-monitor.local', '13800000000', 1)
 ON DUPLICATE KEY UPDATE `username` = VALUES(`username`);
 
 -- Super Admin User-Group Mapping
