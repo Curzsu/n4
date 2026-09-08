@@ -89,7 +89,7 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="module" label="Module" width="120" align="left" header-align="center" show-overflow-tooltip :resizable="false">
+        <el-table-column prop="module" label="Module" width="140" align="left" header-align="center" show-overflow-tooltip :resizable="false">
           <template #header>
             <div class="header-cell">
               <el-popover v-model:visible="filterPopover.module" :trigger="'manual' as never" placement="bottom" :width="180" popper-class="audit-log-filter-popper" @show="syncDraft('module')">
