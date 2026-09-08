@@ -14,5 +14,7 @@ public @interface OperationLog {
 
     String operation() default "";
 
+    String previewOperation() default "";
+
     BusinessType businessType() default BusinessType.OTHER;
 }

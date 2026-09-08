@@ -63,7 +63,8 @@ public class OperationLogAspect {
     private void save(ProceedingJoinPoint joinPoint, OperationLog operationLog, int status, String errorMsg, long cost) {
         SysOperationLog entity = new SysOperationLog();
         entity.setModule(operationLog.module());
-        entity.setOperation(operationLog.operation());
+        Object[] args = joinPoint.getArgs();
+        entity.setOperation(resolveOperation(operationLog, args));
         entity.setBusinessType(operationLog.businessType().getCode());
         entity.setStatus(status);
         entity.setErrorMsg(truncate(errorMsg, MAX_ERROR_LENGTH));
@@ -71,7 +72,7 @@ public class OperationLogAspect {
 
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
         entity.setMethod(signature.getDeclaringTypeName() + "." + signature.getName());
-        entity.setRequestParams(buildParams(joinPoint.getArgs()));
+        entity.setRequestParams(buildParams(args));
 
         LoginUser loginUser = SecurityUtils.getCurrentLoginUser();
         if (loginUser != null) {
@@ -88,6 +89,20 @@ public class OperationLogAspect {
 
         print(entity);
         logService.record(entity);
+    }
+
+    private String resolveOperation(OperationLog operationLog, Object[] args) {
+        if (!operationLog.previewOperation().isBlank() && isDryRun(args)) {
+            return operationLog.previewOperation();
+        }
+        return operationLog.operation();
+    }
+
+    private boolean isDryRun(Object[] args) {
+        if (args == null || args.length == 0) {
+            return false;
+        }
+        return Boolean.TRUE.equals(args[args.length - 1]);
     }
 
     private void print(SysOperationLog e) {

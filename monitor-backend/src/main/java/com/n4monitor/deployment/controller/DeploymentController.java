@@ -117,7 +117,11 @@ public class DeploymentController {
     /** Preview or import one or more deployment CSV files or a ZIP archive. */
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAuthority('device:deploy:view')")
-    @OperationLog(module = "Deployment Management", operation = "Import deployment files", businessType = BusinessType.IMPORT)
+    @OperationLog(
+            module = "Deployment Management",
+            operation = "Import deployment files",
+            previewOperation = "Preview deployment files",
+            businessType = BusinessType.IMPORT)
     public ApiResponse<ImportSummary> importFiles(
             @RequestPart("files") List<MultipartFile> files,
             @RequestParam(value = "dryRun", defaultValue = "false") boolean dryRun) {
