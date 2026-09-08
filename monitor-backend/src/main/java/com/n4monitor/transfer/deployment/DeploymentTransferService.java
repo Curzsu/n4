@@ -943,26 +943,57 @@ public class DeploymentTransferService {
             Map<String, Long> deviceIds,
             Map<String, String> rowAlarmNames) {
         Map<Long, String> deviceTemplateAlarmCodes = new LinkedHashMap<>();
+        Map<Long, DeviceTemplate> deviceTemplatesById = new LinkedHashMap<>();
         Map<Long, String> pointTemplateAlarmCodes = new LinkedHashMap<>();
+        Map<Long, PointTemplate> pointTemplatesById = new LinkedHashMap<>();
         Map<Long, String> deploymentAlarmCodes = new LinkedHashMap<>();
+        Map<Long, DeviceDeployment> deploymentsById = new LinkedHashMap<>();
         for (PointPlan plan : pointPlans) {
             String alarmName = rowAlarmNames.get(rowKey(plan.row()));
             if (alarmName != null) {
                 pointTemplateAlarmCodes.putIfAbsent(plan.pointTemplate().getPointTmplId(), alarmName);
+                pointTemplatesById.putIfAbsent(plan.pointTemplate().getPointTmplId(), plan.pointTemplate());
                 if (plan.row().pointName().toLowerCase().startsWith("communication_")) {
-                    deviceTemplateAlarmCodes.putIfAbsent(plan.devicePlan().template().getDeviceTmplId(), alarmName);
-                    deploymentAlarmCodes.putIfAbsent(
-                            deviceIds.get(plan.devicePlan().deviceKey()), alarmName);
+                    DeviceTemplate deviceTemplate = plan.devicePlan().template();
+                    deviceTemplateAlarmCodes.putIfAbsent(deviceTemplate.getDeviceTmplId(), alarmName);
+                    deviceTemplatesById.putIfAbsent(deviceTemplate.getDeviceTmplId(), deviceTemplate);
+                    Long deviceDeployId = deviceIds.get(plan.devicePlan().deviceKey());
+                    deploymentAlarmCodes.putIfAbsent(deviceDeployId, alarmName);
+                    DeviceDeployment existingDeployment = plan.devicePlan().existingDeployment();
+                    if (existingDeployment != null) {
+                        deploymentsById.putIfAbsent(deviceDeployId, existingDeployment);
+                    }
                 }
             }
         }
         for (Map.Entry<Long, String> entry : deviceTemplateAlarmCodes.entrySet()) {
+            DeviceTemplate deviceTemplate = deviceTemplatesById.get(entry.getKey());
+            if (deviceTemplate != null && Objects.equals(deviceTemplate.getAlarmCode(), entry.getValue())) {
+                continue;
+            }
             deviceTemplateMapper.updateAlarmCode(entry.getKey(), entry.getValue());
         }
+        List<PointTemplate> pointTemplateUpdates = new ArrayList<>();
         for (Map.Entry<Long, String> entry : pointTemplateAlarmCodes.entrySet()) {
-            pointTemplateMapper.updateAlarmCode(entry.getKey(), entry.getValue());
+            PointTemplate pointTemplate = pointTemplatesById.get(entry.getKey());
+            if (pointTemplate != null && Objects.equals(pointTemplate.getAlarmCode(), entry.getValue())) {
+                continue;
+            }
+            if (pointTemplate != null) {
+                pointTemplate.setAlarmCode(entry.getValue());
+                pointTemplateUpdates.add(pointTemplate);
+            }
+        }
+        for (int start = 0; start < pointTemplateUpdates.size(); start += ALARM_CODE_BATCH_SIZE) {
+            int end = Math.min(start + ALARM_CODE_BATCH_SIZE, pointTemplateUpdates.size());
+            pointTemplateMapper.updateAlarmCodesBatch(
+                    new ArrayList<>(pointTemplateUpdates.subList(start, end)));
         }
         for (Map.Entry<Long, String> entry : deploymentAlarmCodes.entrySet()) {
+            DeviceDeployment existingDeployment = deploymentsById.get(entry.getKey());
+            if (existingDeployment != null && Objects.equals(existingDeployment.getAlarmCode(), entry.getValue())) {
+                continue;
+            }
             deviceDeploymentMapper.updateAlarmCode(entry.getKey(), entry.getValue());
         }
     }

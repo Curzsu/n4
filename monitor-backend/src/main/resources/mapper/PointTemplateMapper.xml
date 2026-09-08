@@ -75,6 +75,20 @@
         WHERE point_tmpl_id = #{pointTmplId}
     </update>
 
+    <update id="updateAlarmCodesBatch">
+        UPDATE point_template
+        SET alarm_code = CASE point_tmpl_id
+        <foreach collection="points" item="point">
+            WHEN #{point.pointTmplId} THEN #{point.alarmCode}
+        </foreach>
+        END,
+            update_time = NOW()
+        WHERE point_tmpl_id IN
+        <foreach collection="points" item="point" open="(" separator="," close=")">
+            #{point.pointTmplId}
+        </foreach>
+    </update>
+
     <select id="countByDeviceTmplId" resultType="int">
         SELECT COUNT(*) FROM point_template WHERE device_tmpl_id = #{deviceTmplId} AND is_deleted = 0
     </select>

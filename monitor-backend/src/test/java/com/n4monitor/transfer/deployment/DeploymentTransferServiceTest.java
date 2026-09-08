@@ -958,6 +958,7 @@ class DeploymentTransferServiceTest {
         pointTemplate.setPointName("Temperature");
         pointTemplate.setType("numeric");
         pointTemplate.setUnit("C");
+        pointTemplate.setAlarmCode("Temperature_00");
         pointTemplate.setIsDeleted(false);
 
         DeviceDeployment existingDevice = new DeviceDeployment();
@@ -1028,6 +1029,7 @@ class DeploymentTransferServiceTest {
         assertThat(summary.committed()).isTrue();
         verify(pointDeploymentMapper, never()).updateAlarmCodesBatch(
                 org.mockito.ArgumentMatchers.anyList());
+        verify(pointTemplateMapper, never()).updateAlarmCode(10L, "Temperature_00");
     }
 
     @Test
@@ -1127,5 +1129,8 @@ class DeploymentTransferServiceTest {
         assertThat(updates).hasSize(1);
         assertThat(updates.get(0).getN4Address()).isEqualTo(existingPoint.getN4Address());
         assertThat(updates.get(0).getAlarmCode()).isEqualTo("Temperature_00");
+        verify(pointTemplateMapper, never()).updateAlarmCode(10L, "Temperature_00");
+        verify(pointTemplateMapper).updateAlarmCodesBatch(
+                org.mockito.ArgumentMatchers.anyList());
     }
 }

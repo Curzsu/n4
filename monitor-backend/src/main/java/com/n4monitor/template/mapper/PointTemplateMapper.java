@@ -27,5 +27,7 @@ public interface PointTemplateMapper {
 
     int updateAlarmCode(@Param("pointTmplId") Long pointTmplId, @Param("alarmCode") String alarmCode);
 
+    int updateAlarmCodesBatch(@Param("points") List<PointTemplate> points);
+
     int countByDeviceTmplId(@Param("deviceTmplId") Long deviceTmplId);
 }
