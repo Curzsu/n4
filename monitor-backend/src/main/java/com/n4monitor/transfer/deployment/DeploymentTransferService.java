@@ -194,7 +194,8 @@ public class DeploymentTransferService {
                 }
 
                 PointDeployment existingPoint = pointsByN4Address.get(n4Address);
-                if (existingPoint == null) {
+                boolean isNewDevice = !isActiveDeployment(devicePlan.existingDeployment(), devicePlan.navNodeId());
+                if (isNewDevice || existingPoint == null) {
                     stats.pointDeploymentCreated();
                 } else {
                     stats.pointDeploymentReused();

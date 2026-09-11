@@ -524,6 +524,98 @@ class DeploymentTransferServiceTest {
     }
 
     @Test
+    void countsPointsAsCreatedWhenTheirDeviceIsNew() {
+        DeviceTemplateMapper deviceTemplateMapper = mock(DeviceTemplateMapper.class);
+        PointTemplateMapper pointTemplateMapper = mock(PointTemplateMapper.class);
+        DeviceDeploymentMapper deviceDeploymentMapper = mock(DeviceDeploymentMapper.class);
+        PointDeploymentMapper pointDeploymentMapper = mock(PointDeploymentMapper.class);
+        NavNodeMapper navNodeMapper = mock(NavNodeMapper.class);
+        AlarmRuleEnumMapper alarmRuleEnumMapper = mock(AlarmRuleEnumMapper.class);
+        AlarmRuleNumericMapper alarmRuleNumericMapper = mock(AlarmRuleNumericMapper.class);
+        AlarmRuleSyncService alarmRuleSyncService = mock(AlarmRuleSyncService.class);
+
+        DeviceTemplate template = new DeviceTemplate();
+        template.setDeviceTmplId(1L);
+        template.setN4Name("Collector");
+        template.setIsDeleted(false);
+
+        PointTemplate pointTemplate = new PointTemplate();
+        pointTemplate.setPointTmplId(10L);
+        pointTemplate.setDeviceTmplId(1L);
+        pointTemplate.setPointName("Temperature");
+        pointTemplate.setType("numeric");
+        pointTemplate.setIsDeleted(false);
+
+        DeviceDeployment existingDevice = new DeviceDeployment();
+        existingDevice.setDeviceDeployId(20L);
+        existingDevice.setDeviceTmplId(1L);
+        existingDevice.setNavNodeId(999L);
+        existingDevice.setSystemName("A1_MVP_A1/MVP_A1");
+        existingDevice.setDeviceDeployName("MVP_A1_00_Collector_00");
+        existingDevice.setIsDeleted(false);
+
+        PointDeployment existingPoint = new PointDeployment();
+        existingPoint.setPointDeployId(30L);
+        existingPoint.setPointTmplId(10L);
+        existingPoint.setDeviceDeployId(20L);
+        existingPoint.setPointName("Temperature");
+        existingPoint.setN4Address("A1_MVP_A1/MVP_A1/MVP_A1_00_Collector_00/Temperature");
+        existingPoint.setIsDeleted(false);
+
+        NavNode root = new NavNode();
+        root.setNodeId(100L);
+        root.setNodeName("A1_MVP_A1");
+        root.setNodeLevel(1);
+        root.setMaxLevel(2);
+        root.setIsDeleted(false);
+
+        NavNode leaf = new NavNode();
+        leaf.setNodeId(101L);
+        leaf.setParentId(100L);
+        leaf.setNodeName("MVP_A1");
+        leaf.setNodeLevel(2);
+        leaf.setIsDeleted(false);
+
+        when(deviceTemplateMapper.findAllIncludingDeleted()).thenReturn(List.of(template));
+        when(pointTemplateMapper.findAllIncludingDeleted()).thenReturn(List.of(pointTemplate));
+        when(deviceDeploymentMapper.findAllIncludingDeleted()).thenReturn(List.of(existingDevice));
+        when(pointDeploymentMapper.findAllByN4Addresses(List.of(existingPoint.getN4Address())))
+                .thenReturn(List.of(existingPoint));
+        when(navNodeMapper.findAll()).thenReturn(List.of(root, leaf));
+        when(alarmRuleEnumMapper.findAll()).thenReturn(List.of());
+        when(alarmRuleNumericMapper.findAll()).thenReturn(List.of());
+
+        DeploymentTransferService service = new DeploymentTransferService(
+                new DeploymentCsvParser(),
+                deviceTemplateMapper,
+                pointTemplateMapper,
+                deviceDeploymentMapper,
+                pointDeploymentMapper,
+                navNodeMapper,
+                alarmRuleEnumMapper,
+                alarmRuleNumericMapper,
+                alarmRuleSyncService);
+
+        String csv = String.join("\n",
+                "*path,*name,*type,allPath,mqttPath",
+                "MVP_A1_00_Collector_00,Temperature,numeric,all/path,"
+                        + existingPoint.getN4Address());
+        MockMultipartFile file = new MockMultipartFile(
+                "files", "deployment.csv", "text/csv", csv.getBytes(StandardCharsets.UTF_8));
+
+        ImportSummary summary = service.importFiles(List.of(file), true);
+
+        assertThat(summary.valid()).isTrue();
+        assertThat(summary.deviceDeploymentCreated()).isEqualTo(1);
+        assertThat(summary.deviceDeploymentReused()).isZero();
+        assertThat(summary.pointDeploymentCreated()).isEqualTo(1);
+        assertThat(summary.pointDeploymentReused()).isZero();
+        assertThat(summary.deploymentPreviews()).singleElement()
+                .extracting(DeploymentPreviewItem::action)
+                .isEqualTo("CREATE");
+    }
+
+    @Test
     void restoresDeletedNavigationPathInsteadOfCreatingDuplicates() {
         DeviceTemplateMapper deviceTemplateMapper = mock(DeviceTemplateMapper.class);
         PointTemplateMapper pointTemplateMapper = mock(PointTemplateMapper.class);

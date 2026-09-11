@@ -355,79 +355,123 @@
           <span v-if="deploymentFolderDuplicateCount">({{ deploymentFolderDuplicateCount }} duplicate file(s) ignored)</span>
         </span>
       </div>
-      <div v-if="deploymentImportResult" class="transfer-result" style="margin-top: 20px;">
-        <!-- Summary Statistics Table -->
-        <div style="font-size: 13px; font-weight: 600; color: #cbd5e1; margin-bottom: 8px;">
-          Summary Statistics
+      <div v-if="deploymentImportResult" class="transfer-result">
+        <div class="preview-result-header">
+          <div>
+            <div class="preview-result-title">Import Preview</div>
+            <div class="preview-result-meta">
+              <span>{{ deploymentImportResult.sourceFileCount }} file(s)</span>
+              <span>•</span>
+              <span>{{ deploymentImportResult.sourceRowCount }} row(s)</span>
+            </div>
+          </div>
+          <el-tag
+            size="small"
+            :type="deploymentImportResult.valid ? 'success' : 'danger'"
+            effect="dark"
+          >
+            {{ deploymentImportResult.valid ? 'Ready to confirm' : 'Action required' }}
+          </el-tag>
         </div>
-        <el-table
-          :data="deploymentSummaryTableData"
-          class="custom-table"
-          border
-          size="small"
-          :header-cell-style="headerCellStyle"
-          :cell-style="cellStyle"
-          style="margin-bottom: 16px;"
-        >
-          <el-table-column prop="category" label="Category" min-width="160" align="left" header-align="center" />
-          <el-table-column prop="created" label="New (To Create)" min-width="120" align="center" header-align="center">
-            <template #default="{ row }">
-              <el-tag v-if="row.created !== null" size="small" type="success" effect="dark">+{{ row.created }}</el-tag>
-              <span v-else style="color: #64748b;">-</span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="reused" label="Reused (Existing)" min-width="120" align="center" header-align="center">
-            <template #default="{ row }">
-              <el-tag v-if="row.reused !== null" size="small" type="info" effect="dark">{{ row.reused }}</el-tag>
-              <span v-else style="color: #64748b;">-</span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="details" label="Details / Total" min-width="200" show-overflow-tooltip align="left" header-align="center" />
-          <el-table-column prop="statusText" label="Status" width="100" align="center" header-align="center">
-            <template #default="{ row }">
-              <el-tag size="small" :type="row.statusType" effect="plain">{{ row.statusText }}</el-tag>
-            </template>
-          </el-table-column>
-        </el-table>
 
-        <!-- Parsed Device Deployments Table -->
-        <div v-if="deploymentImportResult.deploymentPreviews?.length" style="margin-bottom: 16px;">
-          <div style="font-size: 13px; font-weight: 600; color: #cbd5e1; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
-            <span>Parsed Device Deployments ({{ deploymentImportResult.deploymentPreviews.length }})</span>
+        <section class="preview-section">
+          <div class="preview-section-heading">
+            <span>Summary Statistics</span>
+            <span class="preview-section-caption">Import impact by resource</span>
           </div>
           <el-table
-            :data="deploymentImportResult.deploymentPreviews"
-            class="custom-table"
+            :data="deploymentSummaryTableData"
+            class="custom-table preview-summary-table"
             border
             size="small"
-            max-height="240"
             :header-cell-style="headerCellStyle"
             :cell-style="cellStyle"
           >
-            <el-table-column type="index" label="#" width="45" align="center" header-align="center" />
-            <el-table-column prop="sourceFile" label="File" min-width="120" show-overflow-tooltip align="left" header-align="center" />
-            <el-table-column prop="deviceName" label="Device Name" min-width="160" show-overflow-tooltip align="left" header-align="center" />
-            <el-table-column prop="systemName" label="System / Nav Path" min-width="160" show-overflow-tooltip align="left" header-align="center" />
-            <el-table-column prop="templateName" label="Matched Template" min-width="130" show-overflow-tooltip align="left" header-align="center" />
-            <el-table-column prop="pointCount" label="Points" width="80" align="center" header-align="center">
+            <el-table-column prop="category" label="Category" min-width="180" />
+            <el-table-column prop="created" label="New" min-width="90" align="center">
               <template #default="{ row }">
-                <span>{{ row.pointCount }}</span>
+                <el-tag v-if="row.created !== null" size="small" type="success" effect="dark">+{{ row.created }}</el-tag>
+                <span v-else class="preview-empty-value">-</span>
               </template>
             </el-table-column>
-            <el-table-column prop="action" label="Import Action" width="110" align="center" header-align="center">
+            <el-table-column prop="reused" label="Reused" min-width="90" align="center">
               <template #default="{ row }">
-                <el-tag v-if="row.action === 'CREATE'" size="small" type="success" effect="dark">New</el-tag>
+                <el-tag v-if="row.reused !== null" size="small" type="info" effect="dark">{{ row.reused }}</el-tag>
+                <span v-else class="preview-empty-value">-</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="details" label="Details / Total" min-width="220" show-overflow-tooltip />
+            <el-table-column prop="statusText" label="Status" width="120" align="center">
+              <template #default="{ row }">
+                <el-tag size="small" :type="row.statusType" effect="plain">{{ row.statusText }}</el-tag>
+              </template>
+            </el-table-column>
+          </el-table>
+        </section>
+
+        <section v-if="deploymentPreviewTreeData.length" class="preview-section">
+          <div class="preview-section-heading">
+            <span>Parsed Device Deployments</span>
+            <span class="preview-section-caption">
+              {{ deploymentImportResult.deploymentPreviews?.length ?? 0 }} device(s) grouped by system
+            </span>
+          </div>
+          <el-table
+            :data="deploymentPreviewTreeData"
+            class="custom-table preview-device-tree"
+            row-key="id"
+            border
+            size="small"
+            max-height="280"
+            default-expand-all
+            :tree-props="{ children: 'children' }"
+            :header-cell-style="headerCellStyle"
+            :cell-style="cellStyle"
+          >
+            <el-table-column label="System / Device" min-width="330" show-overflow-tooltip>
+              <template #default="{ row }">
+                <div v-if="row.rowType === 'system'" class="preview-system-cell">
+                  <span class="preview-system-name">{{ row.systemName }}</span>
+                  <span class="preview-system-meta">
+                    {{ row.deviceCount }} device(s) · {{ row.pointCount }} point(s)
+                  </span>
+                </div>
+                <div v-else class="preview-device-cell">
+                  <span class="preview-device-name">{{ row.deviceName }}</span>
+                  <span class="preview-device-path">{{ row.devicePath }}</span>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column prop="sourceFile" label="File" min-width="130" show-overflow-tooltip>
+              <template #default="{ row }">
+                <span v-if="row.rowType === 'device'">{{ row.sourceFile }}</span>
+                <span v-else class="preview-empty-value">Grouped</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="templateName" label="Matched Template" min-width="150" show-overflow-tooltip>
+              <template #default="{ row }">
+                <span v-if="row.rowType === 'device'">{{ row.templateName || '-' }}</span>
+                <span v-else class="preview-empty-value">-</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="pointCount" label="Points" width="90" align="center" />
+            <el-table-column prop="action" label="Import Action" width="120" align="center">
+              <template #default="{ row }">
+                <el-tag v-if="row.rowType === 'system'" size="small" type="info" effect="plain">Group</el-tag>
+                <el-tag v-else-if="row.action === 'CREATE'" size="small" type="success" effect="dark">New</el-tag>
                 <el-tag v-else-if="row.action === 'REUSE'" size="small" type="info" effect="dark">Reused</el-tag>
                 <el-tag v-else size="small" type="warning" effect="dark">Skipped</el-tag>
               </template>
             </el-table-column>
           </el-table>
-        </div>
+        </section>
 
-        <!-- Issues Table -->
-        <div v-if="deploymentImportResult.issues?.length" style="margin-top: 12px;">
-          <div style="font-size: 13px; font-weight: 600; color: #f87171; margin-bottom: 8px;">
-            Validation Issues ({{ deploymentImportResult.issues.length }})
+        <section v-if="deploymentImportResult.issues?.length" class="preview-section preview-issues-section">
+          <div class="preview-section-heading preview-section-heading--danger">
+            <span>Validation Issues</span>
+            <span class="preview-section-caption">
+              {{ deploymentImportResult.issues.length }} issue(s) require attention
+            </span>
           </div>
           <el-table
             :data="deploymentImportResult.issues"
@@ -438,23 +482,23 @@
             :header-cell-style="headerCellStyle"
             :cell-style="cellStyle"
           >
-            <el-table-column prop="severity" label="Level" width="90" align="center" header-align="center">
+            <el-table-column prop="severity" label="Level" width="90" align="center">
               <template #default="{ row }">
                 <el-tag size="small" :type="row.severity === 'ERROR' ? 'danger' : 'warning'" effect="dark">
                   {{ row.severity }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="code" label="Code" width="160" show-overflow-tooltip align="left" header-align="center" />
-            <el-table-column prop="fileName" label="File" width="130" show-overflow-tooltip align="left" header-align="center" />
-            <el-table-column prop="rowNumber" label="Row" width="60" align="center" header-align="center">
+            <el-table-column prop="code" label="Code" width="160" show-overflow-tooltip />
+            <el-table-column prop="fileName" label="File" width="130" show-overflow-tooltip />
+            <el-table-column prop="rowNumber" label="Row" width="60" align="center">
               <template #default="{ row }">
                 {{ row.rowNumber ?? '-' }}
               </template>
             </el-table-column>
-            <el-table-column prop="message" label="Message" min-width="220" show-overflow-tooltip align="left" header-align="center" />
+            <el-table-column prop="message" label="Message" min-width="220" show-overflow-tooltip />
           </el-table>
-        </div>
+        </section>
       </div>
       <template #footer>
         <div class="transfer-dialog-footer" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
@@ -478,7 +522,7 @@
               :disabled="!deploymentImportResult?.valid"
               @click="confirmDeploymentImport"
             >
-              Confirm Import
+              Confirm
             </el-button>
           </div>
         </div>
@@ -678,6 +722,7 @@ import { useDashboardStore } from '@/stores/dashboard'
 import type { ImportSummary, NavTreeNode, DeviceDeployItem, DeviceDeployment, PointDeploymentItem } from '@/api/types'
 import NavNodeDialog from '@/views/device-deploy/dialogs/NavNodeDialog.vue'
 import { triggerFormShake } from '@/utils/formAnimation'
+import { buildDeploymentPreviewTree } from '@/utils/deploymentImportPreview'
 
 const store = useDashboardStore()
 const selectedNode = computed(() => store.currentNavNode)
@@ -872,6 +917,10 @@ const deploymentSummaryTableData = computed<DeploymentSummaryRow[]>(() => {
   }
   return list
 })
+
+const deploymentPreviewTreeData = computed(() =>
+  buildDeploymentPreviewTree(deploymentImportResult.value?.deploymentPreviews ?? []),
+)
 // Declared before the selectedNode watcher below: the watcher runs with
 // { immediate: true } during setup, so it must not touch a variable that is
 // still in the temporal dead zone (TDZ) or it throws
@@ -2413,6 +2462,104 @@ $bg-dark: #0b1119;
 .deployment-folder-summary {
   color: #94a3b8;
   font-size: 12px;
+}
+
+.transfer-result {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.preview-result-header,
+.preview-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.preview-result-header {
+  padding: 12px 14px;
+  border: 1px solid rgba(59, 130, 246, 0.32);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(30, 64, 175, 0.22), rgba(15, 23, 42, 0.86));
+}
+
+.preview-result-title {
+  color: $text-primary;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.preview-result-meta,
+.preview-section-caption,
+.preview-empty-value {
+  color: $text-muted;
+  font-size: 10px;
+}
+
+.preview-result-meta {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.preview-section {
+  padding: 10px;
+  border: 1px solid rgba(51, 65, 85, 0.8);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.46);
+}
+
+.preview-section-heading {
+  margin-bottom: 8px;
+  color: $text-primary;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.preview-section-heading--danger {
+  color: #fca5a5;
+}
+
+.preview-system-cell,
+.preview-device-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.preview-system-name {
+  color: #93c5fd;
+  font-weight: 700;
+}
+
+.preview-system-meta,
+.preview-device-path {
+  color: $text-muted;
+  font-size: 10px;
+}
+
+.preview-device-name {
+  color: $text-primary;
+  font-weight: 600;
+}
+
+.preview-device-tree {
+  :deep(.el-table__row--level-0) {
+    background: rgba(30, 64, 175, 0.14);
+  }
+
+  :deep(.el-table__row--level-0:hover > td) {
+    background: rgba(37, 99, 235, 0.22) !important;
+  }
+}
+
+.preview-issues-section {
+  border-color: rgba(248, 113, 113, 0.34);
+  background: rgba(127, 29, 29, 0.12);
 }
 
 :deep(.el-dialog) {
