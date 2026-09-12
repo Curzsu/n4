@@ -29,6 +29,12 @@ export const dashboardNavApi = {
   }): Promise<unknown> {
     return request.put(`/api/dashboard/nav/nodes/${nodeId}`, payload)
   },
+  batchMoveNodes(payload: {
+    nodeIds: number[]
+    targetParentId: number
+  }): Promise<number> {
+    return request.post('/api/dashboard/nav/nodes/batch-move', payload)
+  },
   deleteNode(nodeId: number): Promise<DeleteImpact> {
     return request.delete(`/api/dashboard/nav/nodes/${nodeId}`)
   },

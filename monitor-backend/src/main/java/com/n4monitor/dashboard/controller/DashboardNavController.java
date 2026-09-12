@@ -1,6 +1,7 @@
 package com.n4monitor.dashboard.controller;
 
 import com.n4monitor.common.ApiResponse;
+import com.n4monitor.dashboard.dto.BatchMoveNavNodesDto;
 import com.n4monitor.dashboard.dto.DeleteImpactDto;
 import com.n4monitor.deployment.dto.DeviceDeployListDto;
 import com.n4monitor.dashboard.dto.NavTreeNodeDto;
@@ -60,6 +61,13 @@ public class DashboardNavController {
     @PreAuthorize("hasAuthority('device:deploy:group:edit')")
     public ApiResponse<NavNode> updateNode(@PathVariable Long nodeId, @RequestBody NavNode node) {
         return ApiResponse.success(navService.updateNode(nodeId, node));
+    }
+
+    /** Batch move navigation nodes to a target parent node */
+    @PostMapping("/nodes/batch-move")
+    @PreAuthorize("hasAuthority('device:deploy:group:edit')")
+    public ApiResponse<Integer> batchMoveNodes(@RequestBody BatchMoveNavNodesDto dto) {
+        return ApiResponse.success(navService.batchMoveNodes(dto.getNodeIds(), dto.getTargetParentId()));
     }
 
     /** Delete node (cascade delete children and unmount devices) */

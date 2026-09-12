@@ -278,13 +278,33 @@
             <div v-else class="device-section">
               <div class="section-header">
                 <h3>Child Groups <span class="section-count">({{ selectedNode.children?.length || 0 }})</span></h3>
-                <div class="header-actions" v-if="canAddChild(selectedNode)">
-                  <el-button v-permission="'device:deploy:group:add'" size="small" class="btn-primary" :icon="Plus" @click="navNodeDialogRef?.openCreate(selectedNode)">
+                <div class="header-actions">
+                  <el-button
+                    v-permission="'device:deploy:group:edit'"
+                    size="small"
+                    class="btn-secondary"
+                    :icon="Rank"
+                    :disabled="selectedChildGroups.length === 0"
+                    @click="openBatchMoveDialog"
+                  >
+                    Batch Move<template v-if="selectedChildGroups.length"> ({{ selectedChildGroups.length }})</template>
+                  </el-button>
+                  <el-button v-if="canAddChild(selectedNode)" v-permission="'device:deploy:group:add'" size="small" class="btn-primary" :icon="Plus" @click="navNodeDialogRef?.openCreate(selectedNode)">
                     Add Child Group
                   </el-button>
                 </div>
               </div>
-              <el-table :data="selectedNode.children || []" class="custom-table" border size="small" :header-cell-style="headerCellStyle" :cell-style="cellStyle">
+              <el-table
+                ref="childGroupsTableRef"
+                :data="selectedNode.children || []"
+                class="custom-table"
+                border
+                size="small"
+                :header-cell-style="headerCellStyle"
+                :cell-style="cellStyle"
+                @selection-change="handleChildGroupSelectionChange"
+              >
+                <el-table-column type="selection" width="36" align="center" header-align="center" :resizable="false" />
                 <el-table-column prop="nodeName" label="Group Name" min-width="200" align="left" header-align="center" :resizable="false" />
                 <el-table-column prop="deviceCount" label="Devices" width="100" align="left" header-align="center" :resizable="false" />
                 <el-table-column prop="sortOrder" label="Sort Order" width="100" align="left" header-align="center" :resizable="false" />
@@ -501,6 +521,9 @@
     <!-- Nav Node Dialog for Edit/Delete actions -->
     <NavNodeDialog ref="navNodeDialogRef" />
 
+    <!-- Batch Move Nav Nodes Dialog -->
+    <BatchMoveNavNodesDialog ref="batchMoveDialogRef" @moved="handleBatchMoveSuccess" />
+
     <!-- ===== Dialog: Mount Existing Device ===== -->
     <el-dialog
       v-model="mountDialogVisible"
@@ -681,7 +704,7 @@ import {
   Cpu, Monitor, Box,
   FolderOpened,
   DataLine,
-  Connection, Edit, List, Search, Link,
+  Connection, Edit, List, Search, Link, Rank,
   ZoomIn, ZoomOut, RefreshRight, Download, Upload, UploadFilled,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type UploadInstance } from 'element-plus'
@@ -690,6 +713,7 @@ import { deploymentApi } from '@/api/deployment'
 import { useDashboardStore } from '@/stores/dashboard'
 import type { ImportSummary, NavTreeNode, DeviceDeployItem, DeviceDeployment, PointDeploymentItem } from '@/api/types'
 import NavNodeDialog from '@/views/device-deploy/dialogs/NavNodeDialog.vue'
+import BatchMoveNavNodesDialog from '@/views/device-deploy/dialogs/BatchMoveNavNodesDialog.vue'
 import { triggerFormShake } from '@/utils/formAnimation'
 import { normalizeUnit } from '@/utils/unit'
 
@@ -791,6 +815,8 @@ function resetCabinZoom() {
 
 watch(() => selectedNode.value?.nodeId, () => {
   resetCabinZoom()
+  selectedChildGroups.value = []
+  childGroupsTableRef.value?.clearSelection()
 })
 
 const headerCellStyle: CSSProperties = {
@@ -817,6 +843,24 @@ const cellStyle: CSSProperties = {
 const viewMode = ref<'list' | 'detail'>('list')
 
 const navNodeDialogRef = ref<InstanceType<typeof NavNodeDialog>>()
+const batchMoveDialogRef = ref<InstanceType<typeof BatchMoveNavNodesDialog>>()
+const childGroupsTableRef = ref()
+const selectedChildGroups = ref<NavTreeNode[]>([])
+
+function handleChildGroupSelectionChange(selection: NavTreeNode[]) {
+  selectedChildGroups.value = selection
+}
+
+function openBatchMoveDialog() {
+  if (!selectedChildGroups.value.length) return
+  batchMoveDialogRef.value?.open(selectedChildGroups.value, selectedNode.value?.nodeId ?? null)
+}
+
+async function handleBatchMoveSuccess() {
+  selectedChildGroups.value = []
+  childGroupsTableRef.value?.clearSelection()
+  await store.loadNavTree()
+}
 const devicesLoading = ref(false)
 const deploymentImportDialogVisible = ref(false)
 const deploymentImportLoading = ref(false)

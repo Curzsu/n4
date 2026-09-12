@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -180,24 +181,98 @@ public class DashboardNavService {
             if (node.getParentId().equals(existing.getNodeId())) {
                 throw new IllegalArgumentException("Cannot set a node as its own parent");
             }
-            List<NavNode> children = navNodeMapper.findChildren(nodeId);
-            if (!children.isEmpty()) {
-                throw new IllegalArgumentException("Cannot change parent for a node that still has child nodes");
+            if (isDescendant(nodeId, node.getParentId())) {
+                throw new IllegalArgumentException("Cannot set a descendant as parent");
             }
             NavNode newParent = navNodeMapper.findByNodeId(node.getParentId());
             if (newParent == null || Boolean.TRUE.equals(newParent.getIsDeleted())) {
                 throw new IllegalArgumentException("Target parent node not found or deleted");
             }
             int newLevel = newParent.getNodeLevel() + 1;
-            if (newLevel > resolveMaxLevel(newParent)) {
-                throw new IllegalArgumentException("Target group supports a maximum of " + resolveMaxLevel(newParent) + " directory levels");
+            int subtreeDepth = getSubtreeDepth(nodeId);
+            int maxAllowed = resolveMaxLevel(newParent);
+            if (newLevel + subtreeDepth > maxAllowed) {
+                throw new IllegalArgumentException("Target group supports a maximum of " + maxAllowed + " directory levels");
             }
+            int levelDelta = newLevel - existing.getNodeLevel();
             existing.setParentId(node.getParentId());
             existing.setNodeLevel(newLevel);
             existing.setIcon(null);
+            if (levelDelta != 0) {
+                updateDescendantLevels(nodeId, levelDelta);
+            }
         }
         navNodeMapper.update(existing);
         return existing;
+    }
+
+    /** Batch move navigation nodes to a target parent node */
+    @Transactional
+    public int batchMoveNodes(List<Long> nodeIds, Long targetParentId) {
+        if (nodeIds == null || nodeIds.isEmpty()) {
+            return 0;
+        }
+        if (targetParentId == null) {
+            throw new IllegalArgumentException("Target parent node ID cannot be null");
+        }
+        // Deduplicate nodeIds while keeping order
+        Set<Long> uniqueNodeIds = new LinkedHashSet<>(nodeIds);
+        if (uniqueNodeIds.contains(targetParentId)) {
+            throw new IllegalArgumentException("Cannot move a node into itself");
+        }
+        NavNode targetParent = requireNode(targetParentId);
+        int targetParentLevel = targetParent.getNodeLevel();
+        int maxAllowedLevel = resolveMaxLevel(targetParent);
+
+        // Fetch existing direct child node names of the target parent to prevent duplicates
+        List<NavNode> existingTargetChildren = navNodeMapper.findChildren(targetParentId);
+        Set<String> existingNames = existingTargetChildren.stream()
+                .map(NavNode::getNodeName)
+                .collect(Collectors.toCollection(HashSet::new));
+
+        // Validation pass
+        for (Long nodeId : uniqueNodeIds) {
+            NavNode node = requireNode(nodeId);
+            if (targetParentId.equals(node.getParentId())) {
+                continue; // Already under target parent, no-op
+            }
+            if (isDescendant(nodeId, targetParentId)) {
+                throw new IllegalArgumentException("Cannot move node '" + node.getNodeName() + "' into its own descendant");
+            }
+            int subtreeDepth = getSubtreeDepth(nodeId);
+            int newLevel = targetParentLevel + 1;
+            if (newLevel + subtreeDepth > maxAllowedLevel) {
+                throw new IllegalArgumentException("Moving node '" + node.getNodeName()
+                        + "' would exceed maximum directory levels (" + maxAllowedLevel + ")");
+            }
+            if (existingNames.contains(node.getNodeName())) {
+                throw new IllegalArgumentException("Target group already contains a node named '" + node.getNodeName() + "'");
+            }
+            existingNames.add(node.getNodeName());
+        }
+
+        // Execution pass
+        int movedCount = 0;
+        for (Long nodeId : uniqueNodeIds) {
+            NavNode node = requireNode(nodeId);
+            if (targetParentId.equals(node.getParentId())) {
+                continue;
+            }
+            int oldLevel = node.getNodeLevel();
+            int newLevel = targetParentLevel + 1;
+            int levelDelta = newLevel - oldLevel;
+
+            node.setParentId(targetParentId);
+            node.setNodeLevel(newLevel);
+            node.setIcon(null);
+            navNodeMapper.update(node);
+
+            if (levelDelta != 0) {
+                updateDescendantLevels(nodeId, levelDelta);
+            }
+            movedCount++;
+        }
+        return movedCount;
     }
 
     /** Delete node and cascade unmount devices */
@@ -307,6 +382,40 @@ public class DashboardNavService {
             return cur.getMaxLevel();
         }
         return DEFAULT_MAX_LEVEL;
+    }
+
+    private boolean isDescendant(Long ancestorId, Long targetId) {
+        List<NavNode> children = navNodeMapper.findChildren(ancestorId);
+        for (NavNode child : children) {
+            if (child.getNodeId().equals(targetId)) {
+                return true;
+            }
+            if (isDescendant(child.getNodeId(), targetId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private int getSubtreeDepth(Long nodeId) {
+        List<NavNode> children = navNodeMapper.findChildren(nodeId);
+        if (children.isEmpty()) {
+            return 0;
+        }
+        int maxChildDepth = 0;
+        for (NavNode child : children) {
+            maxChildDepth = Math.max(maxChildDepth, getSubtreeDepth(child.getNodeId()));
+        }
+        return 1 + maxChildDepth;
+    }
+
+    private void updateDescendantLevels(Long parentId, int levelDelta) {
+        List<NavNode> children = navNodeMapper.findChildren(parentId);
+        for (NavNode child : children) {
+            child.setNodeLevel(child.getNodeLevel() + levelDelta);
+            navNodeMapper.update(child);
+            updateDescendantLevels(child.getNodeId(), levelDelta);
+        }
     }
 
     private DeviceDeployListDto toDeviceDto(Map<String, Object> row) {
