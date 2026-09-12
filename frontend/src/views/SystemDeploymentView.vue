@@ -172,6 +172,7 @@
                     alt="Cabin Diagram"
                     class="cabin-diagram-img"
                     draggable="false"
+                    @error="handleCabinImageError"
                   />
                 </div>
               </div>
@@ -699,12 +700,22 @@ const cabinImageUrl = computed(() => {
   const name = selectedNode.value.nodeName.trim()
   const normalized = name.replace(/[-_]/g, '').toLowerCase()
 
-  // Match MVP cabin nodes (A1_MVP_A1, A1_MVP_B1, MVP_A1, MVP_B1, etc.)
-  if (normalized.includes('mvpa1') || normalized.includes('mvpb1') || normalized.startsWith('a1mvp') || normalized.startsWith('mvp')) {
+  if (normalized.includes('mvpb1')) {
+    return '/cabin-images/A1_MVP_B1.png'
+  }
+  if (normalized.includes('mvpa1') || normalized.startsWith('a1mvp') || normalized.startsWith('mvp')) {
     return '/cabin-images/A1_MVP_A1.png'
   }
-  return ''
+  // Fallback to default cabin diagram for all other cabin nodes at the same hierarchy level (e.g. A1_SLP_A2C2)
+  return '/cabin-images/default_cabin.png'
 })
+
+function handleCabinImageError(event: Event) {
+  const img = event.target as HTMLImageElement | null
+  if (img && !img.src.endsWith('/cabin-images/default_cabin.png')) {
+    img.src = '/cabin-images/default_cabin.png'
+  }
+}
 
 // =====================================================================
 //  Interactive Cabin Diagram Zoom & Pan
