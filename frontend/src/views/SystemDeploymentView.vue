@@ -338,23 +338,9 @@
           </template>
         </el-upload>
       </div>
-      <div class="deployment-folder-picker">
-        <input
-          ref="deploymentFolderInputRef"
-          class="deployment-folder-input"
-          type="file"
-          accept=".csv"
-          multiple
-          webkitdirectory
-          @change="handleDeploymentFolderChange"
-        />
-        <el-button size="small" class="btn-secondary" :icon="FolderOpened" @click="openDeploymentFolderPicker">
-          Select Folder
-        </el-button>
-        <span v-if="deploymentFolderFileCount" class="deployment-folder-summary">
-          {{ deploymentFolderName }}: {{ deploymentFolderFileCount }} CSV file(s) selected
-          <span v-if="deploymentFolderDuplicateCount">({{ deploymentFolderDuplicateCount }} duplicate file(s) ignored)</span>
-        </span>
+      <div v-if="deploymentFolderFileCount" class="deployment-folder-summary" style="margin-top: 12px;">
+        {{ deploymentFolderName }}: {{ deploymentFolderFileCount }} CSV file(s) selected
+        <span v-if="deploymentFolderDuplicateCount">({{ deploymentFolderDuplicateCount }} duplicate file(s) ignored)</span>
       </div>
       <div v-if="deploymentImportResult" class="transfer-result" style="margin-top: 20px;">
         <!-- Summary Statistics table (narrowed) + navigation change tree -->
@@ -822,7 +808,6 @@ const deploymentTemplateDownloadLoading = ref(false)
 const deploymentImportFiles = ref<File[]>([])
 const deploymentImportResult = ref<ImportSummary | null>(null)
 const deploymentUploadRef = ref<UploadInstance>()
-const deploymentFolderInputRef = ref<HTMLInputElement>()
 const deploymentFolderName = ref('')
 const deploymentFolderFileCount = ref(0)
 const deploymentFolderDuplicateCount = ref(0)
@@ -1489,13 +1474,6 @@ function resetDeploymentFolderSelection() {
   deploymentFolderName.value = ''
   deploymentFolderFileCount.value = 0
   deploymentFolderDuplicateCount.value = 0
-  if (deploymentFolderInputRef.value) {
-    deploymentFolderInputRef.value.value = ''
-  }
-}
-
-function openDeploymentFolderPicker() {
-  deploymentFolderInputRef.value?.click()
 }
 
 function getDroppedEntries(event: DragEvent): FileSystemEntry[] {
@@ -1612,21 +1590,6 @@ async function handleDeploymentDirectoryDrop(directories: FileSystemDirectoryEnt
   applyDeploymentFolderSelection(uniqueCsvFiles, folderName, csvFiles.length - uniqueCsvFiles.length)
 }
 
-async function handleDeploymentFolderChange(event: Event) {
-  const input = event.target as HTMLInputElement
-  const selectedFiles = Array.from(input.files ?? [])
-  const csvFiles = selectedFiles.filter(file => file.name.toLowerCase().endsWith('.csv'))
-  const uniqueCsvFiles = await deduplicateDeploymentFiles(csvFiles)
-
-  const firstRelativePath = uniqueCsvFiles[0]?.webkitRelativePath ?? ''
-  applyDeploymentFolderSelection(
-    uniqueCsvFiles,
-    firstRelativePath.split('/')[0] || 'Selected folder',
-    csvFiles.length - uniqueCsvFiles.length,
-  )
-
-  input.value = ''
-}
 
 function handleDeploymentFileChange(_uploadFile: any, uploadFiles: any[]) {
   deploymentImportFiles.value = uploadFiles
@@ -2593,16 +2556,6 @@ $bg-dark: #0b1119;
   }
 }
 
-.deployment-folder-input {
-  display: none;
-}
-
-.deployment-folder-picker {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 12px;
-}
 
 .deployment-folder-summary {
   color: #94a3b8;
