@@ -3,11 +3,14 @@ import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 
-test('deployment preview exposes new navigation group counts and names', async () => {
+test('deployment preview presents dedicated navigation tree preview and clean element summary', async () => {
   const componentPath = fileURLToPath(new URL('../src/views/SystemDeploymentView.vue', import.meta.url))
   const source = await readFile(componentPath, 'utf8')
 
-  assert.match(source, /navigationGroupCreated/)
-  assert.match(source, /navigationGroupNames/)
-  assert.match(source, /Navigation groups:/)
+  assert.match(source, /Navigation Tree Preview/)
+  assert.match(source, /deploymentNavChangeRows/)
+  assert.match(source, /nav-tree-badge/)
+  assert.match(source, /New Elements/)
+  assert.match(source, /label="Existing"/)
+  assert.doesNotMatch(source, /category:\s*'Navigation'/)
 })

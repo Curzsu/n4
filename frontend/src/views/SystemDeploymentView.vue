@@ -347,7 +347,7 @@
         <div class="import-preview-layout">
           <div class="import-summary-panel">
             <div class="import-section-title">
-              Summary Statistics
+              New Elements
             </div>
             <el-table
               :data="deploymentSummaryTableData"
@@ -364,7 +364,7 @@
                   <span v-else style="color: #64748b;">-</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="reused" label="Reused (Existing)" min-width="78" align="center" header-align="center">
+              <el-table-column prop="reused" label="Existing" min-width="78" align="center" header-align="center">
                 <template #default="{ row }">
                   <el-tag v-if="row.reused !== null" size="small" type="info" effect="dark">{{ row.reused }}</el-tag>
                   <span v-else style="color: #64748b;">-</span>
@@ -825,15 +825,6 @@ const deploymentSummaryTableData = computed<DeploymentSummaryRow[]>(() => {
   const res = deploymentImportResult.value
   if (!res) return []
   const list: DeploymentSummaryRow[] = [
-    {
-      // Navigation groups: exposes new navigation group counts and names for preview
-      category: 'Navigation',
-      created: res.navigationGroupCreated,
-      reused: null,
-      details: res.navigationGroupNames?.length ? res.navigationGroupNames.join(', ') : 'No new groups',
-      statusText: res.valid ? 'Ready' : 'Failed',
-      statusType: res.valid ? 'success' : 'danger',
-    },
     {
       category: 'Device',
       created: res.deviceDeploymentCreated,
@@ -1627,6 +1618,22 @@ async function previewDeploymentImport() {
 
 async function confirmDeploymentImport() {
   if (!deploymentImportResult.value?.valid || !deploymentImportFiles.value.length) return
+
+  try {
+    await ElMessageBox.confirm(
+      'Are you sure you want to import and commit this deployment data?',
+      'Import Confirmation',
+      {
+        confirmButtonText: 'Confirm',
+        cancelButtonText: 'Cancel',
+        type: 'warning',
+        customClass: 'dark-message-box',
+      }
+    )
+  } catch {
+    return
+  }
+
   deploymentImportLoading.value = true
   try {
     const result = await deploymentApi.importFiles(deploymentImportFiles.value, false)
