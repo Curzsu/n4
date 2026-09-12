@@ -1,13 +1,13 @@
 <template>
   <el-dialog
     v-model="dialogVisible"
-    title="Batch Move Groups"
+    :title="dialogTitle"
     width="520px"
     append-to-body
     class="dark-dialog"
   >
-    <el-form label-width="110px" label-position="right">
-      <el-form-item label="Selected Groups">
+    <el-form label-width="140px" label-position="right">
+      <el-form-item :label="selectedLabel">
         <div class="selected-tags-container">
           <el-tag
             v-for="node in nodesToMove"
@@ -22,17 +22,17 @@
         </div>
       </el-form-item>
 
-      <el-form-item label="Target Parent" required>
+      <el-form-item :label="targetParentLabel" required>
         <el-cascader
           v-model="targetParentId"
           :options="targetCascaderOptions"
           :props="cascaderProps"
-          placeholder="Select target parent group"
+          :placeholder="targetPlaceholder"
           popper-class="dark-cascader-dropdown"
           style="width: 100%"
         />
         <div class="form-tip">
-          Select an eligible group as the new target parent
+          {{ formTip }}
         </div>
       </el-form-item>
     </el-form>
@@ -79,6 +79,43 @@ const cascaderProps = {
   emitPath: false,
 }
 
+const movingNodeType = computed<'cabin' | 'collector' | 'group'>(() => {
+  if (!nodesToMove.value.length) return 'group'
+  if (nodesToMove.value.every(n => n.nodeLevel === 2)) return 'cabin'
+  if (nodesToMove.value.every(n => n.nodeLevel === 3)) return 'collector'
+  return 'group'
+})
+
+const dialogTitle = computed(() => {
+  if (movingNodeType.value === 'cabin') return 'Batch Move Cabins'
+  if (movingNodeType.value === 'collector') return 'Batch Move Collectors'
+  return 'Batch Move Groups'
+})
+
+const selectedLabel = computed(() => {
+  if (movingNodeType.value === 'cabin') return 'Selected Cabins'
+  if (movingNodeType.value === 'collector') return 'Selected Collectors'
+  return 'Selected Groups'
+})
+
+const targetParentLabel = computed(() => {
+  if (movingNodeType.value === 'cabin') return 'Target Building / System'
+  if (movingNodeType.value === 'collector') return 'Target Cabin / Collector'
+  return 'Target Parent'
+})
+
+const targetPlaceholder = computed(() => {
+  if (movingNodeType.value === 'cabin') return 'Select target building/system (Level 1)'
+  if (movingNodeType.value === 'collector') return 'Select target cabin or collector'
+  return 'Select target parent group'
+})
+
+const formTip = computed(() => {
+  if (movingNodeType.value === 'cabin') return 'Cabins can only be moved to a building/system root node (Level 1)'
+  if (movingNodeType.value === 'collector') return 'Collectors can be moved to a cabin or merged into another collector'
+  return 'Select an eligible group as the new target parent'
+})
+
 function getSubtreeDepth(node: NavTreeNode): number {
   if (!node.children || node.children.length === 0) {
     return 0
@@ -91,7 +128,27 @@ const targetCascaderOptions = computed(() => {
 
   const movingIds = new Set(nodesToMove.value.map(n => n.nodeId))
   const maxSubtreeDepth = Math.max(...nodesToMove.value.map(getSubtreeDepth), 0)
+  const isMovingCabins = movingNodeType.value === 'cabin'
 
+  // If moving cabins (Level 2), target MUST be a Level 1 root node (Building / System)
+  if (isMovingCabins) {
+    const res: any[] = []
+    for (const n of store.navTree || []) {
+      if (movingIds.has(n.nodeId)) continue
+      if (n.nodeLevel === 1) {
+        const isCurrentParent = currentParentId.value !== null && n.nodeId === currentParentId.value
+        res.push({
+          nodeId: n.nodeId,
+          nodeName: n.nodeName,
+          nodeLevel: n.nodeLevel,
+          disabled: isCurrentParent,
+        })
+      }
+    }
+    return res
+  }
+
+  // Otherwise (moving collectors or generic groups):
   const buildOptions = (nodes: NavTreeNode[], parentMaxLevel?: number): any[] => {
     const res: any[] = []
     for (const n of nodes) {
@@ -155,7 +212,7 @@ function open(nodes: NavTreeNode[], parentId: number | null = null) {
 
 async function submitMove() {
   if (!targetParentId.value) {
-    ElMessage.warning('Please select a target parent group')
+    ElMessage.warning('Please select a target parent')
     return
   }
   if (!nodesToMove.value.length) {
@@ -170,12 +227,17 @@ async function submitMove() {
       nodeIds,
       targetParentId: targetParentId.value,
     })
-    ElMessage.success(`Successfully moved ${count} group(s)`)
+    const typeName = movingNodeType.value === 'cabin'
+      ? 'cabin'
+      : movingNodeType.value === 'collector'
+        ? 'collector'
+        : 'group'
+    ElMessage.success(`Successfully moved ${count} ${typeName}(s)`)
     dialogVisible.value = false
     emit('moved', count)
   } catch (e: any) {
     console.error('Failed to batch move nodes', e)
-    ElMessage.error(e?.message || 'Failed to move groups')
+    ElMessage.error(e?.message || 'Failed to move')
   } finally {
     submitting.value = false
   }

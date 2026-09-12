@@ -23,6 +23,12 @@ test('SystemDeploymentView includes Child Groups selection and Batch Move integr
   assert.ok(source.includes('handleBatchMoveButtonClick'), 'Must define handleBatchMoveButtonClick')
   assert.ok(source.includes('openBatchMoveDialog'), 'Must define openBatchMoveDialog')
   assert.ok(source.includes('handleBatchMoveSuccess'), 'Must define handleBatchMoveSuccess')
+
+  // Check 4-tier domain model semantics (Level 1 -> Cabins, Level 2 -> Collectors)
+  assert.ok(source.includes('childSectionTitle'), 'Must define childSectionTitle')
+  assert.ok(source.includes('addChildButtonText'), 'Must define addChildButtonText')
+  assert.ok(source.includes('childNameColumnLabel'), 'Must define childNameColumnLabel')
+  assert.ok(source.includes('emptyChildText'), 'Must define emptyChildText')
 })
 
 test('BatchMoveNavNodesDialog handles anti-cycle, max level, and API invocation', async () => {
@@ -33,6 +39,8 @@ test('BatchMoveNavNodesDialog handles anti-cycle, max level, and API invocation'
   assert.ok(source.includes('targetCascaderOptions'), 'Must define targetCascaderOptions computed property')
   assert.ok(source.includes('checkStrictly: true'), 'Cascader must allow selecting any group level')
   assert.ok(source.includes('dashboardNavApi.batchMoveNodes'), 'Must invoke dashboardNavApi.batchMoveNodes')
+  assert.ok(source.includes("movingNodeType = computed<'cabin' | 'collector' | 'group'>"), 'Must determine node type based on level')
+  assert.ok(source.includes('isMovingCabins'), 'Must handle cabin moving constraints')
 
   // Simulate target options filtering logic matching BatchMoveNavNodesDialog
   function getSubtreeDepth(node) {
@@ -41,7 +49,26 @@ test('BatchMoveNavNodesDialog handles anti-cycle, max level, and API invocation'
   }
 
   function filterTargetOptions(nodes, movingNodes, currentParentId) {
+    const isMovingCabins = movingNodes.length > 0 && movingNodes.every(n => n.nodeLevel === 2)
     const movingIds = new Set(movingNodes.map(n => n.nodeId))
+
+    if (isMovingCabins) {
+      const res = []
+      for (const n of nodes || []) {
+        if (movingIds.has(n.nodeId)) continue
+        if (n.nodeLevel === 1) {
+          const isCurrentParent = currentParentId !== null && n.nodeId === currentParentId
+          res.push({
+            nodeId: n.nodeId,
+            nodeName: n.nodeName,
+            nodeLevel: n.nodeLevel,
+            disabled: isCurrentParent,
+          })
+        }
+      }
+      return res
+    }
+
     const maxSubtreeDepth = Math.max(...movingNodes.map(getSubtreeDepth), 0)
 
     const build = (list, parentMaxLevel) => {
@@ -113,27 +140,24 @@ test('BatchMoveNavNodesDialog handles anti-cycle, max level, and API invocation'
     }
   ]
 
-  // Move A1_MVP_A1 (nodeId: 10, has child MVP_A1) currently under A1_MVP (nodeId: 1)
-  const moving = [sampleTree[0].children[0]]
-  const options = filterTargetOptions(sampleTree, moving, 1)
+  // Scenario 1: Move Cabin (Level 2) - should strictly only allow Level 1 root nodes
+  const movingCabin = [sampleTree[0].children[0]] // A1_MVP_A1 (level 2)
+  const cabinOptions = filterTargetOptions(sampleTree, movingCabin, 1)
 
-  // A1_MVP (nodeId: 1) should be disabled because it is current parent
-  assert.equal(options.find(o => o.nodeId === 1).disabled, true)
+  // Only level 1 nodes returned
+  assert.equal(cabinOptions.length, 2)
+  assert.equal(cabinOptions.every(o => o.nodeLevel === 1), true)
+  assert.equal(cabinOptions.find(o => o.nodeId === 1).disabled, true) // current parent
+  assert.equal(cabinOptions.find(o => o.nodeId === 2).disabled, false) // target root
+  assert.equal(cabinOptions[0].children, undefined) // No level 2 or 3 nested targets for cabins
 
-  // A1_MVP_A1 (nodeId: 10) and child MVP_A1 (100) must be excluded entirely
-  assert.equal(Boolean(options[0].children?.some(c => c.nodeId === 10 || c.nodeId === 100)), false)
-
-  // A2_MVP (nodeId: 2) is level 1, maxLevel 3, child subtree depth is 1 (1 + 1 + 1 = 3 <= 3) -> valid and enabled
-  const a2Option = options.find(o => o.nodeId === 2)
-  assert.equal(a2Option.disabled, false)
-
-  // Level 3 leaf nodes (like MVP_A1) are selectable targets for merging devices
-  const movingSingle = [{ nodeId: 999, nodeName: 'SingleCabin', nodeLevel: 2, children: [] }]
-  const singleMoveOptions = filterTargetOptions(sampleTree, movingSingle, null)
-  const mvpNode = singleMoveOptions.find(o => o.nodeId === 1)
-  const mvpA1Option = mvpNode.children.find(c => c.nodeId === 10)
-  // MVP_A1 (level 3) is included as a leaf target for device merging
-  assert.ok(mvpA1Option.children.some(c => c.nodeId === 100 && c.nodeName === 'MVP_A1'))
+  // Scenario 2: Move Collector (Level 3) - can move to cabin (Level 2) or merge with collector (Level 3)
+  const movingCollector = [sampleTree[0].children[0].children[0]] // MVP_A1 (level 3)
+  const collectorOptions = filterTargetOptions(sampleTree, movingCollector, 10)
+  const mvp1Node = collectorOptions.find(o => o.nodeId === 1)
+  assert.ok(mvp1Node.children.length > 0)
+  // Cabin A1_MVP_B1 (nodeId: 11, level 2) is a valid target
+  assert.ok(mvp1Node.children.some(c => c.nodeId === 11 && c.nodeLevel === 2))
 })
 
 test('dashboardNavApi provides batchMoveNodes endpoint', async () => {

@@ -239,6 +239,10 @@ public class DashboardNavService {
             if (isDescendant(nodeId, targetParentId)) {
                 throw new IllegalArgumentException("Cannot move node '" + node.getNodeName() + "' into its own descendant");
             }
+            // Cabin (level 2) constraint: Cabins can only be moved under a level 1 root node
+            if (node.getNodeLevel() != null && node.getNodeLevel() == 2 && targetParent.getNodeLevel() != 1) {
+                throw new IllegalArgumentException("Cabins can only be moved to a building or system root node (level 1)");
+            }
         }
 
         int targetParentLevel = targetParent.getNodeLevel();

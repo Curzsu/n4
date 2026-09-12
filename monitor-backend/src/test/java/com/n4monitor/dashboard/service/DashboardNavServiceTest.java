@@ -90,20 +90,31 @@ class DashboardNavServiceTest {
     }
 
     @Test
+    void batchMoveNodes_CabinToNonRootThrows() {
+        NavNode cabin = createNode(10L, 1L, "A1_MVP_A1", 2, null);
+        NavNode targetCabin = createNode(2L, 1L, "A1_MVP_B1", 2, null);
+
+        when(navNodeMapper.findByNodeId(2L)).thenReturn(targetCabin);
+        when(navNodeMapper.findByNodeId(10L)).thenReturn(cabin);
+
+        assertThatThrownBy(() -> navService.batchMoveNodes(List.of(10L), 2L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Cabins can only be moved to a building or system root node (level 1)");
+    }
+
+    @Test
     void batchMoveNodes_ExceedMaxLevelThrows() {
         NavNode root = createNode(1L, null, "A1_MVP", 1, 2); // max level is 2
-        NavNode cabin = createNode(10L, 1L, "A1_MVP_A1", 2, null);
-        NavNode subGroup = createNode(100L, 10L, "MVP_A1", 3, null);
+        NavNode collector = createNode(100L, 10L, "PTU_A1", 3, null);
         NavNode targetParent = createNode(2L, 1L, "A1_MVP_B1", 2, null);
 
         when(navNodeMapper.findByNodeId(2L)).thenReturn(targetParent);
         when(navNodeMapper.findByNodeId(1L)).thenReturn(root); // resolveMaxLevel traversal
-        when(navNodeMapper.findByNodeId(10L)).thenReturn(cabin);
+        when(navNodeMapper.findByNodeId(100L)).thenReturn(collector);
         when(navNodeMapper.findChildren(2L)).thenReturn(List.of());
-        when(navNodeMapper.findChildren(10L)).thenReturn(List.of(subGroup));
         when(navNodeMapper.findChildren(100L)).thenReturn(List.of());
 
-        assertThatThrownBy(() -> navService.batchMoveNodes(List.of(10L), 2L))
+        assertThatThrownBy(() -> navService.batchMoveNodes(List.of(100L), 2L))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("would exceed maximum directory levels");
     }

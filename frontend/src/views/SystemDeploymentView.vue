@@ -277,7 +277,7 @@
             <!-- Non-leaf Node: Sub-nodes Overview -->
             <div v-else class="device-section">
               <div class="section-header">
-                <h3>Child Groups <span class="section-count">({{ selectedNode.children?.length || 0 }})</span></h3>
+                <h3>{{ childSectionTitle }} <span class="section-count">({{ selectedNode.children?.length || 0 }})</span></h3>
                 <div class="header-actions">
                   <el-button
                     v-if="isGroupBatchMoving"
@@ -309,7 +309,7 @@
                     Batch Move
                   </el-button>
                   <el-button v-if="canAddChild(selectedNode)" v-permission="'device:deploy:group:add'" size="small" class="btn-primary" :icon="Plus" @click="navNodeDialogRef?.openCreate(selectedNode)">
-                    Add Child Group
+                    {{ addChildButtonText }}
                   </el-button>
                 </div>
               </div>
@@ -324,11 +324,11 @@
                 @selection-change="handleChildGroupSelectionChange"
               >
                 <el-table-column v-if="isGroupBatchMoving" type="selection" width="36" align="center" header-align="center" :resizable="false" />
-                <el-table-column prop="nodeName" label="Group Name" min-width="200" align="left" header-align="center" :resizable="false" />
+                <el-table-column prop="nodeName" :label="childNameColumnLabel" min-width="200" align="left" header-align="center" :resizable="false" />
                 <el-table-column prop="deviceCount" label="Devices" width="100" align="left" header-align="center" :resizable="false" />
                 <el-table-column prop="sortOrder" label="Sort Order" width="100" align="left" header-align="center" :resizable="false" />
                 <template #empty>
-                  <span class="empty-text">No child groups under this node</span>
+                  <span class="empty-text">{{ emptyChildText }}</span>
                 </template>
               </el-table>
             </div>
@@ -865,6 +865,30 @@ const batchMoveDialogRef = ref<InstanceType<typeof BatchMoveNavNodesDialog>>()
 const childGroupsTableRef = ref()
 const isGroupBatchMoving = ref(false)
 const selectedChildGroups = ref<NavTreeNode[]>([])
+
+const childSectionTitle = computed(() => {
+  if (selectedNode.value?.nodeLevel === 1) return 'Cabins'
+  if (selectedNode.value?.nodeLevel === 2) return 'Collectors'
+  return 'Child Groups'
+})
+
+const addChildButtonText = computed(() => {
+  if (selectedNode.value?.nodeLevel === 1) return 'Add Cabin'
+  if (selectedNode.value?.nodeLevel === 2) return 'Add Collector'
+  return 'Add Child Group'
+})
+
+const childNameColumnLabel = computed(() => {
+  if (selectedNode.value?.nodeLevel === 1) return 'Cabin Name'
+  if (selectedNode.value?.nodeLevel === 2) return 'Collector Name'
+  return 'Group Name'
+})
+
+const emptyChildText = computed(() => {
+  if (selectedNode.value?.nodeLevel === 1) return 'No cabins under this node'
+  if (selectedNode.value?.nodeLevel === 2) return 'No collectors under this node'
+  return 'No child groups under this node'
+})
 
 function enterGroupBatchMove() {
   isGroupBatchMoving.value = true
