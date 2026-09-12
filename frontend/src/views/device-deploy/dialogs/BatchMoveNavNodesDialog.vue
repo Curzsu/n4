@@ -92,7 +92,7 @@ const targetCascaderOptions = computed(() => {
   const movingIds = new Set(nodesToMove.value.map(n => n.nodeId))
   const maxSubtreeDepth = Math.max(...nodesToMove.value.map(getSubtreeDepth), 0)
 
-  const buildOptions = (nodes: NavTreeNode[]): any[] => {
+  const buildOptions = (nodes: NavTreeNode[], parentMaxLevel?: number): any[] => {
     const res: any[] = []
     for (const n of nodes) {
       // Exclude selected nodes and their entire subtrees (anti-cycle)
@@ -100,19 +100,26 @@ const targetCascaderOptions = computed(() => {
         continue
       }
 
-      const maxL = n.maxLevel ?? 4
+      const maxL = n.maxLevel ?? parentMaxLevel ?? 3
+
+      // If this node cannot be a parent because its level is already at or above maxL,
+      // or moving the subtree under it would exceed maxL, prune it completely.
+      const wouldOverflow = n.nodeLevel >= maxL || (n.nodeLevel + 1 + maxSubtreeDepth > maxL)
+      if (wouldOverflow) {
+        continue
+      }
+
       const isCurrentParent = currentParentId.value !== null && n.nodeId === currentParentId.value
-      const wouldOverflow = n.nodeLevel + 1 + maxSubtreeDepth > maxL
 
       const item: any = {
         nodeId: n.nodeId,
         nodeName: n.nodeName,
         nodeLevel: n.nodeLevel,
-        disabled: isCurrentParent || wouldOverflow,
+        disabled: isCurrentParent,
       }
 
       if (n.children && n.children.length > 0) {
-        const validChildren = buildOptions(n.children)
+        const validChildren = buildOptions(n.children, maxL)
         if (validChildren.length > 0) {
           item.children = validChildren
         }

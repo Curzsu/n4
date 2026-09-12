@@ -9,6 +9,7 @@ test('SystemDeploymentView includes Child Groups selection and Batch Move integr
 
   // Check template elements
   assert.ok(source.includes('Batch Move'), 'Must include Batch Move button in Child Groups header')
+  assert.ok(source.includes('Exit Move'), 'Must include Exit Move button next to Batch Move')
   assert.ok(source.includes("v-permission=\"'device:deploy:group:edit'\""), 'Batch Move button must require group:edit permission')
   assert.ok(source.includes('v-if="isGroupBatchMoving" type="selection"'), 'Child Groups table must show selection column only during batch move mode')
   assert.ok(source.includes('@selection-change="handleChildGroupSelectionChange"'), 'Must bind selection change handler')
@@ -18,6 +19,7 @@ test('SystemDeploymentView includes Child Groups selection and Batch Move integr
   assert.ok(source.includes('isGroupBatchMoving = ref(false)'), 'Initial state must hide checkboxes')
   assert.ok(source.includes('enterGroupBatchMove'), 'Must define enterGroupBatchMove')
   assert.ok(source.includes('exitGroupBatchMove'), 'Must define exitGroupBatchMove')
+  assert.ok(source.includes('handleBatchMoveButtonClick'), 'Must define handleBatchMoveButtonClick')
   assert.ok(source.includes('openBatchMoveDialog'), 'Must define openBatchMoveDialog')
   assert.ok(source.includes('handleBatchMoveSuccess'), 'Must define handleBatchMoveSuccess')
 })
@@ -41,21 +43,22 @@ test('BatchMoveNavNodesDialog handles anti-cycle, max level, and API invocation'
     const movingIds = new Set(movingNodes.map(n => n.nodeId))
     const maxSubtreeDepth = Math.max(...movingNodes.map(getSubtreeDepth), 0)
 
-    const build = (list) => {
+    const build = (list, parentMaxLevel) => {
       const res = []
       for (const n of list) {
         if (movingIds.has(n.nodeId)) continue
-        const maxL = n.maxLevel ?? 4
+        const maxL = n.maxLevel ?? parentMaxLevel ?? 3
+        const wouldOverflow = n.nodeLevel >= maxL || (n.nodeLevel + 1 + maxSubtreeDepth > maxL)
+        if (wouldOverflow) continue
         const isCurrentParent = currentParentId !== null && n.nodeId === currentParentId
-        const wouldOverflow = n.nodeLevel + 1 + maxSubtreeDepth > maxL
         const item = {
           nodeId: n.nodeId,
           nodeName: n.nodeName,
           nodeLevel: n.nodeLevel,
-          disabled: isCurrentParent || wouldOverflow,
+          disabled: isCurrentParent,
         }
         if (n.children && n.children.length > 0) {
-          const validChildren = build(n.children)
+          const validChildren = build(n.children, maxL)
           if (validChildren.length > 0) {
             item.children = validChildren
           }
@@ -90,7 +93,9 @@ test('BatchMoveNavNodesDialog handles anti-cycle, max level, and API invocation'
       nodeName: 'A2_MVP',
       nodeLevel: 1,
       maxLevel: 3,
-      children: []
+      children: [
+        { nodeId: 20, nodeName: 'A2_MVP_A1', nodeLevel: 2, children: [] }
+      ]
     }
   ]
 
@@ -102,11 +107,19 @@ test('BatchMoveNavNodesDialog handles anti-cycle, max level, and API invocation'
   assert.equal(options.find(o => o.nodeId === 1).disabled, true)
 
   // A1_MVP_A1 (nodeId: 10) and child MVP_A1 (100) must be excluded entirely
-  assert.equal(options[0].children?.some(c => c.nodeId === 10 || c.nodeId === 100), false)
+  assert.equal(Boolean(options[0].children?.some(c => c.nodeId === 10 || c.nodeId === 100)), false)
 
   // A2_MVP (nodeId: 2) is level 1, maxLevel 3, child subtree depth is 1 (1 + 1 + 1 = 3 <= 3) -> valid and enabled
   const a2Option = options.find(o => o.nodeId === 2)
   assert.equal(a2Option.disabled, false)
+
+  // Level 3 leaf nodes (like MVP_A1) must be completely pruned so redundant 3rd level never appears
+  const movingSingle = [{ nodeId: 999, nodeName: 'SingleCabin', nodeLevel: 2, children: [] }]
+  const singleMoveOptions = filterTargetOptions(sampleTree, movingSingle, null)
+  const mvpNode = singleMoveOptions.find(o => o.nodeId === 1)
+  const mvpA1Option = mvpNode.children.find(c => c.nodeId === 10)
+  // MVP_A1 (level 3) is pruned because nodeLevel >= maxLevel (3 >= 3)
+  assert.equal(mvpA1Option.children, undefined)
 })
 
 test('dashboardNavApi provides batchMoveNodes endpoint', async () => {

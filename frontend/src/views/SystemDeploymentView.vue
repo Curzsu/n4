@@ -279,30 +279,23 @@
               <div class="section-header">
                 <h3>Child Groups <span class="section-count">({{ selectedNode.children?.length || 0 }})</span></h3>
                 <div class="header-actions">
-                  <template v-if="isGroupBatchMoving">
-                    <el-button
-                      v-permission="'device:deploy:group:edit'"
-                      size="small"
-                      class="btn-primary"
-                      :icon="Rank"
-                      :disabled="selectedChildGroups.length === 0"
-                      @click="openBatchMoveDialog"
-                    >
-                      Move<template v-if="selectedChildGroups.length"> ({{ selectedChildGroups.length }})</template>
-                    </el-button>
-                    <el-button size="small" class="btn-secondary" @click="exitGroupBatchMove">Exit Move</el-button>
-                  </template>
-                  <template v-else>
-                    <el-button
-                      v-permission="'device:deploy:group:edit'"
-                      size="small"
-                      class="btn-secondary"
-                      :icon="Rank"
-                      @click="enterGroupBatchMove"
-                    >
-                      Batch Move
-                    </el-button>
-                  </template>
+                  <el-button
+                    v-permission="'device:deploy:group:edit'"
+                    size="small"
+                    class="btn-secondary"
+                    :icon="Rank"
+                    @click="handleBatchMoveButtonClick"
+                  >
+                    Batch Move
+                  </el-button>
+                  <el-button
+                    v-if="isGroupBatchMoving"
+                    size="small"
+                    class="btn-secondary"
+                    @click="exitGroupBatchMove"
+                  >
+                    Exit Move
+                  </el-button>
                   <el-button v-if="canAddChild(selectedNode)" v-permission="'device:deploy:group:add'" size="small" class="btn-primary" :icon="Plus" @click="navNodeDialogRef?.openCreate(selectedNode)">
                     Add Child Group
                   </el-button>
@@ -875,6 +868,18 @@ function handleChildGroupSelectionChange(selection: NavTreeNode[]) {
   selectedChildGroups.value = selection
 }
 
+function handleBatchMoveButtonClick() {
+  if (!isGroupBatchMoving.value) {
+    enterGroupBatchMove()
+    return
+  }
+  if (!selectedChildGroups.value.length) {
+    ElMessage.warning('Please select at least one child group to move')
+    return
+  }
+  openBatchMoveDialog()
+}
+
 function openBatchMoveDialog() {
   if (!selectedChildGroups.value.length) return
   batchMoveDialogRef.value?.open(selectedChildGroups.value, selectedNode.value?.nodeId ?? null)
@@ -1110,6 +1115,7 @@ function canAddChild(node: NavTreeNode): boolean {
 
 watch(selectedNode, async (newNode) => {
   viewMode.value = 'list'
+  exitGroupBatchMove()
   if (newNode && isLeafNode(newNode)) {
     await loadNodeDevices(newNode.nodeId)
   } else {
