@@ -103,6 +103,19 @@ class DashboardNavServiceTest {
     }
 
     @Test
+    void batchMoveNodes_CollectorToRootThrows() {
+        NavNode collector = createNode(100L, 10L, "PTU_A1", 3, null);
+        NavNode targetRoot = createNode(1L, null, "A1_MVP", 1, 3);
+
+        when(navNodeMapper.findByNodeId(1L)).thenReturn(targetRoot);
+        when(navNodeMapper.findByNodeId(100L)).thenReturn(collector);
+
+        assertThatThrownBy(() -> navService.batchMoveNodes(List.of(100L), 1L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Collectors can only be moved to a cabin (level 2)");
+    }
+
+    @Test
     void batchMoveNodes_ExceedMaxLevelThrows() {
         NavNode root = createNode(1L, null, "A1_MVP", 1, 2); // max level is 2
         NavNode collector = createNode(100L, 10L, "PTU_A1", 3, null);

@@ -50,6 +50,7 @@ test('BatchMoveNavNodesDialog handles anti-cycle, max level, and API invocation'
 
   function filterTargetOptions(nodes, movingNodes, currentParentId) {
     const isMovingCabins = movingNodes.length > 0 && movingNodes.every(n => n.nodeLevel === 2)
+    const isMovingCollectors = movingNodes.length > 0 && movingNodes.every(n => n.nodeLevel === 3)
     const movingIds = new Set(movingNodes.map(n => n.nodeId))
 
     if (isMovingCabins) {
@@ -69,6 +70,36 @@ test('BatchMoveNavNodesDialog handles anti-cycle, max level, and API invocation'
       return res
     }
 
+    if (isMovingCollectors) {
+      const res = []
+      for (const rootNode of nodes || []) {
+        if (movingIds.has(rootNode.nodeId)) continue
+        const cabinChildren = []
+        for (const cabin of rootNode.children || []) {
+          if (movingIds.has(cabin.nodeId)) continue
+          if (cabin.nodeLevel === 2) {
+            const isCurrentParent = currentParentId !== null && cabin.nodeId === currentParentId
+            cabinChildren.push({
+              nodeId: cabin.nodeId,
+              nodeName: cabin.nodeName,
+              nodeLevel: cabin.nodeLevel,
+              disabled: isCurrentParent,
+            })
+          }
+        }
+        if (cabinChildren.length > 0) {
+          res.push({
+            nodeId: rootNode.nodeId,
+            nodeName: rootNode.nodeName,
+            nodeLevel: rootNode.nodeLevel,
+            disabled: true,
+            children: cabinChildren,
+          })
+        }
+      }
+      return res
+    }
+
     const maxSubtreeDepth = Math.max(...movingNodes.map(getSubtreeDepth), 0)
 
     const build = (list, parentMaxLevel) => {
@@ -77,22 +108,9 @@ test('BatchMoveNavNodesDialog handles anti-cycle, max level, and API invocation'
         if (movingIds.has(n.nodeId)) continue
         const maxL = n.maxLevel ?? parentMaxLevel ?? 3
         const isCurrentParent = currentParentId !== null && n.nodeId === currentParentId
-        const isLeaf = !n.children || n.children.length === 0
-
-        if (isLeaf) {
-          if (n.nodeLevel > maxL) continue
-          const label = n.deviceCount != null ? `${n.nodeName} (${n.deviceCount})` : n.nodeName
-          res.push({
-            nodeId: n.nodeId,
-            nodeName: label,
-            nodeLevel: n.nodeLevel,
-            disabled: isCurrentParent,
-          })
-          continue
-        }
 
         const canFolderAcceptSubtree = n.nodeLevel + 1 + maxSubtreeDepth <= maxL
-        const validChildren = build(n.children, maxL)
+        const validChildren = n.children && n.children.length > 0 ? build(n.children, maxL) : []
         if (!canFolderAcceptSubtree && validChildren.length === 0) continue
 
         const item = {
@@ -151,13 +169,17 @@ test('BatchMoveNavNodesDialog handles anti-cycle, max level, and API invocation'
   assert.equal(cabinOptions.find(o => o.nodeId === 2).disabled, false) // target root
   assert.equal(cabinOptions[0].children, undefined) // No level 2 or 3 nested targets for cabins
 
-  // Scenario 2: Move Collector (Level 3) - can move to cabin (Level 2) or merge with collector (Level 3)
+  // Scenario 2: Move Collector (Level 3) - target must strictly be Level 2 Cabins, Level 3 is omitted
   const movingCollector = [sampleTree[0].children[0].children[0]] // MVP_A1 (level 3)
   const collectorOptions = filterTargetOptions(sampleTree, movingCollector, 10)
   const mvp1Node = collectorOptions.find(o => o.nodeId === 1)
   assert.ok(mvp1Node.children.length > 0)
-  // Cabin A1_MVP_B1 (nodeId: 11, level 2) is a valid target
-  assert.ok(mvp1Node.children.some(c => c.nodeId === 11 && c.nodeLevel === 2))
+  assert.equal(mvp1Node.disabled, true) // Level 1 is disabled as parent for collectors
+  // Cabin A1_MVP_B1 (nodeId: 11, level 2) is a valid selectable target
+  const cabinB1 = mvp1Node.children.find(c => c.nodeId === 11)
+  assert.equal(cabinB1.disabled, false)
+  // None of the cabins in collectorOptions should have children (Level 3 nodes stripped)
+  assert.equal(mvp1Node.children.some(c => Boolean(c.children && c.children.length > 0)), false)
 })
 
 test('dashboardNavApi provides batchMoveNodes endpoint', async () => {

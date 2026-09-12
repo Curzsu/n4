@@ -100,19 +100,19 @@ const selectedLabel = computed(() => {
 
 const targetParentLabel = computed(() => {
   if (movingNodeType.value === 'cabin') return 'Target Building / System'
-  if (movingNodeType.value === 'collector') return 'Target Cabin / Collector'
+  if (movingNodeType.value === 'collector') return 'Target Cabin'
   return 'Target Parent'
 })
 
 const targetPlaceholder = computed(() => {
   if (movingNodeType.value === 'cabin') return 'Select target building/system (Level 1)'
-  if (movingNodeType.value === 'collector') return 'Select target cabin or collector'
+  if (movingNodeType.value === 'collector') return 'Select target cabin (Level 2)'
   return 'Select target parent group'
 })
 
 const formTip = computed(() => {
   if (movingNodeType.value === 'cabin') return 'Cabins can only be moved to a building/system root node (Level 1)'
-  if (movingNodeType.value === 'collector') return 'Collectors can be moved to a cabin or merged into another collector'
+  if (movingNodeType.value === 'collector') return 'Collectors can only be moved to a cabin (Level 2)'
   return 'Select an eligible group as the new target parent'
 })
 
@@ -129,6 +129,7 @@ const targetCascaderOptions = computed(() => {
   const movingIds = new Set(nodesToMove.value.map(n => n.nodeId))
   const maxSubtreeDepth = Math.max(...nodesToMove.value.map(getSubtreeDepth), 0)
   const isMovingCabins = movingNodeType.value === 'cabin'
+  const isMovingCollectors = movingNodeType.value === 'collector'
 
   // If moving cabins (Level 2), target MUST be a Level 1 root node (Building / System)
   if (isMovingCabins) {
@@ -148,7 +149,38 @@ const targetCascaderOptions = computed(() => {
     return res
   }
 
-  // Otherwise (moving collectors or generic groups):
+  // If moving collectors (Level 3), target MUST be a Level 2 Cabin (Level 3 nodes are completely omitted)
+  if (isMovingCollectors) {
+    const res: any[] = []
+    for (const rootNode of store.navTree || []) {
+      if (movingIds.has(rootNode.nodeId)) continue
+      const cabinChildren: any[] = []
+      for (const cabin of rootNode.children || []) {
+        if (movingIds.has(cabin.nodeId)) continue
+        if (cabin.nodeLevel === 2) {
+          const isCurrentParent = currentParentId.value !== null && cabin.nodeId === currentParentId.value
+          cabinChildren.push({
+            nodeId: cabin.nodeId,
+            nodeName: cabin.nodeName,
+            nodeLevel: cabin.nodeLevel,
+            disabled: isCurrentParent,
+          })
+        }
+      }
+      if (cabinChildren.length > 0) {
+        res.push({
+          nodeId: rootNode.nodeId,
+          nodeName: rootNode.nodeName,
+          nodeLevel: rootNode.nodeLevel,
+          disabled: true,
+          children: cabinChildren,
+        })
+      }
+    }
+    return res
+  }
+
+  // Otherwise (moving generic groups):
   const buildOptions = (nodes: NavTreeNode[], parentMaxLevel?: number): any[] => {
     const res: any[] = []
     for (const n of nodes) {
@@ -159,27 +191,11 @@ const targetCascaderOptions = computed(() => {
 
       const maxL = n.maxLevel ?? parentMaxLevel ?? 3
       const isCurrentParent = currentParentId.value !== null && n.nodeId === currentParentId.value
-      const isLeaf = !n.children || n.children.length === 0
-
-      // Leaf nodes (like MVP_B1 at level 3, or nodes with devices) can accept device merges
-      if (isLeaf) {
-        if (n.nodeLevel > maxL) {
-          continue
-        }
-        const label = n.deviceCount != null ? `${n.nodeName} (${n.deviceCount})` : n.nodeName
-        res.push({
-          nodeId: n.nodeId,
-          nodeName: label,
-          nodeLevel: n.nodeLevel,
-          disabled: isCurrentParent,
-        })
-        continue
-      }
 
       // Non-leaf directory folder node:
       // Check if this folder itself can accept child folders without exceeding maxL
       const canFolderAcceptSubtree = n.nodeLevel + 1 + maxSubtreeDepth <= maxL
-      const validChildren = buildOptions(n.children, maxL)
+      const validChildren = n.children && n.children.length > 0 ? buildOptions(n.children, maxL) : []
 
       // If this folder cannot accept child folders AND has no selectable descendants, prune it
       if (!canFolderAcceptSubtree && validChildren.length === 0) {

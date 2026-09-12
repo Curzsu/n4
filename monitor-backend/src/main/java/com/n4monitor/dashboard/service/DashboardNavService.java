@@ -243,6 +243,10 @@ public class DashboardNavService {
             if (node.getNodeLevel() != null && node.getNodeLevel() == 2 && targetParent.getNodeLevel() != 1) {
                 throw new IllegalArgumentException("Cabins can only be moved to a building or system root node (level 1)");
             }
+            // Collector (level 3) constraint: Collectors cannot be moved directly under a level 1 root node
+            if (node.getNodeLevel() != null && node.getNodeLevel() == 3 && targetParent.getNodeLevel() == 1) {
+                throw new IllegalArgumentException("Collectors can only be moved to a cabin (level 2)");
+            }
         }
 
         int targetParentLevel = targetParent.getNodeLevel();
