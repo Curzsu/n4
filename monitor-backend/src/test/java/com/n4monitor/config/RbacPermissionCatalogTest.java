@@ -51,7 +51,7 @@ class RbacPermissionCatalogTest {
         assertParent(definitions, "sys:permission:add", "sys:permission:list", "Add Permission", null, null);
         assertParent(definitions, "sys:permission:edit", "sys:permission:list", "Edit Permission", null, null);
         assertParent(definitions, "sys:permission:delete", "sys:permission:list", "Delete Permission", null, null);
-        assertParent(definitions, "sys:log:delete", "sys:log:list", "Delete Audit Log", null, null);
+        assertParent(definitions, "sys:log:delete", "sys:log:list", "Delete Logs", null, null);
     }
 
     private static void assertParent(

@@ -38,7 +38,7 @@ system
     Edit Permission          sys:permission:edit
     Delete Permission        sys:permission:delete
   Audit Logs                 sys:log:list
-    Delete Audit Log         sys:log:delete
+    Delete Logs               sys:log:delete
 ```
 
 一级目录使用现有权限命名空间的小写形式，目录节点不绑定不存在的页面组件；实际可访问页面继续使用现有叶子权限编码。`Alarm Configuration`、`Event`、`Role Management`、`Permissions` 和 `Audit Logs` 使用导航及页面中已经存在的名称。

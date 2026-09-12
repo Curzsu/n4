@@ -141,40 +141,42 @@ ON DUPLICATE KEY UPDATE `group_name` = VALUES(`group_name`);
 -- ----------------------------
 -- Seed Data: Permissions Tree
 -- ----------------------------
--- Top-level & Business Menus
 INSERT INTO `sys_permission` (`perm_id`, `perm_name`, `perm_code`, `perm_type`, `parent_id`, `path`, `component`, `icon`, `sort_order`, `status`) VALUES
-(1, 'Dashboard', 'dashboard:view', 1, 0, '/', 'DashboardView', 'Monitor', 1, 1),
-(2, 'Alarms', 'alarm:view', 1, 0, '/alarm', 'AlarmView', 'Bell', 2, 1),
-(3, 'Alarm Config', 'alarm:config:view', 1, 0, '/alarm/config', 'AlarmConfigView', 'Tools', 3, 1),
-(4, 'Alarm History', 'alarm:history:view', 1, 0, '/alarm/history', 'AlarmHistoryView', 'Clock', 4, 1),
-(5, 'Alarm Events', 'alarm:event:view', 1, 0, '/event', 'AlarmEventView', 'List', 5, 1),
-(6, 'Device Template', 'device:template:view', 1, 0, '/device-template', 'device-deploy/ProductManagerView', 'Coin', 6, 1),
-(7, 'Device Deployment', 'device:deploy:view', 1, 0, '/device-deployment', 'SystemDeploymentView', 'SetUp', 7, 1),
-
--- System Management Root Menu
-(10, 'System Management', 'system:manage', 1, 0, '/system', NULL, 'Setting', 90, 1),
-
--- User Management
+(24, 'dashboard', 'dashboard', 1, 0, NULL, NULL, 'Monitor', 1, 1),
+(1, 'Dashboard', 'dashboard:view', 1, 24, '/', 'DashboardView', 'Monitor', 1, 1),
+(25, 'alarm', 'alarm', 1, 0, NULL, NULL, 'Bell', 2, 1),
+(2, 'Alarms', 'alarm:view', 1, 25, '/alarm', 'AlarmView', 'Bell', 1, 1),
+(3, 'Alarm Configuration', 'alarm:config:view', 1, 25, '/alarm/config', 'AlarmConfigView', 'Tools', 2, 1),
+(4, 'Alarm History', 'alarm:history:view', 1, 25, '/alarm/history', 'AlarmHistoryView', 'Clock', 3, 1),
+(5, 'Event', 'alarm:event:view', 1, 25, '/event', 'AlarmEventView', 'List', 4, 1),
+(26, 'device', 'device', 1, 0, NULL, NULL, 'SetUp', 3, 1),
+(6, 'Device Template', 'device:template:view', 1, 26, '/device-template', 'device-deploy/ProductManagerView', 'Coin', 1, 1),
+(7, 'Device Deployment', 'device:deploy:view', 1, 26, '/device-deployment', 'SystemDeploymentView', 'SetUp', 2, 1),
+(10, 'system', 'system', 1, 0, NULL, NULL, 'Setting', 4, 1),
 (11, 'User Management', 'sys:user:list', 1, 10, '/system/users', 'system/UserManagementView', 'User', 1, 1),
 (12, 'Add User', 'sys:user:add', 2, 11, NULL, NULL, NULL, 1, 1),
 (13, 'Edit User', 'sys:user:edit', 2, 11, NULL, NULL, NULL, 2, 1),
 (14, 'Delete User', 'sys:user:delete', 2, 11, NULL, NULL, NULL, 3, 1),
-
--- Group / Role Management
-(15, 'Group Management', 'sys:group:list', 1, 10, '/system/groups', 'system/GroupManagementView', 'UserFilled', 2, 1),
-(16, 'Add Group', 'sys:group:add', 2, 15, NULL, NULL, NULL, 1, 1),
-(17, 'Edit Group', 'sys:group:edit', 2, 15, NULL, NULL, NULL, 2, 1),
-(18, 'Delete Group', 'sys:group:delete', 2, 15, NULL, NULL, NULL, 3, 1),
-
--- Permission Resource Management
-(19, 'Permission Management', 'sys:permission:list', 1, 10, '/system/permissions', 'system/PermissionManagementView', 'Lock', 3, 1),
+(15, 'Role Management', 'sys:group:list', 1, 10, '/system/groups', 'system/GroupManagementView', 'UserFilled', 2, 1),
+(16, 'Add Role', 'sys:group:add', 2, 15, NULL, NULL, NULL, 1, 1),
+(17, 'Edit Role', 'sys:group:edit', 2, 15, NULL, NULL, NULL, 2, 1),
+(18, 'Delete Role', 'sys:group:delete', 2, 15, NULL, NULL, NULL, 3, 1),
+(19, 'Permissions', 'sys:permission:list', 1, 10, '/system/permissions', 'system/PermissionManagementView', 'Lock', 3, 1),
 (20, 'Add Permission', 'sys:permission:add', 2, 19, NULL, NULL, NULL, 1, 1),
 (21, 'Edit Permission', 'sys:permission:edit', 2, 19, NULL, NULL, NULL, 2, 1),
 (22, 'Delete Permission', 'sys:permission:delete', 2, 19, NULL, NULL, NULL, 3, 1),
-
--- Operation Logs
-(23, 'Operation Logs', 'sys:log:list', 1, 10, '/logs', 'LogView', 'Document', 4, 1)
-ON DUPLICATE KEY UPDATE `perm_name` = VALUES(`perm_name`);
+(23, 'Audit Logs', 'sys:log:list', 1, 10, '/logs', 'LogView', 'Document', 4, 1),
+(27, 'Delete Logs', 'sys:log:delete', 2, 23, NULL, NULL, NULL, 1, 1)
+ON DUPLICATE KEY UPDATE
+  `perm_name` = VALUES(`perm_name`),
+  `perm_type` = VALUES(`perm_type`),
+  `parent_id` = VALUES(`parent_id`),
+  `path` = VALUES(`path`),
+  `component` = VALUES(`component`),
+  `icon` = VALUES(`icon`),
+  `sort_order` = VALUES(`sort_order`),
+  `status` = VALUES(`status`),
+  `is_deleted` = 0;
 
 -- ----------------------------
 -- Seed Data: Super Admin Group Permission Mapping (All permissions)
@@ -187,14 +189,23 @@ ON DUPLICATE KEY UPDATE `group_id` = VALUES(`group_id`);
 -- Seed Data: Operator Group Permission Mapping (Dashboard, Alarms, Deployments)
 -- ----------------------------
 INSERT INTO `sys_group_permission` (`group_id`, `perm_id`)
-SELECT 2, `perm_id` FROM `sys_permission` WHERE `perm_id` IN (1, 2, 3, 4, 5, 6, 7)
+SELECT 2, `perm_id` FROM `sys_permission`
+WHERE `perm_code` IN (
+  'dashboard', 'dashboard:view',
+  'alarm', 'alarm:view', 'alarm:config:view', 'alarm:history:view', 'alarm:event:view',
+  'device', 'device:template:view', 'device:deploy:view'
+)
 ON DUPLICATE KEY UPDATE `group_id` = VALUES(`group_id`);
 
 -- ----------------------------
 -- Seed Data: Viewer Group Permission Mapping (Dashboard, Alarms, History, Events)
 -- ----------------------------
 INSERT INTO `sys_group_permission` (`group_id`, `perm_id`)
-SELECT 3, `perm_id` FROM `sys_permission` WHERE `perm_id` IN (1, 2, 4, 5)
+SELECT 3, `perm_id` FROM `sys_permission`
+WHERE `perm_code` IN (
+  'dashboard', 'dashboard:view',
+  'alarm', 'alarm:view', 'alarm:history:view', 'alarm:event:view'
+)
 ON DUPLICATE KEY UPDATE `group_id` = VALUES(`group_id`);
 
 -- ----------------------------

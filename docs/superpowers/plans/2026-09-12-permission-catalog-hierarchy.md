@@ -74,7 +74,7 @@ class RbacPermissionCatalogTest {
         assertParent(definitions, "sys:permission:add", "sys:permission:list", "Add Permission", null, null);
         assertParent(definitions, "sys:permission:edit", "sys:permission:list", "Edit Permission", null, null);
         assertParent(definitions, "sys:permission:delete", "sys:permission:list", "Delete Permission", null, null);
-        assertParent(definitions, "sys:log:delete", "sys:log:list", "Delete Audit Log", null, null);
+        assertParent(definitions, "sys:log:delete", "sys:log:list", "Delete Logs", null, null);
     }
 
     private static void assertParent(
@@ -157,7 +157,7 @@ public final class RbacPermissionCatalog {
             button("sys:permission:edit", "Edit Permission", "sys:permission:list", 2),
             button("sys:permission:delete", "Delete Permission", "sys:permission:list", 3),
             menu("sys:log:list", "Audit Logs", "system", "/logs", "LogView", "Document", 4),
-            button("sys:log:delete", "Delete Audit Log", "sys:log:list", 1)
+            button("sys:log:delete", "Delete Logs", "sys:log:list", 1)
     );
 
     private RbacPermissionCatalog() {
@@ -342,7 +342,7 @@ INSERT INTO `sys_permission` (`perm_id`, `perm_name`, `perm_code`, `perm_type`, 
 (21, 'Edit Permission', 'sys:permission:edit', 2, 19, NULL, NULL, NULL, 2, 1),
 (22, 'Delete Permission', 'sys:permission:delete', 2, 19, NULL, NULL, NULL, 3, 1),
 (23, 'Audit Logs', 'sys:log:list', 1, 10, '/logs', 'LogView', 'Document', 4, 1),
-(27, 'Delete Audit Log', 'sys:log:delete', 2, 23, NULL, NULL, NULL, 1, 1)
+(27, 'Delete Logs', 'sys:log:delete', 2, 23, NULL, NULL, NULL, 1, 1)
 ON DUPLICATE KEY UPDATE
   `perm_name` = VALUES(`perm_name`),
   `perm_type` = VALUES(`perm_type`),

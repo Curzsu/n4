@@ -34,7 +34,7 @@ public final class RbacPermissionCatalog {
             button("sys:permission:edit", "Edit Permission", "sys:permission:list", 2),
             button("sys:permission:delete", "Delete Permission", "sys:permission:list", 3),
             menu("sys:log:list", "Audit Logs", "system", "/logs", "LogView", "Document", 4),
-            button("sys:log:delete", "Delete Audit Log", "sys:log:list", 1)
+            button("sys:log:delete", "Delete Logs", "sys:log:list", 1)
     );
 
     private RbacPermissionCatalog() {
