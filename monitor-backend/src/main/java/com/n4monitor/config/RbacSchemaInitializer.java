@@ -106,6 +106,8 @@ public class RbacSchemaInitializer implements ApplicationRunner {
             permissionIds.put(definition.code(), permissionId);
         }
 
+        retireObsoleteCatalogNodes();
+
         jdbcTemplate.update("""
                 INSERT IGNORE INTO sys_group_permission (group_id, perm_id)
                 SELECT group_record.group_id, permission_record.perm_id
@@ -134,6 +136,14 @@ public class RbacSchemaInitializer implements ApplicationRunner {
 
         log.info("Canonical RBAC permission catalog synchronized: {} definitions.",
                 RbacPermissionCatalog.definitions().size());
+    }
+
+    private void retireObsoleteCatalogNodes() {
+        jdbcTemplate.update("""
+                UPDATE sys_permission
+                SET status = 0, is_deleted = 1
+                WHERE perm_code IN ('dashboard', 'device')
+                """);
     }
 
     private Long findPermissionId(String code) {
