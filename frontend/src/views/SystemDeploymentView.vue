@@ -11,9 +11,9 @@
               <span>Deployed Device Details - {{ deviceForm.deviceDeployName }}</span>
             </div>
             <div class="header-actions">
-              <el-button size="small" class="btn-secondary" :icon="Warning" @click="openDeviceAlarmConfig">Set Device Alarm</el-button>
-              <el-button size="small" class="btn-secondary" :icon="Edit" @click="openEditDeviceDialog">Edit Device</el-button>
-              <el-button size="small" class="btn-danger" :icon="Delete" @click="deleteDeviceFromDetail">Delete Device</el-button>
+              <el-button v-permission="'device:deploy:alarm:edit'" size="small" class="btn-secondary" :icon="Warning" @click="openDeviceAlarmConfig">Set Device Alarm</el-button>
+              <el-button v-permission="'device:deploy:edit'" size="small" class="btn-secondary" :icon="Edit" @click="openEditDeviceDialog">Edit Device</el-button>
+              <el-button v-permission="'device:deploy:delete'" size="small" class="btn-danger" :icon="Delete" @click="deleteDeviceFromDetail">Delete Device</el-button>
               <el-button size="small" class="btn-secondary btn-back" @click="goBackToList">Back to List</el-button>
             </div>
           </header>
@@ -130,11 +130,11 @@
               <span>{{ selectedNode.nodeName }}</span>
             </div>
             <div class="header-actions">
-              <el-button size="small" class="btn-primary" :icon="Plus" v-if="canAddChild(selectedNode)" @click="navNodeDialogRef?.openCreate(selectedNode)">Add Child</el-button>
-              <el-button size="small" class="btn-secondary" :icon="EditPen" @click="navNodeDialogRef?.openEdit(selectedNode)">Edit</el-button>
-              <el-button size="small" class="btn-danger" :icon="Delete" @click="navNodeDialogRef?.confirmDelete(selectedNode)">Delete</el-button>
-              <el-button size="small" class="btn-secondary" :icon="Download" @click="openDeploymentImportDialog">Import</el-button>
-              <el-button size="small" class="btn-secondary" :icon="Upload" @click="exportDeploymentSnapshot">Export</el-button>
+              <el-button v-if="canAddChild(selectedNode)" v-permission="'device:deploy:group:add'" size="small" class="btn-primary" :icon="Plus" @click="navNodeDialogRef?.openCreate(selectedNode)">Add Child</el-button>
+              <el-button v-permission="'device:deploy:group:edit'" size="small" class="btn-secondary" :icon="EditPen" @click="navNodeDialogRef?.openEdit(selectedNode)">Edit</el-button>
+              <el-button v-permission="'device:deploy:group:delete'" size="small" class="btn-danger" :icon="Delete" @click="navNodeDialogRef?.confirmDelete(selectedNode)">Delete</el-button>
+              <el-button v-permission="'device:deploy:import'" size="small" class="btn-secondary" :icon="Download" @click="openDeploymentImportDialog">Import</el-button>
+              <el-button v-permission="'device:deploy:export'" size="small" class="btn-secondary" :icon="Upload" @click="exportDeploymentSnapshot">Export</el-button>
             </div>
           </header>
 
@@ -186,6 +186,7 @@
                 <div class="header-actions">
                   <template v-if="isBatchManaging">
                     <el-button
+                      v-permission="'device:deploy:delete'"
                       type="danger"
                       size="small"
                       class="btn-danger"
@@ -198,14 +199,14 @@
                     <el-button size="small" class="btn-secondary" @click="exitBatchManage">Exit Manage</el-button>
                   </template>
                   <template v-else>
-                    <el-button size="small" class="btn-secondary" :icon="Edit" @click="enterBatchManage">
+                    <el-button v-permission="'device:deploy:delete'" size="small" class="btn-secondary" :icon="Edit" @click="enterBatchManage">
                       Batch Manage
                     </el-button>
                   </template>
-                  <el-button size="small" class="btn-primary" :icon="Plus" @click="openDeployDialog">
+                  <el-button v-permission="'device:deploy:add'" size="small" class="btn-primary" :icon="Plus" @click="openDeployDialog">
                     Deploy Device
                   </el-button>
-                  <el-button size="small" class="btn-secondary" :icon="Link" @click="openMountDialog">
+                  <el-button v-permission="'device:deploy:mount'" size="small" class="btn-secondary" :icon="Link" @click="openMountDialog">
                     Mount Device
                   </el-button>
                 </div>
@@ -257,9 +258,9 @@
                 </el-table-column>
                 <el-table-column label="Actions" width="160" align="center" header-align="center" fixed="right" :resizable="false">
                   <template #default="{ row }">
-                    <el-button type="primary" link size="small" @click="viewDeviceDetail(row as DeviceDeployment)">Edit</el-button>
-                    <el-button type="primary" link size="small" @click="handleUnmount(row as DeviceDeployment)">Unmount</el-button>
-                    <el-button type="danger" link size="small" @click="deleteDeviceFromTable(row as DeviceDeployment)">Delete</el-button>
+                    <el-button v-permission="'device:deploy:edit'" type="primary" link size="small" @click="viewDeviceDetail(row as DeviceDeployment)">Edit</el-button>
+                    <el-button v-permission="'device:deploy:unmount'" type="primary" link size="small" @click="handleUnmount(row as DeviceDeployment)">Unmount</el-button>
+                    <el-button v-permission="'device:deploy:delete'" type="danger" link size="small" @click="deleteDeviceFromTable(row as DeviceDeployment)">Delete</el-button>
                   </template>
                 </el-table-column>
                 <template #empty>
@@ -273,7 +274,7 @@
               <div class="section-header">
                 <h3>Child Groups <span class="section-count">({{ selectedNode.children?.length || 0 }})</span></h3>
                 <div class="header-actions" v-if="canAddChild(selectedNode)">
-                  <el-button size="small" class="btn-primary" :icon="Plus" @click="navNodeDialogRef?.openCreate(selectedNode)">
+                  <el-button v-permission="'device:deploy:group:add'" size="small" class="btn-primary" :icon="Plus" @click="navNodeDialogRef?.openCreate(selectedNode)">
                     Add Child Group
                   </el-button>
                 </div>
@@ -293,7 +294,7 @@
 
       <div v-else class="empty-selection-container">
         <el-empty description="Please select a navigation node from the left tree" :image-size="100" class="select-prompt">
-          <el-button type="primary" class="btn-primary" :icon="Plus" @click="navNodeDialogRef?.openCreate(null)">
+          <el-button v-permission="'device:deploy:group:add'" type="primary" class="btn-primary" :icon="Plus" @click="navNodeDialogRef?.openCreate(null)">
             Add Root Node
           </el-button>
         </el-empty>
@@ -356,39 +357,68 @@
         </span>
       </div>
       <div v-if="deploymentImportResult" class="transfer-result" style="margin-top: 20px;">
-        <!-- Summary Statistics Table -->
-        <div style="font-size: 13px; font-weight: 600; color: #cbd5e1; margin-bottom: 8px;">
-          Summary Statistics
+        <!-- Summary Statistics table (narrowed) + navigation change tree -->
+        <div class="import-preview-layout">
+          <div class="import-summary-panel">
+            <div class="import-section-title">
+              Summary Statistics
+            </div>
+            <el-table
+              :data="deploymentSummaryTableData"
+              class="custom-table"
+              border
+              size="small"
+              :header-cell-style="headerCellStyle"
+              :cell-style="cellStyle"
+            >
+              <el-table-column prop="category" label="Category" min-width="110" align="left" header-align="center" />
+              <el-table-column prop="created" label="New (To Create)" min-width="78" align="center" header-align="center">
+                <template #default="{ row }">
+                  <el-tag v-if="row.created !== null" size="small" type="success" effect="dark">+{{ row.created }}</el-tag>
+                  <span v-else style="color: #64748b;">-</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="reused" label="Reused (Existing)" min-width="78" align="center" header-align="center">
+                <template #default="{ row }">
+                  <el-tag v-if="row.reused !== null" size="small" type="info" effect="dark">{{ row.reused }}</el-tag>
+                  <span v-else style="color: #64748b;">-</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="details" label="Details / Total" min-width="100" show-overflow-tooltip align="left" header-align="center" />
+              <el-table-column prop="statusText" label="Status" width="72" align="center" header-align="center">
+                <template #default="{ row }">
+                  <el-tag size="small" :type="row.statusType" effect="plain">{{ row.statusText }}</el-tag>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+
+          <!-- Simulated sidebar tree, limited to branches touched by this import -->
+          <div v-if="deploymentNavChangeRows.length" class="import-nav-tree-panel">
+            <div class="import-section-title">
+              Navigation Tree Preview
+            </div>
+            <div class="nav-preview-tree">
+              <div
+                v-for="row in deploymentNavChangeRows"
+                :key="row.key"
+                class="nav-preview-row"
+                :class="{ 'is-context': row.isContext }"
+                :style="{ paddingLeft: row.depth * 14 + 2 + 'px' }"
+              >
+                <el-icon class="nav-row-icon">
+                  <FolderOpened v-if="row.depth === 0" />
+                  <Grid v-else-if="row.depth === 1" />
+                  <Box v-else />
+                </el-icon>
+                <span class="nav-row-name">{{ row.name }}</span>
+                <span v-if="row.existingDeviceCount !== null" class="nav-row-count">({{ row.existingDeviceCount }})</span>
+                <span v-if="row.isNewGroup" class="nav-tree-badge">+1</span>
+                <span v-if="row.newDeviceCount > 0" class="nav-tree-badge">+{{ row.newDeviceCount }}</span>
+              </div>
+            </div>
+          </div>
         </div>
-        <el-table
-          :data="deploymentSummaryTableData"
-          class="custom-table"
-          border
-          size="small"
-          :header-cell-style="headerCellStyle"
-          :cell-style="cellStyle"
-          style="margin-bottom: 16px;"
-        >
-          <el-table-column prop="category" label="Category" min-width="160" align="left" header-align="center" />
-          <el-table-column prop="created" label="New (To Create)" min-width="120" align="center" header-align="center">
-            <template #default="{ row }">
-              <el-tag v-if="row.created !== null" size="small" type="success" effect="dark">+{{ row.created }}</el-tag>
-              <span v-else style="color: #64748b;">-</span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="reused" label="Reused (Existing)" min-width="120" align="center" header-align="center">
-            <template #default="{ row }">
-              <el-tag v-if="row.reused !== null" size="small" type="info" effect="dark">{{ row.reused }}</el-tag>
-              <span v-else style="color: #64748b;">-</span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="details" label="Details / Total" min-width="200" show-overflow-tooltip align="left" header-align="center" />
-          <el-table-column prop="statusText" label="Status" width="100" align="center" header-align="center">
-            <template #default="{ row }">
-              <el-tag size="small" :type="row.statusType" effect="plain">{{ row.statusText }}</el-tag>
-            </template>
-          </el-table-column>
-        </el-table>
 
         <!-- Parsed Device Deployments Table -->
         <div v-if="deploymentImportResult.deploymentPreviews?.length" style="margin-bottom: 16px;">
@@ -820,7 +850,7 @@ const deploymentSummaryTableData = computed<DeploymentSummaryRow[]>(() => {
   const list: DeploymentSummaryRow[] = [
     {
       // Navigation groups: exposes new navigation group counts and names for preview
-      category: 'Navigation Groups',
+      category: 'Navigation',
       created: res.navigationGroupCreated,
       reused: null,
       details: res.navigationGroupNames?.length ? res.navigationGroupNames.join(', ') : 'No new groups',
@@ -828,7 +858,7 @@ const deploymentSummaryTableData = computed<DeploymentSummaryRow[]>(() => {
       statusType: res.valid ? 'success' : 'danger',
     },
     {
-      category: 'Device Deployments',
+      category: 'Device',
       created: res.deviceDeploymentCreated,
       reused: res.deviceDeploymentReused,
       details: `Total: ${res.deviceDeploymentCreated + res.deviceDeploymentReused}`,
@@ -836,7 +866,7 @@ const deploymentSummaryTableData = computed<DeploymentSummaryRow[]>(() => {
       statusType: res.valid ? 'success' : 'danger',
     },
     {
-      category: 'Point Deployments',
+      category: 'Point',
       created: res.pointDeploymentCreated,
       reused: res.pointDeploymentReused,
       details: `Total: ${res.pointDeploymentCreated + res.pointDeploymentReused}`,
@@ -871,6 +901,145 @@ const deploymentSummaryTableData = computed<DeploymentSummaryRow[]>(() => {
     })
   }
   return list
+})
+
+// =====================================================================
+//  Navigation change tree (import preview)
+// =====================================================================
+interface NavPreviewRow {
+  key: string
+  name: string
+  depth: number
+  /** Existing ancestor above the imported branch, rendered for context only */
+  isContext: boolean
+  /** First group of this branch that does not exist yet (green +1 badge) */
+  isNewGroup: boolean
+  /** Devices created by this import under this leaf group */
+  newDeviceCount: number
+  /** Current device count of an existing leaf group; null when new or unknown */
+  existingDeviceCount: number | null
+}
+
+interface NavBranchNode {
+  name: string
+  children: Map<string, NavBranchNode>
+  newDeviceCount: number
+}
+
+interface NavAnchor {
+  node: NavTreeNode
+  ancestorNames: string[]
+}
+
+/** Depth-first search for the first existing node with the given name. */
+function findNavNodeByName(name: string): NavAnchor | null {
+  const search = (nodes: NavTreeNode[], ancestors: string[]): NavAnchor | null => {
+    for (const node of nodes) {
+      if (node.nodeName === name) return { node, ancestorNames: ancestors }
+      const found = search(node.children || [], [...ancestors, node.nodeName])
+      if (found) return found
+    }
+    return null
+  }
+  return search(store.navTree || [], [])
+}
+
+/**
+ * Mirrors the backend prefix rule: when no node carries the branch name, the
+ * import attaches the whole chain under the longest level-1 root whose name
+ * prefixes the branch name (e.g. "A1_MVP_D1" hangs under root "A1_MVP").
+ */
+function findNavPrefixRoot(branchName: string): NavAnchor | null {
+  let best: NavAnchor | null = null
+  for (const root of store.navTree || []) {
+    if (root.nodeLevel === 1 && branchName.startsWith(`${root.nodeName}_`)) {
+      if (!best || root.nodeName.length > best.node.nodeName.length) {
+        best = { node: root, ancestorNames: [] }
+      }
+    }
+  }
+  return best
+}
+
+/**
+ * Simulated sidebar tree limited to the branches touched by this import.
+ * Rows keep the sidebar look: ancestor context, per-level icons, existing
+ * device counts, and green +N badges for new groups / new devices.
+ */
+const deploymentNavChangeRows = computed<NavPreviewRow[]>(() => {
+  const res = deploymentImportResult.value
+  if (!res?.deploymentPreviews?.length) return []
+
+  // Build a nested tree from each preview's system path (e.g. "A1_MVP_D1/MVP_D1").
+  const branches = new Map<string, NavBranchNode>()
+  for (const preview of res.deploymentPreviews) {
+    const segments = (preview.systemName || '')
+      .split('/')
+      .map(segment => segment.trim())
+      .filter(Boolean)
+    if (!segments.length) continue
+    if (!branches.has(segments[0])) {
+      branches.set(segments[0], { name: segments[0], children: new Map(), newDeviceCount: 0 })
+    }
+    let current = branches.get(segments[0])!
+    for (let i = 1; i < segments.length; i++) {
+      const name = segments[i]
+      if (!current.children.has(name)) {
+        current.children.set(name, { name, children: new Map(), newDeviceCount: 0 })
+      }
+      current = current.children.get(name)!
+    }
+    if (preview.action === 'CREATE') current.newDeviceCount += 1
+  }
+
+  // The backend reports one new group per affected root name, so only the
+  // shallowest missing node of a branch carries the +1 badge.
+  const newGroupRoots = new Set(res.navigationGroupNames || [])
+  const rows: NavPreviewRow[] = []
+
+  for (const branch of branches.values()) {
+    const namedAnchor = findNavNodeByName(branch.name)
+    const prefixRoot = namedAnchor ? null : findNavPrefixRoot(branch.name)
+    const contextNames = namedAnchor?.ancestorNames ?? (prefixRoot ? [prefixRoot.node.nodeName] : [])
+
+    contextNames.forEach((name, index) => {
+      rows.push({
+        key: `context-${rows.length}-${name}`,
+        name,
+        depth: index,
+        isContext: true,
+        isNewGroup: false,
+        newDeviceCount: 0,
+        existingDeviceCount: null,
+      })
+    })
+
+    let badgePlaced = false
+    const walk = (node: NavBranchNode, depth: number, existing: NavTreeNode | null) => {
+      const existingChild = depth === 0
+        ? existing
+        : (existing?.children || []).find(child => child.nodeName === node.name) ?? null
+      const placeBadge = !badgePlaced && !existingChild && newGroupRoots.has(branch.name)
+      if (placeBadge) badgePlaced = true
+      rows.push({
+        key: `node-${rows.length}-${node.name}`,
+        name: node.name,
+        depth: contextNames.length + depth,
+        isContext: false,
+        isNewGroup: placeBadge,
+        newDeviceCount: node.newDeviceCount,
+        existingDeviceCount: node.children.size === 0 && existingChild?.deviceCount != null
+          ? existingChild.deviceCount
+          : null,
+      })
+      for (const child of node.children.values()) {
+        walk(child, depth + 1, existingChild)
+      }
+    }
+    walk(branch, 0, namedAnchor?.node ?? null)
+  }
+
+  return rows
 })
 // Declared before the selectedNode watcher below: the watcher runs with
 // { immediate: true } during setup, so it must not touch a variable that is
@@ -2413,6 +2582,96 @@ $bg-dark: #0b1119;
 .deployment-folder-summary {
   color: #94a3b8;
   font-size: 12px;
+}
+
+// ---- Import preview: summary table (left) + navigation tree (right) ----
+.import-preview-layout {
+  display: flex;
+  gap: 14px;
+  align-items: stretch;
+  margin-bottom: 16px;
+}
+
+.import-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #cbd5e1;
+  margin-bottom: 8px;
+}
+
+.import-summary-panel {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.import-nav-tree-panel {
+  flex: 0 0 320px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.nav-preview-tree {
+  flex: 1;
+  min-height: 140px;
+  max-height: 230px;
+  overflow: auto;
+  border: 1px solid $border-color;
+  border-radius: 6px;
+  background-color: $bg-card;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nav-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  line-height: 18px;
+  color: $text-primary;
+  min-width: 0;
+
+  &.is-context {
+    color: $text-muted;
+  }
+}
+
+.nav-row-icon {
+  font-size: 12px;
+  color: $text-muted;
+  flex-shrink: 0;
+
+  .is-context & {
+    color: rgba(107, 114, 128, 0.7);
+  }
+}
+
+.nav-row-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-row-count {
+  color: $text-secondary;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.nav-tree-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  line-height: 15px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #4ade80;
+  background-color: rgba($accent-green, 0.16);
 }
 
 :deep(.el-dialog) {
