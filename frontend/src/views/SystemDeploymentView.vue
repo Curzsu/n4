@@ -280,6 +280,14 @@
                 <h3>Child Groups <span class="section-count">({{ selectedNode.children?.length || 0 }})</span></h3>
                 <div class="header-actions">
                   <el-button
+                    v-if="isGroupBatchMoving"
+                    size="small"
+                    class="btn-secondary"
+                    @click="exitGroupBatchMove"
+                  >
+                    Exit Move
+                  </el-button>
+                  <el-button
                     v-permission="'device:deploy:group:edit'"
                     size="small"
                     class="btn-secondary"
@@ -287,14 +295,6 @@
                     @click="handleBatchMoveButtonClick"
                   >
                     Batch Move
-                  </el-button>
-                  <el-button
-                    v-if="isGroupBatchMoving"
-                    size="small"
-                    class="btn-secondary"
-                    @click="exitGroupBatchMove"
-                  >
-                    Exit Move
                   </el-button>
                   <el-button v-if="canAddChild(selectedNode)" v-permission="'device:deploy:group:add'" size="small" class="btn-primary" :icon="Plus" @click="navNodeDialogRef?.openCreate(selectedNode)">
                     Add Child Group

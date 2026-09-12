@@ -10,6 +10,7 @@ test('SystemDeploymentView includes Child Groups selection and Batch Move integr
   // Check template elements
   assert.ok(source.includes('Batch Move'), 'Must include Batch Move button in Child Groups header')
   assert.ok(source.includes('Exit Move'), 'Must include Exit Move button next to Batch Move')
+  assert.ok(source.indexOf('Exit Move') < source.indexOf('Batch Move'), 'Exit Move button must appear on the left of Batch Move')
   assert.ok(source.includes("v-permission=\"'device:deploy:group:edit'\""), 'Batch Move button must require group:edit permission')
   assert.ok(source.includes('v-if="isGroupBatchMoving" type="selection"'), 'Child Groups table must show selection column only during batch move mode')
   assert.ok(source.includes('@selection-change="handleChildGroupSelectionChange"'), 'Must bind selection change handler')
