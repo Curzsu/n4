@@ -492,7 +492,7 @@
             Download CSV Template
           </el-button>
           <div>
-            <el-button class="btn-secondary" @click="closeDeploymentImportDialog">Close</el-button>
+            <el-button class="btn-secondary" @click="closeDeploymentImportDialog">Cancel</el-button>
             <el-button
               class="btn-secondary"
               :loading="deploymentImportLoading"
@@ -1465,7 +1465,27 @@ async function refreshAfterChange() {
   }
 }
 
+let deploymentPreviewTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearDeploymentPreviewTimer() {
+  if (deploymentPreviewTimer) {
+    clearTimeout(deploymentPreviewTimer)
+    deploymentPreviewTimer = null
+  }
+}
+
+function scheduleDeploymentPreview(delayMs = 120) {
+  clearDeploymentPreviewTimer()
+  deploymentPreviewTimer = setTimeout(() => {
+    deploymentPreviewTimer = null
+    if (deploymentImportFiles.value.length && deploymentImportDialogVisible.value) {
+      void previewDeploymentImport()
+    }
+  }, delayMs)
+}
+
 function openDeploymentImportDialog() {
+  clearDeploymentPreviewTimer()
   deploymentUploadRef.value?.clearFiles()
   resetDeploymentFolderSelection()
   deploymentImportFiles.value = []
@@ -1576,6 +1596,7 @@ async function deduplicateDeploymentFiles(files: File[]): Promise<File[]> {
 }
 
 function applyDeploymentFolderSelection(csvFiles: File[], folderName: string, duplicateCount = 0) {
+  clearDeploymentPreviewTimer()
   deploymentUploadRef.value?.clearFiles()
   deploymentImportFiles.value = csvFiles
   deploymentImportResult.value = null
@@ -1585,7 +1606,10 @@ function applyDeploymentFolderSelection(csvFiles: File[], folderName: string, du
 
   if (!csvFiles.length) {
     ElMessage.warning('No CSV files found in the selected folder')
+    return
   }
+
+  scheduleDeploymentPreview()
 }
 
 async function handleDeploymentDirectoryDrop(directories: FileSystemDirectoryEntry[]) {
@@ -1619,13 +1643,21 @@ function handleDeploymentFileChange(_uploadFile: any, uploadFiles: any[]) {
     .filter(isSupportedDeploymentFile)
   resetDeploymentFolderSelection()
   deploymentImportResult.value = null
+
+  if (deploymentImportFiles.value.length) {
+    scheduleDeploymentPreview()
+  } else {
+    clearDeploymentPreviewTimer()
+  }
 }
 
 function handleDeploymentFileRemove(_uploadFile: any, uploadFiles: any[]) {
+  clearDeploymentPreviewTimer()
   handleDeploymentFileChange(_uploadFile, uploadFiles)
 }
 
 async function previewDeploymentImport() {
+  clearDeploymentPreviewTimer()
   if (!deploymentImportFiles.value.length) return
   deploymentImportLoading.value = true
   try {
@@ -1659,6 +1691,7 @@ async function confirmDeploymentImport() {
 }
 
 function closeDeploymentImportDialog() {
+  clearDeploymentPreviewTimer()
   deploymentImportDialogVisible.value = false
   deploymentUploadRef.value?.clearFiles()
   resetDeploymentFolderSelection()
