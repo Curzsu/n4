@@ -86,7 +86,7 @@
     <template #footer>
       <div class="dialog-footer">
         <el-button class="btn-secondary" size="small" @click="dialogVisible = false">Cancel</el-button>
-        <el-button type="primary" class="btn-primary" size="small" :loading="saving" :icon="Check" @click="handleSave">
+        <el-button v-permission="'device:template:point:edit'" type="primary" class="btn-primary" size="small" :loading="saving" :icon="Check" @click="handleSave">
           Save Configuration
         </el-button>
       </div>

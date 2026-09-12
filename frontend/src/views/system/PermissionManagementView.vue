@@ -32,7 +32,7 @@
           <template #default="{ row }">
             <span class="tree-perm-name">
               <span class="permission-order">{{ row.displayOrder }}</span>
-              <el-icon v-if="row.icon" class="perm-icon"><component :is="row.icon" v-if="isValidIcon(row.icon)" /><Lock v-else /></el-icon>
+              <el-icon v-if="isValidIcon(row.icon)" class="perm-icon"><component :is="row.icon" /></el-icon>
               <span>{{ row.permName }}</span>
             </span>
           </template>
@@ -152,12 +152,52 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Refresh, Lock, Setting, User, Bell, Monitor, Clock, List, Coin, SetUp, Document, Tools } from '@element-plus/icons-vue'
+import {
+  Bell,
+  Clock,
+  Coin,
+  Cpu,
+  Document,
+  EditPen,
+  Key,
+  List,
+  Lock,
+  Monitor,
+  Operation,
+  Plus,
+  Refresh,
+  Setting,
+  SetUp,
+  SwitchButton,
+  Tickets,
+  Tools,
+  TrendCharts,
+  User,
+} from '@element-plus/icons-vue'
 import { permissionApi } from '@/api/permission'
 import type { PermissionForm, PermissionNode } from '@/api/types'
 import { buildPermissionTreeView, type PermissionViewNode } from '@/utils/permissionTree'
 
-const knownIcons = { Lock, Setting, User, Bell, Monitor, Clock, List, Coin, SetUp, Document, Tools }
+const knownIcons = {
+  Bell,
+  Clock,
+  Coin,
+  Cpu,
+  Document,
+  EditPen,
+  Key,
+  List,
+  Lock,
+  Monitor,
+  Operation,
+  Setting,
+  SetUp,
+  SwitchButton,
+  Tickets,
+  Tools,
+  TrendCharts,
+  User,
+}
 
 function isValidIcon(name?: string) {
   return Boolean(name && name in knownIcons)

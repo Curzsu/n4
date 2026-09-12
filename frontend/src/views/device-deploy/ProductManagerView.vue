@@ -9,11 +9,12 @@
             <span>Device Template - {{ selectedTemplate.deviceTmplName }}</span>
           </div>
           <div class="action-buttons">
-            <el-button size="small" class="btn-secondary" :icon="Odometer" @click="openConfigPanel">
+            <el-button v-permission="'device:template:faceplate:view'" size="small" class="btn-secondary" :icon="Odometer" @click="openConfigPanel">
               Set Faceplate Panel
             </el-button>
-            <el-button size="small" class="btn-secondary" :icon="Edit" @click="openEditTemplateDialog">Edit Template</el-button>
+            <el-button v-permission="'device:template:edit'" size="small" class="btn-secondary" :icon="Edit" @click="openEditTemplateDialog">Edit Template</el-button>
             <el-button 
+              v-permission="'device:template:delete'"
               size="small" 
               class="btn-danger"
               :icon="Delete"
@@ -81,6 +82,7 @@
                 <!-- Batch manage state -->
                 <template v-if="isPointBatchManaging">
                   <el-button 
+                    v-permission="'device:template:point:delete'"
                     type="danger" 
                     size="small" 
                     class="btn-danger"
@@ -91,6 +93,7 @@
                     Batch Delete ({{ selectedPoints.length }} selected)
                   </el-button>
                   <el-button 
+                    v-permission="'device:template:point:delete'"
                     size="small"
                     class="btn-secondary"
                     @click="exitPointBatchManage"
@@ -108,7 +111,7 @@
                   >
                     Batch Manage
                   </el-button>
-                  <el-button size="small" class="btn-primary" :icon="Plus" @click="openAddPointDialog">Add Point</el-button>
+                  <el-button v-permission="'device:template:point:add'" size="small" class="btn-primary" :icon="Plus" @click="openAddPointDialog">Add Point</el-button>
                 </template>
               </div>
             </div>
@@ -149,8 +152,8 @@
                       Unconfigured
                     </span>
                     <div class="alarm-btn-group">
-                      <el-button size="small" type="primary" link :icon="Edit" @click="openEditPointDialog(row)">Edit</el-button>
-                      <el-button size="small" type="danger" link :icon="Delete" @click="deletePoint(row)">Delete</el-button>
+                      <el-button v-permission="'device:template:point:edit'" size="small" type="primary" link :icon="Edit" @click="openEditPointDialog(row)">Edit</el-button>
+                      <el-button v-permission="'device:template:point:delete'" size="small" type="danger" link :icon="Delete" @click="deletePoint(row)">Delete</el-button>
                     </div>
                   </div>
                 </template>
@@ -171,6 +174,7 @@
             <!-- Batch manage state -->
             <template v-if="isTemplateBatchManaging">
               <el-button 
+                v-permission="'device:template:delete'"
                 type="danger" 
                 size="small" 
                 class="btn-danger"
@@ -181,6 +185,7 @@
                 Batch Delete ({{ selectedTemplates.length }} selected)
               </el-button>
               <el-button 
+                v-permission="'device:template:delete'"
                 size="small"
                 class="btn-secondary"
                 @click="exitTemplateBatchManage"
@@ -191,6 +196,7 @@
             <!-- Normal state -->
             <template v-else>
               <el-button 
+                v-permission="'device:template:delete'"
                 size="small" 
                 class="btn-secondary"
                 :icon="Edit"
@@ -199,6 +205,7 @@
                 Batch Manage
               </el-button>
               <el-button 
+                v-permission="'device:template:add'"
                 size="small" 
                 class="btn-primary"
                 :icon="Plus"
@@ -206,8 +213,8 @@
               >
                 Add Template
               </el-button>
-              <el-button size="small" class="btn-secondary" :icon="Download" @click="openN4TemplateImport">Import</el-button>
-              <el-button-group class="transfer-button-group">
+              <el-button v-permission="'device:template:import'" size="small" class="btn-secondary" :icon="Download" @click="openN4TemplateImport">Import</el-button>
+              <el-button-group v-permission="'device:template:export'" class="transfer-button-group">
                 <el-button size="small" class="btn-secondary" :icon="Upload" @click="handleExport">Export</el-button>
                 <el-dropdown @command="handleExportMode">
                   <el-button size="small" class="btn-secondary transfer-menu-button">
@@ -268,6 +275,7 @@
             <el-table-column label="Actions" width="160" align="center" header-align="center" fixed="right" :resizable="false">
               <template #default="{ row }">
                 <el-button 
+                  v-permission="'device:template:faceplate:view'"
                   type="success" 
                   link 
                   size="small" 
@@ -277,6 +285,7 @@
                   Diagram
                 </el-button>
                 <el-button 
+                  v-permission="'device:template:edit'"
                   type="primary" 
                   link 
                   size="small" 
@@ -286,6 +295,7 @@
                 </el-button>
                 <el-button 
                   v-if="isTemplateBatchManaging"
+                  v-permission="'device:template:delete'"
                   type="danger" 
                   link 
                   size="small" 

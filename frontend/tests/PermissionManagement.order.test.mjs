@@ -92,3 +92,18 @@ test('renders permissions with stable hierarchical order labels', async () => {
   ])
   assert.equal(result[0].children[0].children[0].displayOrder, '1.1.1')
 })
+
+test('resolves every catalog menu icon without a misleading lock fallback', async () => {
+  const viewPath = fileURLToPath(new URL('../src/views/system/PermissionManagementView.vue', import.meta.url))
+  const catalogPath = fileURLToPath(new URL('../../monitor-backend/src/main/java/com/n4monitor/config/RbacPermissionCatalog.java', import.meta.url))
+  const viewSource = await readFile(viewPath, 'utf8')
+  const catalogSource = await readFile(catalogPath, 'utf8')
+  const iconNames = [...catalogSource.matchAll(/menu\([^\n]+"([A-Z][A-Za-z0-9]+)", \d+\)/g)]
+    .map((match) => match[1])
+
+  assert.ok(iconNames.length > 0)
+  for (const iconName of new Set(iconNames)) {
+    assert.match(viewSource, new RegExp(`\\b${iconName}\\b`), `Missing icon mapping: ${iconName}`)
+  }
+  assert.doesNotMatch(viewSource, /<Lock v-else/)
+})
