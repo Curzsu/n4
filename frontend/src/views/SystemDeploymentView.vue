@@ -494,14 +494,6 @@
           <div>
             <el-button class="btn-secondary" @click="closeDeploymentImportDialog">Cancel</el-button>
             <el-button
-              class="btn-secondary"
-              :loading="deploymentImportLoading"
-              :disabled="!deploymentImportFiles.length"
-              @click="previewDeploymentImport"
-            >
-              Preview
-            </el-button>
-            <el-button
               type="primary"
               class="btn-primary"
               :loading="deploymentImportLoading"
