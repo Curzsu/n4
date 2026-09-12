@@ -49,20 +49,33 @@ test('BatchMoveNavNodesDialog handles anti-cycle, max level, and API invocation'
       for (const n of list) {
         if (movingIds.has(n.nodeId)) continue
         const maxL = n.maxLevel ?? parentMaxLevel ?? 3
-        const wouldOverflow = n.nodeLevel >= maxL || (n.nodeLevel + 1 + maxSubtreeDepth > maxL)
-        if (wouldOverflow) continue
         const isCurrentParent = currentParentId !== null && n.nodeId === currentParentId
+        const isLeaf = !n.children || n.children.length === 0
+
+        if (isLeaf) {
+          if (n.nodeLevel > maxL) continue
+          const label = n.deviceCount != null ? `${n.nodeName} (${n.deviceCount})` : n.nodeName
+          res.push({
+            nodeId: n.nodeId,
+            nodeName: label,
+            nodeLevel: n.nodeLevel,
+            disabled: isCurrentParent,
+          })
+          continue
+        }
+
+        const canFolderAcceptSubtree = n.nodeLevel + 1 + maxSubtreeDepth <= maxL
+        const validChildren = build(n.children, maxL)
+        if (!canFolderAcceptSubtree && validChildren.length === 0) continue
+
         const item = {
           nodeId: n.nodeId,
           nodeName: n.nodeName,
           nodeLevel: n.nodeLevel,
-          disabled: isCurrentParent,
+          disabled: isCurrentParent || !canFolderAcceptSubtree,
         }
-        if (n.children && n.children.length > 0) {
-          const validChildren = build(n.children, maxL)
-          if (validChildren.length > 0) {
-            item.children = validChildren
-          }
+        if (validChildren.length > 0) {
+          item.children = validChildren
         }
         res.push(item)
       }
@@ -114,13 +127,13 @@ test('BatchMoveNavNodesDialog handles anti-cycle, max level, and API invocation'
   const a2Option = options.find(o => o.nodeId === 2)
   assert.equal(a2Option.disabled, false)
 
-  // Level 3 leaf nodes (like MVP_A1) must be completely pruned so redundant 3rd level never appears
+  // Level 3 leaf nodes (like MVP_A1) are selectable targets for merging devices
   const movingSingle = [{ nodeId: 999, nodeName: 'SingleCabin', nodeLevel: 2, children: [] }]
   const singleMoveOptions = filterTargetOptions(sampleTree, movingSingle, null)
   const mvpNode = singleMoveOptions.find(o => o.nodeId === 1)
   const mvpA1Option = mvpNode.children.find(c => c.nodeId === 10)
-  // MVP_A1 (level 3) is pruned because nodeLevel >= maxLevel (3 >= 3)
-  assert.equal(mvpA1Option.children, undefined)
+  // MVP_A1 (level 3) is included as a leaf target for device merging
+  assert.ok(mvpA1Option.children.some(c => c.nodeId === 100 && c.nodeName === 'MVP_A1'))
 })
 
 test('dashboardNavApi provides batchMoveNodes endpoint', async () => {

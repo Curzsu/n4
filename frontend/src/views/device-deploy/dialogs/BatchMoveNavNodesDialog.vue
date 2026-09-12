@@ -101,28 +101,42 @@ const targetCascaderOptions = computed(() => {
       }
 
       const maxL = n.maxLevel ?? parentMaxLevel ?? 3
+      const isCurrentParent = currentParentId.value !== null && n.nodeId === currentParentId.value
+      const isLeaf = !n.children || n.children.length === 0
 
-      // If this node cannot be a parent because its level is already at or above maxL,
-      // or moving the subtree under it would exceed maxL, prune it completely.
-      const wouldOverflow = n.nodeLevel >= maxL || (n.nodeLevel + 1 + maxSubtreeDepth > maxL)
-      if (wouldOverflow) {
+      // Leaf nodes (like MVP_B1 at level 3, or nodes with devices) can accept device merges
+      if (isLeaf) {
+        if (n.nodeLevel > maxL) {
+          continue
+        }
+        const label = n.deviceCount != null ? `${n.nodeName} (${n.deviceCount})` : n.nodeName
+        res.push({
+          nodeId: n.nodeId,
+          nodeName: label,
+          nodeLevel: n.nodeLevel,
+          disabled: isCurrentParent,
+        })
         continue
       }
 
-      const isCurrentParent = currentParentId.value !== null && n.nodeId === currentParentId.value
+      // Non-leaf directory folder node:
+      // Check if this folder itself can accept child folders without exceeding maxL
+      const canFolderAcceptSubtree = n.nodeLevel + 1 + maxSubtreeDepth <= maxL
+      const validChildren = buildOptions(n.children, maxL)
+
+      // If this folder cannot accept child folders AND has no selectable descendants, prune it
+      if (!canFolderAcceptSubtree && validChildren.length === 0) {
+        continue
+      }
 
       const item: any = {
         nodeId: n.nodeId,
         nodeName: n.nodeName,
         nodeLevel: n.nodeLevel,
-        disabled: isCurrentParent,
+        disabled: isCurrentParent || !canFolderAcceptSubtree,
       }
-
-      if (n.children && n.children.length > 0) {
-        const validChildren = buildOptions(n.children, maxL)
-        if (validChildren.length > 0) {
-          item.children = validChildren
-        }
+      if (validChildren.length > 0) {
+        item.children = validChildren
       }
       res.push(item)
     }

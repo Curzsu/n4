@@ -107,4 +107,21 @@
         WHERE device_deploy_id = #{deviceDeployId}
     </update>
 
+    <select id="findMaxDeviceIdByNavNodeId" resultType="java.lang.Long">
+        SELECT MAX(device_deploy_id)
+        FROM device_deployment
+        WHERE nav_node_id = #{navNodeId} AND is_deleted = 0
+    </select>
+
+    <select id="findMaxDeviceId" resultType="java.lang.Long">
+        SELECT MAX(device_deploy_id)
+        FROM device_deployment
+    </select>
+
+    <update id="updateDeviceId">
+        UPDATE device_deployment
+        SET device_deploy_id = #{newDeviceId}, update_time = NOW()
+        WHERE device_deploy_id = #{oldDeviceId}
+    </update>
+
 </mapper>

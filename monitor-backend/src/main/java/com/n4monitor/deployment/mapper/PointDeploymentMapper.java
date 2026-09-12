@@ -39,4 +39,6 @@ public interface PointDeploymentMapper {
     int updateImportedMetadata(PointDeployment point);
 
     int updateAlarmCodesBatch(@Param("points") List<PointDeployment> points);
+
+    int updateDeviceDeployId(@Param("oldDeviceId") Long oldDeviceId, @Param("newDeviceId") Long newDeviceId);
 }

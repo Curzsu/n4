@@ -26,7 +26,7 @@ public class PointDeployment {
     private Boolean isDeleted;
     private java.time.LocalDateTime createTime;
     private java.time.LocalDateTime updateTime;
-    /** 是否真实数据点位（非表字段，由所属模板名称判断） */
+    /** Whether it is real data point (non-table field, determined by template name) */
     private Boolean isReal;
 
     /** Legacy fields are not part of the current point_deployment contract. */

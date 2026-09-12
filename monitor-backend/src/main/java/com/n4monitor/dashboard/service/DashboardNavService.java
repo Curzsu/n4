@@ -5,6 +5,10 @@ import com.n4monitor.deployment.dto.DeviceDeployListDto;
 import com.n4monitor.dashboard.dto.NavTreeNodeDto;
 import com.n4monitor.dashboard.entity.NavNode;
 import com.n4monitor.dashboard.mapper.NavNodeMapper;
+import com.n4monitor.deployment.entity.DeviceDeployment;
+import com.n4monitor.deployment.entity.PointDeployment;
+import com.n4monitor.deployment.mapper.DeviceDeploymentMapper;
+import com.n4monitor.deployment.mapper.PointDeploymentMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,9 +28,16 @@ public class DashboardNavService {
     private static final int DEFAULT_MAX_LEVEL = 2;
 
     private final NavNodeMapper navNodeMapper;
+    private final DeviceDeploymentMapper deviceDeploymentMapper;
+    private final PointDeploymentMapper pointDeploymentMapper;
 
-    public DashboardNavService(NavNodeMapper navNodeMapper) {
+    public DashboardNavService(
+            NavNodeMapper navNodeMapper,
+            DeviceDeploymentMapper deviceDeploymentMapper,
+            PointDeploymentMapper pointDeploymentMapper) {
         this.navNodeMapper = navNodeMapper;
+        this.deviceDeploymentMapper = deviceDeploymentMapper;
+        this.pointDeploymentMapper = pointDeploymentMapper;
     }
 
     /** Build multi-level navigation tree; deviceCount populated on leaf group nodes */
@@ -221,10 +232,105 @@ public class DashboardNavService {
             throw new IllegalArgumentException("Cannot move a node into itself");
         }
         NavNode targetParent = requireNode(targetParentId);
+
+        // Anti-cycle validation: Cannot move a node into its own descendant
+        for (Long nodeId : uniqueNodeIds) {
+            NavNode node = requireNode(nodeId);
+            if (isDescendant(nodeId, targetParentId)) {
+                throw new IllegalArgumentException("Cannot move node '" + node.getNodeName() + "' into its own descendant");
+            }
+        }
+
         int targetParentLevel = targetParent.getNodeLevel();
         int maxAllowedLevel = resolveMaxLevel(targetParent);
 
-        // Fetch existing direct child node names of the target parent to prevent duplicates
+        // Check if target is a leaf device container:
+        // A node is a leaf device container if:
+        // 1) it currently has mounted devices, OR
+        // 2) its level is at or above maxAllowedLevel, has no children, and the source contains mounted devices
+        boolean isDeviceContainer = navNodeMapper.countDevicesByNodeId(targetParentId) > 0
+                || (targetParentLevel >= maxAllowedLevel
+                    && navNodeMapper.findChildren(targetParentId).isEmpty()
+                    && hasMountedDevicesInSources(uniqueNodeIds));
+
+        if (isDeviceContainer) {
+            return mergeNodesIntoLeafTarget(uniqueNodeIds, targetParent);
+        } else {
+            return moveNodesAsChildren(uniqueNodeIds, targetParent, targetParentLevel, maxAllowedLevel);
+        }
+    }
+
+    /** Mode A: Merge source group devices into target leaf node and append to the end */
+    private int mergeNodesIntoLeafTarget(Set<Long> sourceNodeIds, NavNode targetParent) {
+        Long targetParentId = targetParent.getNodeId();
+        String targetSystemName = resolveTargetSystemName(targetParent);
+        Long maxTargetDeviceId = deviceDeploymentMapper.findMaxDeviceIdByNavNodeId(targetParentId);
+        Long globalMaxDeviceId = deviceDeploymentMapper.findMaxDeviceId();
+        long nextDeviceId = globalMaxDeviceId == null ? 0L : globalMaxDeviceId;
+
+        int totalMovedCount = 0;
+        for (Long nodeId : sourceNodeIds) {
+            NavNode sourceNode = requireNode(nodeId);
+            List<Long> nodeSubtreeIds = new ArrayList<>();
+            collectSubtreeNodeIds(nodeId, nodeSubtreeIds);
+
+            List<DeviceDeployment> allDevices = new ArrayList<>();
+            for (Long subId : nodeSubtreeIds) {
+                allDevices.addAll(deviceDeploymentMapper.findByNavNodeId(subId));
+            }
+
+            for (DeviceDeployment device : allDevices) {
+                Long oldDeviceId = device.getDeviceDeployId();
+                if (maxTargetDeviceId != null && oldDeviceId != null && oldDeviceId <= maxTargetDeviceId) {
+                    nextDeviceId++;
+                    Long newDeviceId = nextDeviceId;
+                    pointDeploymentMapper.updateDeviceDeployId(oldDeviceId, newDeviceId);
+                    deviceDeploymentMapper.updateDeviceId(oldDeviceId, newDeviceId);
+                    device.setDeviceDeployId(newDeviceId);
+                } else if (oldDeviceId != null && (maxTargetDeviceId == null || oldDeviceId > maxTargetDeviceId)) {
+                    maxTargetDeviceId = oldDeviceId;
+                }
+
+                device.setNavNodeId(targetParentId);
+                if (targetSystemName != null && !targetSystemName.isEmpty()) {
+                    device.setSystemName(targetSystemName);
+                }
+
+                updateDeviceAndPointAddresses(device, targetSystemName, targetParent.getNodeName());
+                deviceDeploymentMapper.update(device);
+            }
+
+            // Logically delete source nodes (descendants first, then root)
+            for (int i = nodeSubtreeIds.size() - 1; i >= 0; i--) {
+                Long subId = nodeSubtreeIds.get(i);
+                navNodeMapper.unmountAllByNode(subId);
+                navNodeMapper.logicalDelete(subId);
+            }
+            totalMovedCount++;
+        }
+        return totalMovedCount;
+    }
+
+    private boolean hasMountedDevicesInSources(Set<Long> nodeIds) {
+        for (Long nodeId : nodeIds) {
+            List<Long> subtreeIds = new ArrayList<>();
+            collectSubtreeNodeIds(nodeId, subtreeIds);
+            for (Long subId : subtreeIds) {
+                if (navNodeMapper.countDevicesByNodeId(subId) > 0) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Mode B: Traditional directory hierarchy reparenting */
+    private int moveNodesAsChildren(
+            Set<Long> uniqueNodeIds,
+            NavNode targetParent,
+            int targetParentLevel,
+            int maxAllowedLevel) {
+        Long targetParentId = targetParent.getNodeId();
         List<NavNode> existingTargetChildren = navNodeMapper.findChildren(targetParentId);
         Set<String> existingNames = existingTargetChildren.stream()
                 .map(NavNode::getNodeName)
@@ -273,6 +379,65 @@ public class DashboardNavService {
             movedCount++;
         }
         return movedCount;
+    }
+
+    private String resolveTargetSystemName(NavNode targetParent) {
+        List<DeviceDeployment> existing = deviceDeploymentMapper.findByNavNodeId(targetParent.getNodeId());
+        if (!existing.isEmpty() && existing.get(0).getSystemName() != null && !existing.get(0).getSystemName().isBlank()) {
+            return existing.get(0).getSystemName();
+        }
+        List<String> parts = new ArrayList<>();
+        NavNode cur = targetParent;
+        while (cur != null) {
+            parts.add(0, cur.getNodeName());
+            cur = cur.getParentId() == null ? null : navNodeMapper.findByNodeId(cur.getParentId());
+        }
+        if (parts.size() >= 2) {
+            return parts.get(parts.size() - 2) + "/" + parts.get(parts.size() - 1);
+        }
+        return targetParent.getNodeName();
+    }
+
+    private void collectSubtreeNodeIds(Long nodeId, List<Long> result) {
+        result.add(nodeId);
+        List<NavNode> children = navNodeMapper.findChildren(nodeId);
+        for (NavNode child : children) {
+            collectSubtreeNodeIds(child.getNodeId(), result);
+        }
+    }
+
+    private void updateDeviceAndPointAddresses(
+            DeviceDeployment device,
+            String targetSystemName,
+            String targetNodeName) {
+        if (targetNodeName == null) {
+            return;
+        }
+        String oldN4 = device.getN4Address();
+        if (oldN4 != null) {
+            if (oldN4.startsWith("slot:/")) {
+                device.setN4Address("slot:/Drivers/ModbusTcpNetwork/" + targetNodeName + "/points/MqttNetwork/" + device.getDeviceDeployName());
+            } else if (targetSystemName != null && !targetSystemName.isEmpty()) {
+                device.setN4Address(targetSystemName + "/" + device.getDeviceDeployName());
+            }
+        }
+        List<PointDeployment> points = pointDeploymentMapper.findByDeviceDeployId(device.getDeviceDeployId());
+        for (PointDeployment point : points) {
+            boolean changed = false;
+            String pointN4 = point.getN4Address();
+            if (pointN4 != null) {
+                if (pointN4.startsWith("slot:/")) {
+                    point.setN4Address("slot:/Drivers/ModbusTcpNetwork/" + targetNodeName + "/points/MqttNetwork/" + point.getPointName());
+                    changed = true;
+                } else if (targetSystemName != null && !targetSystemName.isEmpty()) {
+                    point.setN4Address(targetSystemName + "/" + device.getDeviceDeployName() + "/" + point.getPointName());
+                    changed = true;
+                }
+            }
+            if (changed) {
+                pointDeploymentMapper.update(point);
+            }
+        }
     }
 
     /** Delete node and cascade unmount devices */

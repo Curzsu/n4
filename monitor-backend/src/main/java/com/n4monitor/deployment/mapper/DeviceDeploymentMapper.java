@@ -32,4 +32,10 @@ public interface DeviceDeploymentMapper {
     int restore(@Param("deviceDeployId") Long deviceDeployId);
 
     int updateAlarmCode(@Param("deviceDeployId") Long deviceDeployId, @Param("alarmCode") String alarmCode);
+
+    Long findMaxDeviceIdByNavNodeId(@Param("navNodeId") Long navNodeId);
+
+    Long findMaxDeviceId();
+
+    int updateDeviceId(@Param("oldDeviceId") Long oldDeviceId, @Param("newDeviceId") Long newDeviceId);
 }

@@ -26,12 +26,12 @@ public class DeviceDeployment {
     private Boolean isDeleted;
     private java.time.LocalDateTime createTime;
     private java.time.LocalDateTime updateTime;
-    /** 所属模板类型（非表字段，由 JOIN device_template 得出） */
+    /** Associated template device type (non-table field, obtained from JOIN device_template) */
     private String deviceType;
-    /** 所属模板厂商（非表字段） */
+    /** Associated template manufacturer (non-table field) */
     private String manufacturer;
-    /** 所属模板型号（非表字段） */
+    /** Associated template model (non-table field) */
     private String model;
-    /** 是否 Mock 占位设备（非表字段，device_deploy_name 以 MOCK_ 开头） */
+    /** Whether it is a mock placeholder device (non-table field, device_deploy_name starts with MOCK_) */
     private Boolean isMock;
 }

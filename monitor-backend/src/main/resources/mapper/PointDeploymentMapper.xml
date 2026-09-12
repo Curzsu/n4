@@ -158,4 +158,10 @@
         </foreach>
     </update>
 
+    <update id="updateDeviceDeployId">
+        UPDATE point_deployment
+        SET device_deploy_id = #{newDeviceId}, update_time = NOW()
+        WHERE device_deploy_id = #{oldDeviceId}
+    </update>
+
 </mapper>
