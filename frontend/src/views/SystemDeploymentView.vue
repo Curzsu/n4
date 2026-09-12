@@ -281,6 +281,17 @@
                 <div class="header-actions">
                   <el-button
                     v-if="isGroupBatchMoving"
+                    v-permission="'device:deploy:group:edit'"
+                    size="small"
+                    class="btn-primary"
+                    :icon="Rank"
+                    :disabled="selectedChildGroups.length === 0"
+                    @click="openBatchMoveDialog"
+                  >
+                    Move<template v-if="selectedChildGroups.length"> ({{ selectedChildGroups.length }})</template>
+                  </el-button>
+                  <el-button
+                    v-if="isGroupBatchMoving"
                     size="small"
                     class="btn-secondary"
                     @click="exitGroupBatchMove"
@@ -288,11 +299,12 @@
                     Exit Move
                   </el-button>
                   <el-button
+                    v-else
                     v-permission="'device:deploy:group:edit'"
                     size="small"
                     class="btn-secondary"
                     :icon="Rank"
-                    @click="handleBatchMoveButtonClick"
+                    @click="enterGroupBatchMove"
                   >
                     Batch Move
                   </el-button>
