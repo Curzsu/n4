@@ -16,18 +16,25 @@
             v-model="selectedDiagramFile"
             placeholder="Select diagram..."
             size="small"
-            style="width: 220px;"
+            filterable
+            style="width: 280px;"
             @change="handleDiagramChange"
           >
-            <el-option
-              v-for="img in availableImages"
-              :key="img.value"
-              :label="img.label"
-              :value="img.value"
-            />
+            <el-option-group
+              v-for="group in imageGroups"
+              :key="group.label"
+              :label="group.label"
+            >
+              <el-option
+                v-for="img in group.options"
+                :key="img.value"
+                :label="img.label"
+                :value="img.value"
+              />
+            </el-option-group>
           </el-select>
           <el-tag size="small" type="success" effect="dark" class="path-tag">
-            /device-images/Device-1/{{ selectedDiagramFile }}
+            {{ currentDiagramUrl }}
           </el-tag>
         </div>
 
@@ -59,7 +66,7 @@
             <div class="image-state-box error-box">
               <el-icon :size="48" class="error-icon"><PictureRounded /></el-icon>
               <p class="error-title">Diagram image not found</p>
-              <p class="error-desc">Please select an available diagram from the dropdown above, or place the corresponding image file in the public/device-images/ directory.</p>
+              <p class="error-desc">Please select an available diagram from the dropdown above, or place the corresponding image file in the public directory.</p>
             </div>
           </template>
         </el-image>
@@ -94,22 +101,73 @@ defineProps<{
   fallbackForm?: DeviceTemplate | null
 }>()
 
-// Available diagram images in public/device-images/Device-1/
-const availableImages = [
-  { label: 'DCPmv (DC Power Distribution)', value: 'DCPmv.png', subDir: 'Device-1' },
-  { label: 'DEHU (Dehumidifier)', value: 'DEHU.png', subDir: 'Device-1' },
-  { label: 'DHG (Heating Dehumidifier)', value: 'DHG.png', subDir: 'Device-1' },
-  { label: 'EM33b (Smart Power Meter 33b)', value: 'EM33b.png', subDir: 'Device-1' },
-  { label: 'EM33c (Smart Power Meter 33c)', value: 'EM33c.png', subDir: 'Device-1' },
-  { label: 'EM770 (Smart Power Meter 770)', value: 'EM770.png', subDir: 'Device-1' },
-  { label: 'EM780 (Smart Power Meter 780)', value: 'EM780.png', subDir: 'Device-1' },
-  { label: 'GAS (Gas Monitor)', value: 'GAS.png', subDir: 'Device-1' },
-  { label: 'IRC (AC IR Remote Controller)', value: 'IRC.png', subDir: 'Device-1' },
-  { label: 'NWLD (Water Leak Detector)', value: 'NWLD.png', subDir: 'Device-1' },
-  { label: 'ZBmvbus (Busbar Monitoring)', value: 'ZBmvbus.png', subDir: 'Device-1' },
-  { label: 'ZBmvin (Incomer Monitoring)', value: 'ZBmvin.png', subDir: 'Device-1' },
-  { label: 'ZBmvout (Feeder Monitoring)', value: 'ZBmvout.png', subDir: 'Device-1' },
+export interface DiagramImageOption {
+  label: string
+  value: string
+  url: string
+  keywords?: string[]
+}
+
+export interface DiagramImageGroup {
+  label: string
+  options: DiagramImageOption[]
+}
+
+// Available diagram images categorized by functional domain and asset source directory
+const imageGroups: DiagramImageGroup[] = [
+  {
+    label: 'Device-1 (Primary Devices)',
+    options: [
+      { label: 'DCPmv (DC Power Distribution)', value: 'DCPmv.png', url: '/device-images/Device-1/DCPmv.png', keywords: ['dcpmv', 'dcp_zhengxiang_mv', 'dcp_mv', 'dcplv', 'dcp'] },
+      { label: 'DEHU (Dehumidifier)', value: 'DEHU.png', url: '/device-images/Device-1/DEHU.png', keywords: ['dehu_oulandis', 'dehu'] },
+      { label: 'DHG (Heating Dehumidifier)', value: 'DHG.png', url: '/device-images/Device-1/DHG.png', keywords: ['dhg', 'fxd860sa'] },
+      { label: 'EM33b (Smart Power Meter 33b)', value: 'EM33b.png', url: '/device-images/Device-1/EM33b.png', keywords: ['spm33b', 'spm33a', 'spm32rmu', 'spm32', 'em33b', 'em33a'] },
+      { label: 'EM33c (Smart Power Meter 33c)', value: 'EM33c.png', url: '/device-images/Device-1/EM33c.png', keywords: ['spm33c', 'em33c'] },
+      { label: 'EM770 (Smart Power Meter 770)', value: 'EM770.png', url: '/device-images/Device-1/EM770.png', keywords: ['spm770h', 'spm770', 'em770'] },
+      { label: 'EM780 (Smart Power Meter 780)', value: 'EM780.png', url: '/device-images/Device-1/EM780.png', keywords: ['spm780h', 'spm781h', 'em780', 'em781'] },
+      { label: 'GAS (Gas Monitor)', value: 'GAS.png', url: '/device-images/Device-1/GAS.png', keywords: ['gas', 'yaoan'] },
+      { label: 'IRC (AC IR Remote Controller)', value: 'IRC.png', url: '/device-images/Device-1/IRC.png', keywords: ['irc', 'ymk'] },
+      { label: 'NWLD (Water Leak Detector)', value: 'NWLD.png', url: '/device-images/Device-1/NWLD.png', keywords: ['nwld'] },
+      { label: 'ZBmvbus (Busbar Monitoring)', value: 'ZBmvbus.png', url: '/device-images/Device-1/ZBmvbus.png', keywords: ['mvbustie', 'zbmvbus', 'rmu'] },
+      { label: 'ZBmvin (Incomer Monitoring)', value: 'ZBmvin.png', url: '/device-images/Device-1/ZBmvin.png', keywords: ['mvincomer', 'zbmvin'] },
+      { label: 'ZBmvout (Feeder Monitoring)', value: 'ZBmvout.png', url: '/device-images/Device-1/ZBmvout.png', keywords: ['mvfeeder', 'zbmvout'] },
+    ],
+  },
+  {
+    label: 'Device-2 (Vendor & Secondary Devices)',
+    options: [
+      { label: 'CET (CET S963 Power Meter)', value: 'CET.png', url: '/Device-2/CET.png', keywords: ['s963', 'cet'] },
+      { label: 'ET903 (YADA ET903 Power Meter)', value: 'ET903.png', url: '/Device-2/ET903.png', keywords: ['et903', 'yada'] },
+      { label: 'Envicool (Envicool Precision AC)', value: 'Envicool.png', url: '/Device-2/Envicool.png', keywords: ['envicool', 'fwu'] },
+      { label: 'ImpowerBS (Battery / APF System)', value: 'ImpowerBS.png', url: '/Device-2/ImpowerBS.png', keywords: ['impower', 'apf', 'battery', 'vertivxwd'] },
+      { label: 'LD300 (LDS3000 Locating Leak Detector)', value: 'LD300.png', url: '/Device-2/LD300.png', keywords: ['lds3000', 'pwld_lds3000', 'pwld', 'ld300'] },
+      { label: 'LD3 (LDS3 Non-locating Leak Detector)', value: 'LD3.png', url: '/Device-2/LD3.png', keywords: ['lds3', 'nwld_lds3', 'ld3'] },
+      { label: 'PDU_Distribution (PDU / RPP Power Distribution)', value: 'PDU_Distribution.png', url: '/Device-2/PDU_Distribution.png', keywords: ['pdu', 'rpp', 'zh16'] },
+      { label: 'SOCOMEC (SOCOMEC STS / UPS System)', value: 'SOCOMEC.png', url: '/Device-2/SOCOMEC.png', keywords: ['socomec', 'sts', 'ups_vertiv', 'ups'] },
+      { label: 'STAND (STAND CRAH Dehumidifier)', value: 'STAND.png', url: '/Device-2/STAND.png', keywords: ['crah', 'stand'] },
+    ],
+  },
+  {
+    label: 'Building Automation & System (BA)',
+    options: [
+      { label: 'BA_ATS_Dual_Power_Switch (ATS Transfer Switch)', value: 'BA_ATS_Dual_Power_Switch.png', url: '/BA/BA_ATS_Dual_Power_Switch.png', keywords: ['ats', 'dual_power', 'switch_transfer'] },
+      { label: 'Schneider_PM5300 (Schneider PM5300 Meter)', value: 'Schneider_PM5300.png', url: '/BA/Schneider_PM5300.png', keywords: ['pm5300', 'schneider_pm'] },
+      { label: 'ZB_Schneider_P3U30_DGincomer (Generator Protection)', value: 'ZB_Schneider_P3U30_DGincomer.png', url: '/BA/ZB_Schneider_P3U30_DGincomer.png', keywords: ['p3u30_dgincomer', 'p3u30_dg', 'dgincomer'] },
+      { label: 'ZB_Schneider_P3U30_TRincomer (Transformer Protection)', value: 'ZB_Schneider_P3U30_TRincomer.png', url: '/BA/ZB_Schneider_P3U30_TRincomer.png', keywords: ['p3u30_trincomer', 'p3u30_tr', 'trincomer'] },
+      { label: 'CH_A01_Chiller (Chiller Unit)', value: 'CH_A01_Chiller.png', url: '/BA/CH_A01_Chiller.png', keywords: ['chiller', 'ch_a01'] },
+      { label: 'BA_Datahall_GA_CDU (CDU Cooling System)', value: 'BA_Datahall_GA_CDU.png', url: '/BA/BA_Datahall_GA_CDU.png', keywords: ['cdu', 'datahall_cdu'] },
+      { label: 'BA_Dosing_Constant_Pressure (Dosing Pressure System)', value: 'BA_Dosing_Constant_Pressure.png', url: '/BA/BA_Dosing_Constant_Pressure.png', keywords: ['dosing', 'constant_pressure'] },
+      { label: 'BA_Makeup_Water_System (Makeup Water System)', value: 'BA_Makeup_Water_System.png', url: '/BA/BA_Makeup_Water_System.png', keywords: ['makeup_water', 'water_system'] },
+      { label: 'BA_HVAC_Multi_System (HVAC Multi System)', value: 'BA_HVAC_Multi_System.png', url: '/BA/BA_HVAC_Multi_System.png', keywords: ['hvac', 'multi_system'] },
+      { label: 'BA_Water_Cooling_System_A (Water Cooling System A)', value: 'BA_Water_Cooling_System_A.png', url: '/BA/BA_Water_Cooling_System_A.png', keywords: ['water_cooling'] },
+      { label: 'BA_Network_Topology_PLC (PLC Network Topology)', value: 'BA_Network_Topology_PLC.png', url: '/BA/BA_Network_Topology_PLC.png', keywords: ['topology_plc', 'network_plc'] },
+      { label: 'BA_Network_Topology_Datahall_PLC (Datahall PLC Topology)', value: 'BA_Network_Topology_Datahall_PLC.png', url: '/BA/BA_Network_Topology_Datahall_PLC.png', keywords: ['datahall_plc'] },
+      { label: 'BA_Unit_Parameters_Alarms (Unit Parameters & Alarms)', value: 'BA_Unit_Parameters_Alarms.png', url: '/BA/BA_Unit_Parameters_Alarms.png', keywords: ['parameters_alarms', 'unit_alarms'] },
+    ],
+  },
 ]
+
+const availableImages = computed(() => imageGroups.flatMap(g => g.options))
 
 const diagramDialogVisible = ref(false)
 const selectedDiagramFile = ref('EM770.png')
@@ -125,15 +183,38 @@ let currentNaturalWidth = 0
 let currentNaturalHeight = 0
 
 function findBestMatchingImage(target: DeviceTemplate | null): string {
-  if (!target) return availableImages[0].value
+  const allImages = availableImages.value
+  if (!target) return allImages[0].value
+
   const candidates = [
     target.facePlateId,
-    target.deviceType,
-    target.model,
     target.deviceTmplName,
+    target.model,
+    target.deviceType,
+    target.manufacturer,
   ].filter(Boolean).map(s => String(s).trim().toLowerCase())
 
-  for (const item of availableImages) {
+  const candidateCombined = candidates.join(' ')
+
+  // 1. Direct match on keywords (longer/more specific keywords take precedence)
+  const keywordEntries: { kw: string; value: string }[] = []
+  for (const item of allImages) {
+    if (item.keywords) {
+      for (const kw of item.keywords) {
+        keywordEntries.push({ kw, value: item.value })
+      }
+    }
+  }
+  keywordEntries.sort((a, b) => b.kw.length - a.kw.length)
+
+  for (const { kw, value } of keywordEntries) {
+    if (candidateCombined.includes(kw)) {
+      return value
+    }
+  }
+
+  // 2. Direct match on file name without extension
+  for (const item of allImages) {
     const rawName = item.value.replace(/\.(png|jpg|jpeg|svg)$/i, '').toLowerCase()
     for (const cand of candidates) {
       if (cand === rawName || cand.includes(rawName) || rawName.includes(cand)) {
@@ -141,16 +222,15 @@ function findBestMatchingImage(target: DeviceTemplate | null): string {
       }
     }
   }
-  return availableImages[0].value
+
+  return allImages[0].value
 }
 
 const currentDiagramUrl = computed(() => {
   if (!selectedDiagramFile.value) return ''
-  const matched = availableImages.find(i => i.value === selectedDiagramFile.value)
-  if (matched?.subDir) {
-    return `/device-images/${matched.subDir}/${matched.value}`
-  }
-  return `/device-images/${selectedDiagramFile.value}`
+  const allImages = availableImages.value
+  const matched = allImages.find(i => i.value === selectedDiagramFile.value)
+  return matched ? matched.url : `/device-images/Device-1/${selectedDiagramFile.value}`
 })
 
 const imageBoxStyle = computed<CSSProperties>(() => {
