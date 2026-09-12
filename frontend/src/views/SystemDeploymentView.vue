@@ -279,16 +279,30 @@
               <div class="section-header">
                 <h3>Child Groups <span class="section-count">({{ selectedNode.children?.length || 0 }})</span></h3>
                 <div class="header-actions">
-                  <el-button
-                    v-permission="'device:deploy:group:edit'"
-                    size="small"
-                    class="btn-secondary"
-                    :icon="Rank"
-                    :disabled="selectedChildGroups.length === 0"
-                    @click="openBatchMoveDialog"
-                  >
-                    Batch Move<template v-if="selectedChildGroups.length"> ({{ selectedChildGroups.length }})</template>
-                  </el-button>
+                  <template v-if="isGroupBatchMoving">
+                    <el-button
+                      v-permission="'device:deploy:group:edit'"
+                      size="small"
+                      class="btn-primary"
+                      :icon="Rank"
+                      :disabled="selectedChildGroups.length === 0"
+                      @click="openBatchMoveDialog"
+                    >
+                      Move<template v-if="selectedChildGroups.length"> ({{ selectedChildGroups.length }})</template>
+                    </el-button>
+                    <el-button size="small" class="btn-secondary" @click="exitGroupBatchMove">Exit Move</el-button>
+                  </template>
+                  <template v-else>
+                    <el-button
+                      v-permission="'device:deploy:group:edit'"
+                      size="small"
+                      class="btn-secondary"
+                      :icon="Rank"
+                      @click="enterGroupBatchMove"
+                    >
+                      Batch Move
+                    </el-button>
+                  </template>
                   <el-button v-if="canAddChild(selectedNode)" v-permission="'device:deploy:group:add'" size="small" class="btn-primary" :icon="Plus" @click="navNodeDialogRef?.openCreate(selectedNode)">
                     Add Child Group
                   </el-button>
@@ -304,7 +318,7 @@
                 :cell-style="cellStyle"
                 @selection-change="handleChildGroupSelectionChange"
               >
-                <el-table-column type="selection" width="36" align="center" header-align="center" :resizable="false" />
+                <el-table-column v-if="isGroupBatchMoving" type="selection" width="36" align="center" header-align="center" :resizable="false" />
                 <el-table-column prop="nodeName" label="Group Name" min-width="200" align="left" header-align="center" :resizable="false" />
                 <el-table-column prop="deviceCount" label="Devices" width="100" align="left" header-align="center" :resizable="false" />
                 <el-table-column prop="sortOrder" label="Sort Order" width="100" align="left" header-align="center" :resizable="false" />
@@ -815,8 +829,7 @@ function resetCabinZoom() {
 
 watch(() => selectedNode.value?.nodeId, () => {
   resetCabinZoom()
-  selectedChildGroups.value = []
-  childGroupsTableRef.value?.clearSelection()
+  exitGroupBatchMove()
 })
 
 const headerCellStyle: CSSProperties = {
@@ -845,7 +858,18 @@ const viewMode = ref<'list' | 'detail'>('list')
 const navNodeDialogRef = ref<InstanceType<typeof NavNodeDialog>>()
 const batchMoveDialogRef = ref<InstanceType<typeof BatchMoveNavNodesDialog>>()
 const childGroupsTableRef = ref()
+const isGroupBatchMoving = ref(false)
 const selectedChildGroups = ref<NavTreeNode[]>([])
+
+function enterGroupBatchMove() {
+  isGroupBatchMoving.value = true
+}
+
+function exitGroupBatchMove() {
+  isGroupBatchMoving.value = false
+  selectedChildGroups.value = []
+  childGroupsTableRef.value?.clearSelection()
+}
 
 function handleChildGroupSelectionChange(selection: NavTreeNode[]) {
   selectedChildGroups.value = selection
@@ -857,8 +881,7 @@ function openBatchMoveDialog() {
 }
 
 async function handleBatchMoveSuccess() {
-  selectedChildGroups.value = []
-  childGroupsTableRef.value?.clearSelection()
+  exitGroupBatchMove()
   await store.loadNavTree()
 }
 const devicesLoading = ref(false)

@@ -10,14 +10,16 @@ test('SystemDeploymentView includes Child Groups selection and Batch Move integr
   // Check template elements
   assert.ok(source.includes('Batch Move'), 'Must include Batch Move button in Child Groups header')
   assert.ok(source.includes("v-permission=\"'device:deploy:group:edit'\""), 'Batch Move button must require group:edit permission')
-  assert.ok(source.includes('type="selection"'), 'Child Groups table must include selection column')
+  assert.ok(source.includes('v-if="isGroupBatchMoving" type="selection"'), 'Child Groups table must show selection column only during batch move mode')
   assert.ok(source.includes('@selection-change="handleChildGroupSelectionChange"'), 'Must bind selection change handler')
   assert.ok(source.includes('<BatchMoveNavNodesDialog ref="batchMoveDialogRef"'), 'Must mount BatchMoveNavNodesDialog')
 
   // Check script logic
+  assert.ok(source.includes('isGroupBatchMoving = ref(false)'), 'Initial state must hide checkboxes')
+  assert.ok(source.includes('enterGroupBatchMove'), 'Must define enterGroupBatchMove')
+  assert.ok(source.includes('exitGroupBatchMove'), 'Must define exitGroupBatchMove')
   assert.ok(source.includes('openBatchMoveDialog'), 'Must define openBatchMoveDialog')
   assert.ok(source.includes('handleBatchMoveSuccess'), 'Must define handleBatchMoveSuccess')
-  assert.ok(source.includes('selectedChildGroups.value = []'), 'Must reset selected groups on node switch and move success')
 })
 
 test('BatchMoveNavNodesDialog handles anti-cycle, max level, and API invocation', async () => {
