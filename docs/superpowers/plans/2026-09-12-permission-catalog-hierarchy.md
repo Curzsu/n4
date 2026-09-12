@@ -240,6 +240,16 @@ private void syncPermissionCatalog() {
         permissionIds.put(definition.code(), permissionId);
     }
 
+    jdbcTemplate.update("""
+            INSERT IGNORE INTO sys_group_permission (group_id, perm_id)
+            SELECT group_record.group_id, permission_record.perm_id
+            FROM sys_group group_record
+            CROSS JOIN sys_permission permission_record
+            WHERE group_record.group_code = 'SUPER_ADMIN'
+              AND group_record.is_deleted = 0
+              AND permission_record.is_deleted = 0
+            """);
+
     for (int pass = 0; pass < RbacPermissionCatalog.definitions().size(); pass++) {
         int inserted = jdbcTemplate.update("""
                 INSERT IGNORE INTO sys_group_permission (group_id, perm_id)
