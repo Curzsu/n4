@@ -14,8 +14,10 @@ import org.springframework.stereotype.Component;
 import javax.sql.DataSource;
 import java.io.File;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Component
 @Order(1)
@@ -64,6 +66,7 @@ public class RbacSchemaInitializer implements ApplicationRunner {
         migrateLegacySystemRoot();
 
         Map<String, Long> permissionIds = new HashMap<>();
+        Set<String> newPermissionCodes = new HashSet<>();
         for (RbacPermissionCatalog.PermissionDefinition definition : RbacPermissionCatalog.definitions()) {
             Long parentId = definition.parentCode() == null
                     ? 0L
@@ -74,6 +77,8 @@ public class RbacSchemaInitializer implements ApplicationRunner {
             if (parentId == null) {
                 throw new IllegalStateException("Missing parent permission: " + definition.parentCode());
             }
+
+            boolean isNewPermission = findPermissionId(definition.code()) == null;
 
             jdbcTemplate.update("""
                     INSERT INTO sys_permission
@@ -104,6 +109,9 @@ public class RbacSchemaInitializer implements ApplicationRunner {
                 throw new IllegalStateException("Permission upsert did not create a row: " + definition.code());
             }
             permissionIds.put(definition.code(), permissionId);
+            if (isNewPermission) {
+                newPermissionCodes.add(definition.code());
+            }
         }
 
         retireObsoleteCatalogNodes();
@@ -117,6 +125,22 @@ public class RbacSchemaInitializer implements ApplicationRunner {
                   AND group_record.is_deleted = 0
                   AND permission_record.is_deleted = 0
                 """);
+
+        for (String permissionCode : newPermissionCodes) {
+            if (!RbacPermissionCatalog.operatorPermissionCodes().contains(permissionCode)) {
+                continue;
+            }
+            jdbcTemplate.update("""
+                    INSERT IGNORE INTO sys_group_permission (group_id, perm_id)
+                    SELECT group_record.group_id, permission_record.perm_id
+                    FROM sys_group group_record
+                    CROSS JOIN sys_permission permission_record
+                    WHERE group_record.group_code = 'OPERATOR'
+                      AND group_record.is_deleted = 0
+                      AND permission_record.perm_code = ?
+                      AND permission_record.is_deleted = 0
+                    """, permissionCode);
+        }
 
         for (int pass = 0; pass < RbacPermissionCatalog.definitions().size(); pass++) {
             int inserted = jdbcTemplate.update("""

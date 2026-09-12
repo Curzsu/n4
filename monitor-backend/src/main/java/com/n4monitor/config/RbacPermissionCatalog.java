@@ -1,6 +1,7 @@
 package com.n4monitor.config;
 
 import java.util.List;
+import java.util.Set;
 
 public final class RbacPermissionCatalog {
     public static final int MENU = 1;
@@ -19,7 +20,27 @@ public final class RbacPermissionCatalog {
 
             menu("system", "System", null, null, null, "Setting", 6),
             menu("device:template:view", "Device Template", "system", "/device-template", "device-deploy/ProductManagerView", "Cpu", 1),
+            button("device:template:add", "Add Template", "device:template:view", 1),
+            button("device:template:edit", "Edit Template", "device:template:view", 2),
+            button("device:template:delete", "Delete Template", "device:template:view", 3),
+            button("device:template:import", "Import", "device:template:view", 4),
+            button("device:template:export", "Export", "device:template:view", 5),
+            button("device:template:point:add", "Add Point", "device:template:view", 6),
+            button("device:template:point:edit", "Edit Point", "device:template:view", 7),
+            button("device:template:point:delete", "Delete Point", "device:template:view", 8),
+            button("device:template:faceplate:view", "Set Faceplate Panel", "device:template:view", 9),
             menu("device:deploy:view", "Device Deployment", "system", "/device-deployment", "SystemDeploymentView", "Operation", 2),
+            button("device:deploy:group:add", "Add Group", "device:deploy:view", 1),
+            button("device:deploy:group:edit", "Edit Group", "device:deploy:view", 2),
+            button("device:deploy:group:delete", "Delete Group", "device:deploy:view", 3),
+            button("device:deploy:add", "Deploy Device", "device:deploy:view", 4),
+            button("device:deploy:edit", "Edit Device", "device:deploy:view", 5),
+            button("device:deploy:delete", "Delete Device", "device:deploy:view", 6),
+            button("device:deploy:mount", "Mount Device", "device:deploy:view", 7),
+            button("device:deploy:unmount", "Unmount Device", "device:deploy:view", 8),
+            button("device:deploy:import", "Import", "device:deploy:view", 9),
+            button("device:deploy:export", "Export", "device:deploy:view", 10),
+            button("device:deploy:alarm:edit", "Set Device Alarm", "device:deploy:view", 11),
             menu("alarm:config:view", "Alarm Configuration", "system", "/alarm/config", "AlarmConfigView", "Setting", 3),
             menu("system:authority", "Authority Management", "system", null, null, "Lock", 4),
 
@@ -41,11 +62,42 @@ public final class RbacPermissionCatalog {
             button("auth:logout", "Logout", "system:authority", 6)
     );
 
+    private static final Set<String> OPERATOR_PERMISSION_CODES = Set.of(
+            "dashboard:view",
+            "alarm",
+            "alarm:view",
+            "alarm:history:view",
+            "alarm:event:view",
+            "system",
+            "device:template:view",
+            "device:template:add",
+            "device:template:edit",
+            "device:template:import",
+            "device:template:export",
+            "device:template:point:add",
+            "device:template:point:edit",
+            "device:template:faceplate:view",
+            "device:deploy:view",
+            "device:deploy:group:add",
+            "device:deploy:group:edit",
+            "device:deploy:add",
+            "device:deploy:edit",
+            "device:deploy:mount",
+            "device:deploy:unmount",
+            "device:deploy:import",
+            "device:deploy:export",
+            "device:deploy:alarm:edit",
+            "alarm:config:view");
+
     private RbacPermissionCatalog() {
     }
 
     public static List<PermissionDefinition> definitions() {
         return DEFINITIONS;
+    }
+
+    public static Set<String> operatorPermissionCodes() {
+        return OPERATOR_PERMISSION_CODES;
     }
 
     private static PermissionDefinition menu(

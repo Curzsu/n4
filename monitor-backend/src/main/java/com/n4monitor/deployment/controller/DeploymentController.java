@@ -76,12 +76,14 @@ public class DeploymentController {
 
     /** Deploy new device (generate points from template) */
     @PostMapping
+    @PreAuthorize("hasAuthority('device:deploy:add')")
     public ApiResponse<DeviceDeployment> createDeployment(@RequestBody DeviceDeployment deployment) {
         return ApiResponse.success(deploymentService.createDeployment(deployment));
     }
 
     /** Update deployed device */
     @PutMapping("/{deviceDeployId}")
+    @PreAuthorize("hasAuthority('device:deploy:edit')")
     public ApiResponse<String> updateDevice(@PathVariable Long deviceDeployId,
                                             @RequestBody DeviceDeployment deployment) {
         deploymentService.updateDevice(deviceDeployId, deployment);
@@ -90,6 +92,7 @@ public class DeploymentController {
 
     /** Move device to another node */
     @PutMapping("/{deviceDeployId}/move")
+    @PreAuthorize("hasAuthority('device:deploy:edit')")
     public ApiResponse<String> moveDevice(@PathVariable Long deviceDeployId,
                                           @RequestBody Map<String, Object> body) {
         Long targetNodeId = body.get("targetNodeId") == null ? null
@@ -101,6 +104,7 @@ public class DeploymentController {
 
     /** Update deployed point */
     @PutMapping("/points/{pointDeployId}")
+    @PreAuthorize("hasAuthority('device:deploy:edit')")
     public ApiResponse<String> updatePoint(@PathVariable Long pointDeployId,
                                            @RequestBody PointDeployment point) {
         deploymentService.updatePoint(pointDeployId, point);
@@ -109,6 +113,7 @@ public class DeploymentController {
 
     /** Delete device deployment (cascade deletes points) */
     @DeleteMapping("/{deviceDeployId}")
+    @PreAuthorize("hasAuthority('device:deploy:delete')")
     public ApiResponse<String> deleteDeployment(@PathVariable Long deviceDeployId) {
         deploymentService.deleteDeployment(deviceDeployId);
         return ApiResponse.success("Device deployment deleted successfully");
@@ -116,7 +121,7 @@ public class DeploymentController {
 
     /** Preview or import one or more deployment CSV files or a ZIP archive. */
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAuthority('device:deploy:view')")
+    @PreAuthorize("hasAuthority('device:deploy:import')")
     @OperationLog(
             module = "Deployment Management",
             operation = "Import deployment files",
@@ -130,7 +135,7 @@ public class DeploymentController {
 
     /** Download a CSV with the teacher-provided deployment layout. */
     @GetMapping("/import-template")
-    @PreAuthorize("hasAuthority('device:deploy:view')")
+    @PreAuthorize("hasAuthority('device:deploy:import')")
     @OperationLog(module = "Deployment Management", operation = "Download deployment import template", businessType = BusinessType.EXPORT)
     public ResponseEntity<ByteArrayResource> downloadImportTemplate() {
         byte[] content = deploymentImportTemplateService.generate();
@@ -142,7 +147,7 @@ public class DeploymentController {
 
     /** Export a database snapshot of deployment and alarm-rule tables. */
     @GetMapping("/export")
-    @PreAuthorize("hasAuthority('device:deploy:view')")
+    @PreAuthorize("hasAuthority('device:deploy:export')")
     @OperationLog(module = "Deployment Management", operation = "Export deployment snapshot", businessType = BusinessType.EXPORT)
     public ResponseEntity<ByteArrayResource> exportSnapshot() {
         byte[] content = deploymentExportService.exportSnapshot();

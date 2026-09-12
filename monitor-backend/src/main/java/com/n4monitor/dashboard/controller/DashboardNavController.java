@@ -6,6 +6,7 @@ import com.n4monitor.deployment.dto.DeviceDeployListDto;
 import com.n4monitor.dashboard.dto.NavTreeNodeDto;
 import com.n4monitor.dashboard.entity.NavNode;
 import com.n4monitor.dashboard.service.DashboardNavService;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -49,18 +50,21 @@ public class DashboardNavController {
 
     /** Create navigation node */
     @PostMapping("/nodes")
+    @PreAuthorize("hasAuthority('device:deploy:group:add')")
     public ApiResponse<NavNode> createNode(@RequestBody NavNode node) {
         return ApiResponse.success(navService.createNode(node));
     }
 
     /** Update navigation node */
     @PutMapping("/nodes/{nodeId}")
+    @PreAuthorize("hasAuthority('device:deploy:group:edit')")
     public ApiResponse<NavNode> updateNode(@PathVariable Long nodeId, @RequestBody NavNode node) {
         return ApiResponse.success(navService.updateNode(nodeId, node));
     }
 
     /** Delete node (cascade delete children and unmount devices) */
     @DeleteMapping("/nodes/{nodeId}")
+    @PreAuthorize("hasAuthority('device:deploy:group:delete')")
     public ApiResponse<DeleteImpactDto> deleteNode(@PathVariable Long nodeId) {
         return ApiResponse.success(navService.deleteNode(nodeId));
     }
@@ -81,6 +85,7 @@ public class DashboardNavController {
 
     /** Mount devices to a leaf node */
     @PostMapping("/nodes/{nodeId}/devices")
+    @PreAuthorize("hasAuthority('device:deploy:mount')")
     public ApiResponse<Integer> mountDevices(@PathVariable Long nodeId,
                                              @RequestBody List<Long> deviceIds) {
         return ApiResponse.success(navService.mountDevices(nodeId, deviceIds));
@@ -88,6 +93,7 @@ public class DashboardNavController {
 
     /** Unmount device */
     @DeleteMapping("/devices/{deviceDeployId}/mount")
+    @PreAuthorize("hasAuthority('device:deploy:unmount')")
     public ApiResponse<Integer> unmountDevice(@PathVariable Long deviceDeployId) {
         return ApiResponse.success(navService.unmountDevice(deviceDeployId));
     }

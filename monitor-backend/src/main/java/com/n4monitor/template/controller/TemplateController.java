@@ -55,12 +55,14 @@ public class TemplateController {
 
     /** Create template */
     @PostMapping
+    @PreAuthorize("hasAuthority('device:template:add')")
     public ApiResponse<DeviceTemplate> createTemplate(@RequestBody DeviceTemplate template) {
         return ApiResponse.success(templateService.createTemplate(template));
     }
 
     /** Update template */
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('device:template:edit')")
     public ApiResponse<String> updateTemplate(@PathVariable("id") Long id, @RequestBody DeviceTemplate template) {
         templateService.updateTemplate(id, template);
         return ApiResponse.success("Template updated successfully");
@@ -68,6 +70,7 @@ public class TemplateController {
 
     /** Delete template (logical delete) */
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('device:template:delete')")
     public ApiResponse<String> deleteTemplate(@PathVariable("id") Long id) {
         templateService.deleteTemplate(id);
         return ApiResponse.success("Template deleted successfully");
@@ -81,12 +84,14 @@ public class TemplateController {
 
     /** Create point under a template */
     @PostMapping("/{id}/points")
+    @PreAuthorize("hasAuthority('device:template:point:add')")
     public ApiResponse<PointTemplate> createPoint(@PathVariable("id") Long id, @RequestBody PointTemplate point) {
         return ApiResponse.success(templateService.createPoint(id, point));
     }
 
     /** Update point */
     @PutMapping("/points/{pointId}")
+    @PreAuthorize("hasAuthority('device:template:point:edit')")
     public ApiResponse<String> updatePoint(@PathVariable("pointId") Long pointId, @RequestBody PointTemplate point) {
         templateService.updatePoint(pointId, point);
         return ApiResponse.success("Point updated successfully");
@@ -94,6 +99,7 @@ public class TemplateController {
 
     /** Delete point (logical delete) */
     @DeleteMapping("/points/{pointId}")
+    @PreAuthorize("hasAuthority('device:template:point:delete')")
     public ApiResponse<String> deletePoint(@PathVariable("pointId") Long pointId) {
         templateService.deletePoint(pointId);
         return ApiResponse.success("Point deleted successfully");
@@ -101,7 +107,7 @@ public class TemplateController {
 
     /** Preview or import the teacher-provided template workbook. */
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAuthority('device:template:view')")
+    @PreAuthorize("hasAuthority('device:template:import')")
     @OperationLog(module = "Template Management", operation = "Import template workbook", businessType = BusinessType.IMPORT)
     public ApiResponse<ImportSummary> importWorkbook(
             @RequestPart("file") MultipartFile file,
@@ -111,7 +117,7 @@ public class TemplateController {
 
     /** Download a workbook with the teacher-provided template layout. */
     @GetMapping("/import-template")
-    @PreAuthorize("hasAuthority('device:template:view')")
+    @PreAuthorize("hasAuthority('device:template:import')")
     @OperationLog(module = "Template Management", operation = "Download template import template", businessType = BusinessType.EXPORT)
     public ResponseEntity<ByteArrayResource> downloadImportTemplate() {
         byte[] content = templateImportTemplateService.generate();
@@ -124,7 +130,7 @@ public class TemplateController {
 
     /** Export a database snapshot of active device and point templates. */
     @GetMapping("/export")
-    @PreAuthorize("hasAuthority('device:template:view')")
+    @PreAuthorize("hasAuthority('device:template:export')")
     @OperationLog(module = "Template Management", operation = "Export template snapshot", businessType = BusinessType.EXPORT)
     public ResponseEntity<ByteArrayResource> exportWorkbook() {
         byte[] content = templateExportService.exportWorkbook();
