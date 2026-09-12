@@ -12,7 +12,8 @@ test('renders permissions with stable hierarchical order labels', async () => {
   const serviceSource = await readFile(servicePath, 'utf8')
 
   assert.match(viewSource, /buildPermissionTreeView\(await permissionApi\.tree\(\)\)/)
-  assert.match(viewSource, /class="permission-order"[^>]*>\s*\{\{ row\.displayOrder \}\}/)
+  assert.doesNotMatch(viewSource, /class="permission-order"/)
+  assert.doesNotMatch(viewSource, /row\.displayOrder/)
   assert.match(viewSource, /default-expand-all/)
   assert.match(serviceSource, /Comparator\.comparing\(PermissionTreeDto::getSortOrder/)
   assert.match(serviceSource, /thenComparing\(PermissionTreeDto::getPermId/)

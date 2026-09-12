@@ -31,7 +31,6 @@
         <el-table-column prop="permName" label="Permission Name" min-width="200" align="left" header-align="center" show-overflow-tooltip :resizable="false">
           <template #default="{ row }">
             <span class="tree-perm-name">
-              <span class="permission-order">{{ row.displayOrder }}</span>
               <el-icon v-if="isValidIcon(row.icon)" class="perm-icon"><component :is="row.icon" /></el-icon>
               <span>{{ row.permName }}</span>
             </span>
@@ -388,18 +387,6 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-
-  .permission-order {
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-end;
-    min-width: 30px;
-    color: $accent-blue;
-    font-family: monospace;
-    font-size: 10px;
-    font-weight: 600;
-    flex-shrink: 0;
-  }
 
   .perm-icon {
     font-size: 12px;
