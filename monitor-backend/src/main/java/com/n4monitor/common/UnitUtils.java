@@ -21,7 +21,8 @@ public final class UnitUtils {
         boolean malformedDegree = normalized.contains("?")
                 || normalized.contains("\uFFFD")
                 || normalized.contains("\u00B0")
-                || normalized.contains("\u64B8");
+                || normalized.contains("\u64B8")
+                || normalized.contains("\u63B3");
         if (malformedDegree && (normalized.endsWith("C") || normalized.endsWith("c"))) {
             return "\u00B0C";
         }

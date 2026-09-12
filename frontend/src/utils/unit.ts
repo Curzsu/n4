@@ -11,7 +11,8 @@ export function normalizeUnit(value?: string | null): string {
     trimmed.includes('?') ||
     trimmed.includes('\uFFFD') ||
     trimmed.includes('\u00B0') ||
-    trimmed.includes('\u64B8')
+    trimmed.includes('\u64B8') ||
+    trimmed.includes('\u63B3')
 
   if (malformedDegree && (trimmed.endsWith('C') || trimmed.endsWith('c'))) {
     return '\u00B0C'

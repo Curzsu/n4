@@ -14,10 +14,12 @@ test('normalizeUnit handles null, empty and normal values', () => {
 })
 
 test('normalizeUnit repairs corrupted degree Celsius variants', () => {
-  // \u64B8C is the GBK decode of UTF-8 degree sign bytes (0xC2 0xB0) followed by 'C'
+  // \u64B8C and \u63B3C are the GBK decodes of UTF-8 degree sign bytes followed by 'C'
   assert.equal(normalizeUnit('\u64B8C'), '°C')
+  assert.equal(normalizeUnit('\u63B3C'), '°C')
   assert.equal(normalizeUnit('?C'), '°C')
   assert.equal(normalizeUnit('\uFFFDC'), '°C')
   assert.equal(normalizeUnit(' \u64B8c '), '°C')
+  assert.equal(normalizeUnit(' \u63B3c '), '°C')
   assert.equal(normalizeUnit('?c'), '°C')
 })

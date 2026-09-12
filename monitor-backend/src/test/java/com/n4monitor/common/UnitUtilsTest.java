@@ -23,10 +23,12 @@ class UnitUtilsTest {
 
     @Test
     void testNormalizeUnitCorruptedDegreeCelsius() {
-        // \u64B8C represents the GBK decode of UTF-8 degree sign bytes (0xC2 0xB0) followed by 'C'
+        // \u64B8C and \u63B3C represent the GBK decodes of UTF-8 degree sign bytes followed by 'C'
         assertThat(UnitUtils.normalizeUnit("\u64B8C")).isEqualTo("\u00B0C");
+        assertThat(UnitUtils.normalizeUnit("\u63B3C")).isEqualTo("\u00B0C");
         assertThat(UnitUtils.normalizeUnit("?C")).isEqualTo("\u00B0C");
         assertThat(UnitUtils.normalizeUnit("\uFFFDC")).isEqualTo("\u00B0C");
         assertThat(UnitUtils.normalizeUnit(" \u64B8c ")).isEqualTo("\u00B0C");
+        assertThat(UnitUtils.normalizeUnit(" \u63B3c ")).isEqualTo("\u00B0C");
     }
 }
