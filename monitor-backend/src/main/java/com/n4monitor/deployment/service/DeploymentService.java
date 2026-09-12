@@ -204,7 +204,7 @@ public class DeploymentService {
         existing.setPointCode(point.getPointCode());
         existing.setType(point.getType());
         existing.setDataType(null);
-        existing.setUnit(point.getUnit() == null ? null : point.getUnit().trim());
+        existing.setUnit(com.n4monitor.common.UnitUtils.normalizeUnit(point.getUnit()));
         existing.setDisplayPrecision(point.getDisplayPrecision());
         pointDeploymentMapper.update(existing);
     }

@@ -87,7 +87,11 @@
               >
                 <el-table-column prop="pointName" label="Point Name" min-width="180" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
                 <el-table-column prop="type" label="Type" width="110" align="left" header-align="center" :resizable="false" />
-                <el-table-column prop="unit" label="Unit" width="90" align="left" header-align="center" :resizable="false" />
+                <el-table-column prop="unit" label="Unit" width="90" align="left" header-align="center" :resizable="false">
+                  <template #default="{ row }">
+                    {{ normalizeUnit(row.unit) }}
+                  </template>
+                </el-table-column>
                 <el-table-column prop="modbusAddress" label="Modbus Address" min-width="150" align="left" header-align="center" :resizable="false">
                   <template #default="{ row }">
                     <code class="addr-code">{{ row.modbusAddress || 'N/A' }}</code>
@@ -687,6 +691,7 @@ import { useDashboardStore } from '@/stores/dashboard'
 import type { ImportSummary, NavTreeNode, DeviceDeployItem, DeviceDeployment, PointDeploymentItem } from '@/api/types'
 import NavNodeDialog from '@/views/device-deploy/dialogs/NavNodeDialog.vue'
 import { triggerFormShake } from '@/utils/formAnimation'
+import { normalizeUnit } from '@/utils/unit'
 
 const store = useDashboardStore()
 const selectedNode = computed(() => store.currentNavNode)

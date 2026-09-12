@@ -138,7 +138,7 @@
           <el-table-column prop="pointName" label="Point Name" min-width="140" />
           <el-table-column prop="pointValue" label="Current Value" width="100">
             <template #default="{ row }">
-              <span class="point-value">{{ row.pointValue }} {{ row.unit || '' }}</span>
+              <span class="point-value">{{ row.pointValue }} {{ normalizeUnit(row.unit) }}</span>
             </template>
           </el-table-column>
           <el-table-column prop="pointStatus" label="Status" width="90">
@@ -168,6 +168,7 @@ import FuxaCabinMonitorPanel from '@/components/FuxaCabinMonitorPanel.vue'
 import { deviceApi } from '@/api/device'
 import type { DeviceTreeNode } from '@/api/types'
 import axios from 'axios'
+import { normalizeUnit } from '@/utils/unit'
 
 const store = useDashboardStore()
 const searchQuery = ref('')

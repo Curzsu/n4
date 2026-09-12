@@ -1,6 +1,7 @@
 package com.n4monitor.transfer.deployment;
 
 import com.n4monitor.alarm.service.AlarmRuleSyncService;
+import com.n4monitor.common.UnitUtils;
 import com.n4monitor.dashboard.entity.NavNode;
 import com.n4monitor.dashboard.mapper.NavNodeMapper;
 import com.n4monitor.deployment.entity.DeviceDeployment;
@@ -1133,17 +1134,7 @@ public class DeploymentTransferService {
     }
 
     private String normalizeUnit(String value) {
-        String normalized = blankToNull(value);
-        if (normalized == null) {
-            return null;
-        }
-        boolean malformedDegree = normalized.contains("?")
-                || normalized.contains("\uFFFD")
-                || normalized.contains("\u00B0");
-        if (malformedDegree && normalized.endsWith("C")) {
-            return "\u00B0C";
-        }
-        return normalized;
+        return UnitUtils.normalizeUnit(value);
     }
 
     private String required(String value, String field) {

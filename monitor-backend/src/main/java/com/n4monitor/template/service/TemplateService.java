@@ -4,6 +4,7 @@ import com.n4monitor.template.entity.DeviceTemplate;
 import com.n4monitor.template.entity.PointTemplate;
 import com.n4monitor.template.mapper.DeviceTemplateMapper;
 import com.n4monitor.template.mapper.PointTemplateMapper;
+import com.n4monitor.common.UnitUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -86,6 +87,7 @@ public class TemplateService {
         requireTemplate(deviceTmplId);
         validatePointFields(point);
         point.setDeviceTmplId(deviceTmplId);
+        point.setUnit(UnitUtils.normalizeUnit(point.getUnit()));
 
         // Check duplicate point name under this template
         List<PointTemplate> existingPoints = pointTemplateMapper.findByDeviceTmplId(deviceTmplId);
@@ -118,7 +120,7 @@ public class TemplateService {
         existing.setAlarmCode(point.getAlarmCode());
         existing.setPointName(point.getPointName().trim());
         existing.setType(point.getType());
-        existing.setUnit(point.getUnit() == null ? null : point.getUnit().trim());
+        existing.setUnit(UnitUtils.normalizeUnit(point.getUnit()));
         existing.setDisplayPrecision(point.getDisplayPrecision());
         pointTemplateMapper.update(existing);
     }

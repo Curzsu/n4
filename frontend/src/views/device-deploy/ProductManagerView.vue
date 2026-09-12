@@ -130,7 +130,11 @@
               <el-table-column prop="pointTmplId" label="ID" width="55" align="left" header-align="center" :resizable="false" />
               <el-table-column prop="pointName" label="Point Name" min-width="180" align="left" header-align="center" show-overflow-tooltip :resizable="false" />
               <el-table-column prop="type" label="Type" width="110" align="left" header-align="center" :resizable="false" />
-              <el-table-column prop="unit" label="Unit" width="90" align="left" header-align="center" :resizable="false" />
+              <el-table-column prop="unit" label="Unit" width="90" align="left" header-align="center" :resizable="false">
+                <template #default="{ row }">
+                  {{ normalizeUnit(row.unit) }}
+                </template>
+              </el-table-column>
               <el-table-column prop="displayPrecision" label="Precision" width="90" align="left" header-align="center" :resizable="false" />
               <el-table-column label="Alarm Rule" min-width="220" align="left" header-align="center" :resizable="false">
                 <template #default="{ row }">
@@ -643,6 +647,7 @@ import { useDashboardStore } from '@/stores/dashboard'
 import TemplateDiagramDialog from './dialogs/TemplateDiagramDialog.vue'
 import AlarmRuleEditModal from './dialogs/AlarmRuleEditModal.vue'
 import { triggerFormShake } from '@/utils/formAnimation'
+import { normalizeUnit } from '@/utils/unit'
 
 const store = useDashboardStore()
 
@@ -1282,7 +1287,7 @@ function openEditPointDialog(row: any) {
     pointTmplId: row.pointTmplId,
     pointName: row.pointName,
     type: row.type || row.dataType || null,
-    unit: row.unit || '',
+    unit: normalizeUnit(row.unit),
     displayPrecision: row.displayPrecision ?? 0
   }
   pointDialogVisible.value = true
@@ -1330,7 +1335,7 @@ async function submitPointForm() {
     const payload = {
       pointName: pointForm.value.pointName.trim(),
       type: pointForm.value.type,
-      unit: pointForm.value.unit ? pointForm.value.unit.trim() : '',
+      unit: normalizeUnit(pointForm.value.unit),
       displayPrecision: pointForm.value.displayPrecision ?? 0
     }
 
@@ -1538,7 +1543,7 @@ async function exportAllTemplatesAndPoints() {
             p.pointName || '',
             '',
             p.type || '',
-            p.unit || '',
+            normalizeUnit(p.unit),
             p.displayPrecision ?? 0
           ])
         }

@@ -1,5 +1,6 @@
 package com.n4monitor.transfer.template;
 
+import com.n4monitor.common.UnitUtils;
 import com.n4monitor.template.entity.DeviceTemplate;
 import com.n4monitor.template.entity.PointTemplate;
 import com.n4monitor.template.mapper.DeviceTemplateMapper;
@@ -208,7 +209,7 @@ public class TemplateTransferService {
         point.setDeviceTmplId(deviceTemplateId);
         point.setPointName(data.pointName());
         point.setType(data.type());
-        point.setUnit(data.unit());
+        point.setUnit(UnitUtils.normalizeUnit(data.unit()));
         point.setIsDeleted(false);
         return point;
     }
