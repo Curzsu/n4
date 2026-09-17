@@ -754,6 +754,10 @@ const cabinImageUrl = computed(() => {
   if (normalized.includes('mvpa1') || normalized.startsWith('a1mvp') || normalized.startsWith('mvp')) {
     return '/cabin-images/A1_MVP_A1.png'
   }
+  // Match SLP BS1A cabin nodes (A1_SLP_BS1A, SLP_BS1A, etc.)
+  if (normalized.includes('slpbs1a')) {
+    return '/cabin-images/A1_SLP_BS1A.png'
+  }
   // Match PTU BS cabin nodes (A1_PTU_BS1, PTU_BS1, etc.)
   if (normalized.includes('ptubs')) {
     return '/cabin-images/A1-PTU-BS.png'
