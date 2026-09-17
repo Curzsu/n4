@@ -402,7 +402,7 @@
               :cell-style="cellStyle"
             >
               <el-table-column prop="category" label="Category" min-width="110" align="left" header-align="center" />
-              <el-table-column prop="created" label="New (To Create)" min-width="78" align="center" header-align="center">
+              <el-table-column prop="created" label="New" min-width="78" align="center" header-align="center">
                 <template #default="{ row }">
                   <el-tag v-if="row.created !== null" size="small" type="success" effect="dark">+{{ row.created }}</el-tag>
                   <span v-else style="color: #64748b;">-</span>
@@ -414,7 +414,7 @@
                   <span v-else style="color: #64748b;">-</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="details" label="Details / Total" min-width="100" show-overflow-tooltip align="left" header-align="center" />
+              <el-table-column prop="details" label="Total" min-width="100" show-overflow-tooltip align="left" header-align="center" />
               <el-table-column prop="statusText" label="Status" width="72" align="center" header-align="center">
                 <template #default="{ row }">
                   <el-tag size="small" :type="row.statusType" effect="plain">{{ row.statusText }}</el-tag>
