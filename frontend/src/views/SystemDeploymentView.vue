@@ -754,6 +754,10 @@ const cabinImageUrl = computed(() => {
   if (normalized.includes('mvpa1') || normalized.startsWith('a1mvp') || normalized.startsWith('mvp')) {
     return '/cabin-images/A1_MVP_A1.png'
   }
+  // Match PTU IT cabin nodes (A1_PTU_IT, PTU_IT, etc.)
+  if (normalized.includes('ptuit')) {
+    return '/cabin-images/A1-PTU-IT.png'
+  }
   // Fallback to default cabin diagram for all other cabin nodes at the same hierarchy level (e.g. A1_SLP_A2C2)
   return '/cabin-images/default_cabin.png'
 })
