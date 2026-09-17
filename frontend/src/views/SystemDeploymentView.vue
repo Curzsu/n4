@@ -450,10 +450,10 @@
           </div>
         </div>
 
-        <!-- Parsed Device Deployments Table -->
+        <!-- New Device Table -->
         <div v-if="deploymentImportResult.deploymentPreviews?.length" style="margin-bottom: 16px;">
           <div style="font-size: 13px; font-weight: 600; color: #cbd5e1; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
-            <span>Parsed Device Deployments ({{ deploymentImportResult.deploymentPreviews.length }})</span>
+            <span>New Device ({{ deploymentImportResult.deploymentPreviews.length }})</span>
           </div>
           <el-table
             :data="deploymentImportResult.deploymentPreviews"
