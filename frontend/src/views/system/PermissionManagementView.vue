@@ -19,7 +19,8 @@
         :data="permissionTree"
         row-key="permId"
         default-expand-all
-        :indent="32"
+        :indent="48"
+        :row-class-name="permissionRowClass"
         height="100%"
         style="width: 100%"
         :header-cell-style="headerCellStyle"
@@ -245,6 +246,12 @@ const cellStyle = {
   color: '#e5e7eb',
   fontSize: '10px',
   borderBottom: '1px solid #1f2937',
+}
+
+/** Row level class derived from the dotted display order (e.g. "3.1.2" -> depth 2) */
+function permissionRowClass({ row }: { row: PermissionViewNode }): string {
+  const depth = (row.displayOrder.match(/\./g) || []).length
+  return `perm-level-${depth}`
 }
 
 async function loadTree() {
@@ -598,6 +605,19 @@ onMounted(() => {
     height: 20px;
     line-height: 20px;
     margin-right: 2px;
+  }
+
+  /* Level typography: directory bold/bright, menu regular, buttons muted */
+  tr.perm-level-0 .tree-perm-name {
+    font-weight: 600;
+    color: #f1f5f9;
+  }
+  tr.perm-level-1 .tree-perm-name {
+    color: #e5e7eb;
+  }
+  tr.perm-level-2 .tree-perm-name,
+  tr.perm-level-3 .tree-perm-name {
+    color: #94a3b8;
   }
 }
 
