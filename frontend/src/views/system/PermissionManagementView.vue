@@ -18,9 +18,9 @@
       <el-table
         :data="permissionTree"
         row-key="permId"
-        default-expand-all
         :indent="48"
         :row-class-name="permissionRowClass"
+        :expand-row-keys="defaultExpandedKeys"
         height="100%"
         style="width: 100%"
         :header-cell-style="headerCellStyle"
@@ -253,6 +253,9 @@ function permissionRowClass({ row }: { row: PermissionViewNode }): string {
   const depth = (row.displayOrder.match(/\./g) || []).length
   return `perm-level-${depth}`
 }
+
+/** Expand root nodes only on first load: level 1 visible, level 2+ collapsed */
+const defaultExpandedKeys = computed(() => permissionTree.value.map(node => node.permId))
 
 async function loadTree() {
   loading.value = true
