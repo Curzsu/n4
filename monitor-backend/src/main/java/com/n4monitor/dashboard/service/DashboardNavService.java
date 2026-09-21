@@ -384,6 +384,8 @@ public class DashboardNavService {
             if (levelDelta != 0) {
                 updateDescendantLevels(nodeId, levelDelta);
             }
+            // Keep device system_name / N4 addresses in sync with the new hierarchy
+            refreshSubtreeDevicePaths(nodeId);
             movedCount++;
         }
         return movedCount;
@@ -394,8 +396,13 @@ public class DashboardNavService {
         if (!existing.isEmpty() && existing.get(0).getSystemName() != null && !existing.get(0).getSystemName().isBlank()) {
             return existing.get(0).getSystemName();
         }
+        return resolveNodeSystemName(targetParent);
+    }
+
+    /** Resolve a node's system path from its ancestor chain (last two name segments) */
+    private String resolveNodeSystemName(NavNode node) {
         List<String> parts = new ArrayList<>();
-        NavNode cur = targetParent;
+        NavNode cur = node;
         while (cur != null) {
             parts.add(0, cur.getNodeName());
             cur = cur.getParentId() == null ? null : navNodeMapper.findByNodeId(cur.getParentId());
@@ -403,7 +410,7 @@ public class DashboardNavService {
         if (parts.size() >= 2) {
             return parts.get(parts.size() - 2) + "/" + parts.get(parts.size() - 1);
         }
-        return targetParent.getNodeName();
+        return node.getNodeName();
     }
 
     private void collectSubtreeNodeIds(Long nodeId, List<Long> result) {
@@ -444,6 +451,26 @@ public class DashboardNavService {
             }
             if (changed) {
                 pointDeploymentMapper.update(point);
+            }
+        }
+    }
+
+    /** Recompute system_name and N4 addresses for all devices mounted in a moved subtree */
+    private void refreshSubtreeDevicePaths(Long rootNodeId) {
+        List<Long> subtreeIds = new ArrayList<>();
+        collectSubtreeNodeIds(rootNodeId, subtreeIds);
+        for (Long nodeId : subtreeIds) {
+            NavNode node = navNodeMapper.findByNodeId(nodeId);
+            if (node == null) {
+                continue;
+            }
+            String systemName = resolveNodeSystemName(node);
+            for (DeviceDeployment device : deviceDeploymentMapper.findByNavNodeId(nodeId)) {
+                if (systemName != null && !systemName.isEmpty()) {
+                    device.setSystemName(systemName);
+                }
+                updateDeviceAndPointAddresses(device, systemName, node.getNodeName());
+                deviceDeploymentMapper.update(device);
             }
         }
     }

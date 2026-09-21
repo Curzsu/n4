@@ -68,6 +68,38 @@ class DashboardNavServiceTest {
     }
 
     @Test
+    void batchMoveNodes_Reparenting_RefreshesDevicePaths() {
+        NavNode root2 = createNode(2L, null, "A2_MVP", 1, 3);
+        NavNode targetCabin = createNode(20L, 2L, "A2_MVP_A1", 2, null);
+        NavNode group = createNode(100L, 10L, "MVP_A1", 3, null);
+
+        when(navNodeMapper.findByNodeId(20L)).thenReturn(targetCabin);
+        when(navNodeMapper.findByNodeId(100L)).thenReturn(group);
+        when(navNodeMapper.findByNodeId(2L)).thenReturn(root2); // resolveMaxLevel + path walk-up
+        when(navNodeMapper.findChildren(100L)).thenReturn(List.of());
+        when(navNodeMapper.findChildren(20L)).thenReturn(List.of());
+        when(navNodeMapper.countDevicesByNodeId(20L)).thenReturn(0);
+
+        DeviceDeployment device = new DeviceDeployment();
+        device.setDeviceDeployId(1L);
+        device.setNavNodeId(100L);
+        device.setDeviceDeployName("MVP_A1_Dev1");
+        device.setSystemName("A1_MVP_A1/MVP_A1");
+        device.setN4Address("A1_MVP_A1/MVP_A1/MVP_A1_Dev1");
+        when(deviceDeploymentMapper.findByNavNodeId(100L)).thenReturn(List.of(device));
+
+        int moved = navService.batchMoveNodes(List.of(100L), 20L);
+
+        assertThat(moved).isEqualTo(1);
+        assertThat(group.getParentId()).isEqualTo(20L);
+        // Device path must follow the new hierarchy after the move
+        assertThat(device.getSystemName()).isEqualTo("A2_MVP_A1/MVP_A1");
+        assertThat(device.getN4Address()).isEqualTo("A2_MVP_A1/MVP_A1/MVP_A1_Dev1");
+        verify(navNodeMapper).update(group);
+        verify(deviceDeploymentMapper).update(device);
+    }
+
+    @Test
     void batchMoveNodes_SelfMoveThrows() {
         assertThatThrownBy(() -> navService.batchMoveNodes(List.of(10L), 10L))
                 .isInstanceOf(IllegalArgumentException.class)
