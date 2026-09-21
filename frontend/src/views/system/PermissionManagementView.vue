@@ -19,6 +19,7 @@
         :data="permissionTree"
         row-key="permId"
         default-expand-all
+        :indent="24"
         height="100%"
         style="width: 100%"
         :header-cell-style="headerCellStyle"
@@ -583,13 +584,17 @@ onMounted(() => {
     text-align: center !important;
   }
 
+  /* Leaf rows render a placeholder where parent rows render the expand icon;
+     both must occupy the same width (20px icon + 2px margin) so rows at the
+     same tree level align. */
   .el-table__placeholder {
     display: inline-block;
-    width: 14px;
+    width: 22px;
   }
   .el-table__expand-icon {
     color: $text-secondary;
     font-size: 11px;
+    width: 20px;
     height: 20px;
     line-height: 20px;
     margin-right: 2px;
