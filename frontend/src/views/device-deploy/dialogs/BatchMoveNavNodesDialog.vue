@@ -32,7 +32,7 @@
         </div>
       </div>
       <div class="move-summary-note" v-if="moveResult.devices > 0">
-        Devices keep their data and points; their system paths (N4 topics) now follow the new hierarchy.
+        Devices keep their data and points; their system paths (N4 topics) will follow the new hierarchy after the move.
       </div>
     </div>
 
@@ -70,16 +70,23 @@
 
     <template #footer>
       <template v-if="moveResult">
-        <el-button type="primary" class="btn-primary" @click="dialogVisible = false">Close</el-button>
+        <el-button class="btn-secondary" @click="moveResult = null">Cancel</el-button>
+        <el-button
+          type="primary"
+          class="btn-primary"
+          :loading="submitting"
+          @click="confirmMove"
+        >
+          Confirm
+        </el-button>
       </template>
       <template v-else>
         <el-button class="btn-secondary" @click="dialogVisible = false">Cancel</el-button>
         <el-button
           type="primary"
           class="btn-primary"
-          :loading="submitting"
           :disabled="!targetParentId"
-          @click="submitMove"
+          @click="showSummary"
         >
           Confirm
         </el-button>
@@ -309,7 +316,8 @@ function open(nodes: NavTreeNode[], parentId: number | null = null) {
   dialogVisible.value = true
 }
 
-async function submitMove() {
+/** First Confirm: freeze the pre-move summary and switch to the review view */
+function showSummary() {
   if (!targetParentId.value) {
     ElMessage.warning('Please select a target parent')
     return
@@ -318,7 +326,21 @@ async function submitMove() {
     dialogVisible.value = false
     return
   }
+  moveResult.value = {
+    itemCount: nodesToMove.value.length,
+    itemType: itemTypeLabel.value,
+    devices: totalDevices.value,
+    subGroups: totalSubNodes.value,
+    from: sourceName.value,
+    to: targetName.value,
+  }
+}
 
+/** Second Confirm: actually execute the move */
+async function confirmMove() {
+  if (!moveResult.value || !targetParentId.value) {
+    return
+  }
   submitting.value = true
   try {
     const nodeIds = nodesToMove.value.map(n => n.nodeId)
@@ -326,21 +348,9 @@ async function submitMove() {
       nodeIds,
       targetParentId: targetParentId.value,
     })
-    const typeName = movingNodeType.value === 'cabin'
-      ? 'cabin'
-      : movingNodeType.value === 'collector'
-        ? 'collector'
-        : 'group'
-    ElMessage.success(`Successfully moved ${count} ${typeName}(s)`)
-    // Freeze the summary as a result panel; the dialog switches to result view
-    moveResult.value = {
-      itemCount: nodesToMove.value.length,
-      itemType: itemTypeLabel.value,
-      devices: totalDevices.value,
-      subGroups: totalSubNodes.value,
-      from: sourceName.value,
-      to: targetName.value,
-    }
+    ElMessage.success(`Successfully moved ${count} ${moveResult.value.itemType}`)
+    dialogVisible.value = false
+    moveResult.value = null
     emit('moved', count)
   } catch (e: any) {
     console.error('Failed to batch move nodes', e)
