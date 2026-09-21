@@ -37,6 +37,36 @@
       </el-form-item>
     </el-form>
 
+    <!-- Batch move summary panel -->
+    <div class="move-summary-panel">
+      <div class="move-summary-title">Move Summary</div>
+      <div class="move-summary-grid">
+        <div class="summary-item">
+          <span class="summary-label">Items</span>
+          <span class="summary-value">{{ nodesToMove.length }} {{ itemTypeLabel }}</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">Devices</span>
+          <span class="summary-value">{{ totalDevices }}</span>
+        </div>
+        <div class="summary-item" v-if="totalSubNodes > 0">
+          <span class="summary-label">Sub-groups</span>
+          <span class="summary-value">{{ totalSubNodes }}</span>
+        </div>
+        <div class="summary-item summary-wide">
+          <span class="summary-label">From</span>
+          <span class="summary-value mono">{{ sourceName }}</span>
+        </div>
+        <div class="summary-item summary-wide">
+          <span class="summary-label">To</span>
+          <span class="summary-value mono" :class="{ 'to-pending': !targetName }">{{ targetName || 'Not selected' }}</span>
+        </div>
+      </div>
+      <div class="move-summary-note" v-if="totalDevices > 0">
+        Devices keep their data and points; their system paths (N4 topics) will follow the new hierarchy after the move.
+      </div>
+    </div>
+
     <template #footer>
       <el-button class="btn-secondary" @click="dialogVisible = false">Cancel</el-button>
       <el-button
@@ -115,6 +145,42 @@ const formTip = computed(() => {
   if (movingNodeType.value === 'collector') return 'Collectors can only be moved to a cabin (Level 2)'
   return 'Select an eligible group as the new target parent'
 })
+
+const itemTypeLabel = computed(() => {
+  if (movingNodeType.value === 'cabin') return 'cabin(s)'
+  if (movingNodeType.value === 'collector') return 'collector(s)'
+  return 'group(s)'
+})
+
+function countSubtreeDevices(node: NavTreeNode): number {
+  if (!node.children || node.children.length === 0) {
+    return node.deviceCount ?? 0
+  }
+  return node.children.reduce((sum, child) => sum + countSubtreeDevices(child), 0)
+}
+
+function countSubNodes(node: NavTreeNode): number {
+  if (!node.children || node.children.length === 0) return 0
+  return node.children.reduce((sum, child) => sum + 1 + countSubNodes(child), 0)
+}
+
+const totalDevices = computed(() => nodesToMove.value.reduce((sum, n) => sum + countSubtreeDevices(n), 0))
+const totalSubNodes = computed(() => nodesToMove.value.reduce((sum, n) => sum + countSubNodes(n), 0))
+
+function findNodeName(nodes: { nodeId: number; nodeName: string; children?: any[] }[], nodeId: number | null): string {
+  if (nodeId == null) return ''
+  for (const n of nodes) {
+    if (n.nodeId === nodeId) return n.nodeName
+    if (n.children && n.children.length) {
+      const hit = findNodeName(n.children, nodeId)
+      if (hit) return hit
+    }
+  }
+  return ''
+}
+
+const sourceName = computed(() => findNodeName(store.navTree || [], currentParentId.value) || '-')
+const targetName = computed(() => (targetParentId.value ? findNodeName(targetCascaderOptions.value, targetParentId.value) : ''))
 
 function getSubtreeDepth(node: NavTreeNode): number {
   if (!node.children || node.children.length === 0) {
@@ -286,6 +352,67 @@ defineExpose({
   font-size: 12px;
   color: #64748b;
   margin-top: 4px;
+  line-height: 1.4;
+}
+
+.move-summary-panel {
+  margin-top: 4px;
+  padding: 10px 12px;
+  background: rgba(15, 23, 42, 0.4);
+  border: 1px solid #334155;
+  border-radius: 4px;
+}
+
+.move-summary-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #cbd5e1;
+  margin-bottom: 8px;
+}
+
+.move-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 16px;
+}
+
+.summary-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.summary-item.summary-wide {
+  grid-column: 1 / -1;
+}
+
+.summary-label {
+  font-size: 12px;
+  color: #64748b;
+  min-width: 72px;
+}
+
+.summary-value {
+  font-size: 13px;
+  color: #e2e8f0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary-value.mono {
+  font-family: monospace;
+}
+
+.summary-value.to-pending {
+  color: #64748b;
+}
+
+.move-summary-note {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #64748b;
   line-height: 1.4;
 }
 </style>
