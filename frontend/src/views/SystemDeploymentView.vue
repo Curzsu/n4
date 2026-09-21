@@ -391,7 +391,7 @@
         <div class="import-preview-layout">
           <div class="import-summary-panel">
             <div class="import-section-title">
-              New Elements
+              Elements
             </div>
             <el-table
               :data="deploymentSummaryTableData"
