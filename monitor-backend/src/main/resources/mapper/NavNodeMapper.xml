@@ -150,7 +150,8 @@
 
     <update id="unmountAllByNode">
         UPDATE device_deployment
-        SET nav_node_id = NULL
+        SET nav_node_id = NULL,
+            n4_address = CONCAT('unmounted/', device_deploy_id)
         WHERE nav_node_id = #{nodeId} AND is_deleted = 0
     </update>
 

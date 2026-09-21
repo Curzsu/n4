@@ -164,4 +164,25 @@
         WHERE device_deploy_id = #{oldDeviceId}
     </update>
 
+    <!-- Rewrite addresses of points that belong to devices still mounted under a
+         node, so an unmount frees the n4_address unique-key space immediately. -->
+    <update id="tombstoneAddressesByNavNode">
+        UPDATE point_deployment pd
+        INNER JOIN device_deployment dd ON dd.device_deploy_id = pd.device_deploy_id
+        SET pd.n4_address = CONCAT('unmounted/', pd.point_deploy_id, '/', LEFT(pd.point_name, 40)),
+            pd.update_time = NOW()
+        WHERE dd.nav_node_id = #{nodeId} AND dd.is_deleted = 0 AND pd.is_deleted = 0
+    </update>
+
+    <!-- Rewrite addresses of all points of the given (unmounted) devices. -->
+    <update id="tombstoneAddressesByDeviceIds">
+        UPDATE point_deployment
+        SET n4_address = CONCAT('unmounted/', point_deploy_id, '/', LEFT(point_name, 40)),
+            update_time = NOW()
+        WHERE is_deleted = 0 AND device_deploy_id IN
+        <foreach collection="deviceIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
+
 </mapper>

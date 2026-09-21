@@ -6,7 +6,38 @@
     append-to-body
     class="dark-dialog"
   >
-    <el-form label-width="140px" label-position="right">
+    <!-- Result view: shown after Confirm succeeds -->
+    <div v-if="moveResult" class="move-summary-panel">
+      <div class="move-summary-title">Move Summary</div>
+      <div class="move-summary-grid">
+        <div class="summary-item">
+          <span class="summary-label">Items</span>
+          <span class="summary-value">{{ moveResult.itemCount }} {{ moveResult.itemType }}</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">Devices</span>
+          <span class="summary-value">{{ moveResult.devices }}</span>
+        </div>
+        <div class="summary-item" v-if="moveResult.subGroups > 0">
+          <span class="summary-label">Sub-groups</span>
+          <span class="summary-value">{{ moveResult.subGroups }}</span>
+        </div>
+        <div class="summary-item summary-wide">
+          <span class="summary-label">From</span>
+          <span class="summary-value mono">{{ moveResult.from }}</span>
+        </div>
+        <div class="summary-item summary-wide">
+          <span class="summary-label">To</span>
+          <span class="summary-value mono">{{ moveResult.to }}</span>
+        </div>
+      </div>
+      <div class="move-summary-note" v-if="moveResult.devices > 0">
+        Devices keep their data and points; their system paths (N4 topics) now follow the new hierarchy.
+      </div>
+    </div>
+
+    <!-- Selection form -->
+    <el-form v-else label-width="140px" label-position="right">
       <el-form-item :label="selectedLabel">
         <div class="selected-tags-container">
           <el-tag
@@ -37,47 +68,22 @@
       </el-form-item>
     </el-form>
 
-    <!-- Batch move summary panel -->
-    <div class="move-summary-panel">
-      <div class="move-summary-title">Move Summary</div>
-      <div class="move-summary-grid">
-        <div class="summary-item">
-          <span class="summary-label">Items</span>
-          <span class="summary-value">{{ nodesToMove.length }} {{ itemTypeLabel }}</span>
-        </div>
-        <div class="summary-item">
-          <span class="summary-label">Devices</span>
-          <span class="summary-value">{{ totalDevices }}</span>
-        </div>
-        <div class="summary-item" v-if="totalSubNodes > 0">
-          <span class="summary-label">Sub-groups</span>
-          <span class="summary-value">{{ totalSubNodes }}</span>
-        </div>
-        <div class="summary-item summary-wide">
-          <span class="summary-label">From</span>
-          <span class="summary-value mono">{{ sourceName }}</span>
-        </div>
-        <div class="summary-item summary-wide">
-          <span class="summary-label">To</span>
-          <span class="summary-value mono" :class="{ 'to-pending': !targetName }">{{ targetName || 'Not selected' }}</span>
-        </div>
-      </div>
-      <div class="move-summary-note" v-if="totalDevices > 0">
-        Devices keep their data and points; their system paths (N4 topics) will follow the new hierarchy after the move.
-      </div>
-    </div>
-
     <template #footer>
-      <el-button class="btn-secondary" @click="dialogVisible = false">Cancel</el-button>
-      <el-button
-        type="primary"
-        class="btn-primary"
-        :loading="submitting"
-        :disabled="!targetParentId"
-        @click="submitMove"
-      >
-        Confirm
-      </el-button>
+      <template v-if="moveResult">
+        <el-button type="primary" class="btn-primary" @click="dialogVisible = false">Close</el-button>
+      </template>
+      <template v-else>
+        <el-button class="btn-secondary" @click="dialogVisible = false">Cancel</el-button>
+        <el-button
+          type="primary"
+          class="btn-primary"
+          :loading="submitting"
+          :disabled="!targetParentId"
+          @click="submitMove"
+        >
+          Confirm
+        </el-button>
+      </template>
     </template>
   </el-dialog>
 </template>
@@ -100,6 +106,16 @@ const submitting = ref(false)
 const nodesToMove = ref<NavTreeNode[]>([])
 const currentParentId = ref<number | null>(null)
 const targetParentId = ref<number | null>(null)
+
+interface MoveResultSnapshot {
+  itemCount: number
+  itemType: string
+  devices: number
+  subGroups: number
+  from: string
+  to: string
+}
+const moveResult = ref<MoveResultSnapshot | null>(null)
 
 const cascaderProps = {
   value: 'nodeId',
@@ -289,6 +305,7 @@ function open(nodes: NavTreeNode[], parentId: number | null = null) {
   nodesToMove.value = nodes
   currentParentId.value = parentId
   targetParentId.value = null
+  moveResult.value = null
   dialogVisible.value = true
 }
 
@@ -315,7 +332,15 @@ async function submitMove() {
         ? 'collector'
         : 'group'
     ElMessage.success(`Successfully moved ${count} ${typeName}(s)`)
-    dialogVisible.value = false
+    // Freeze the summary as a result panel; the dialog switches to result view
+    moveResult.value = {
+      itemCount: nodesToMove.value.length,
+      itemType: itemTypeLabel.value,
+      devices: totalDevices.value,
+      subGroups: totalSubNodes.value,
+      from: sourceName.value,
+      to: targetName.value,
+    }
     emit('moved', count)
   } catch (e: any) {
     console.error('Failed to batch move nodes', e)

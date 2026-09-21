@@ -41,4 +41,10 @@ public interface PointDeploymentMapper {
     int updateAlarmCodesBatch(@Param("points") List<PointDeployment> points);
 
     int updateDeviceDeployId(@Param("oldDeviceId") Long oldDeviceId, @Param("newDeviceId") Long newDeviceId);
+
+    /** Rewrite n4_address of points under devices still mounted on the given node (pre-unmount) */
+    int tombstoneAddressesByNavNode(@Param("nodeId") Long nodeId);
+
+    /** Rewrite n4_address of all points of the given unmounted devices */
+    int tombstoneAddressesByDeviceIds(@Param("deviceIds") List<Long> deviceIds);
 }

@@ -311,6 +311,7 @@ public class DashboardNavService {
             // Logically delete source nodes (descendants first, then root)
             for (int i = nodeSubtreeIds.size() - 1; i >= 0; i--) {
                 Long subId = nodeSubtreeIds.get(i);
+                pointDeploymentMapper.tombstoneAddressesByNavNode(subId);
                 navNodeMapper.unmountAllByNode(subId);
                 navNodeMapper.logicalDelete(subId);
             }
@@ -464,15 +465,20 @@ public class DashboardNavService {
             if (node == null) {
                 continue;
             }
-            String systemName = resolveNodeSystemName(node);
             for (DeviceDeployment device : deviceDeploymentMapper.findByNavNodeId(nodeId)) {
-                if (systemName != null && !systemName.isEmpty()) {
-                    device.setSystemName(systemName);
-                }
-                updateDeviceAndPointAddresses(device, systemName, node.getNodeName());
-                deviceDeploymentMapper.update(device);
+                refreshDevicePaths(device, node);
             }
         }
+    }
+
+    /** Recompute one device's system_name and N4 addresses from its mounting node */
+    private void refreshDevicePaths(DeviceDeployment device, NavNode node) {
+        String systemName = resolveNodeSystemName(node);
+        if (systemName != null && !systemName.isEmpty()) {
+            device.setSystemName(systemName);
+        }
+        updateDeviceAndPointAddresses(device, systemName, node.getNodeName());
+        deviceDeploymentMapper.update(device);
     }
 
     /** Delete node and cascade unmount devices */
@@ -506,13 +512,31 @@ public class DashboardNavService {
         if (!navNodeMapper.findChildren(nodeId).isEmpty()) {
             throw new IllegalArgumentException("Devices can only be mounted to leaf group nodes");
         }
-        return navNodeMapper.mountDevices(nodeId, deviceIds);
+        int mounted = navNodeMapper.mountDevices(nodeId, deviceIds);
+        // Restore system_name / N4 addresses for the newly mounted devices
+        for (DeviceDeployment device : deviceDeploymentMapper.findByNavNodeId(nodeId)) {
+            if (deviceIds.contains(device.getDeviceDeployId())) {
+                refreshDevicePaths(device, node);
+            }
+        }
+        return mounted;
     }
 
     /** Unmount device */
     @Transactional
     public int unmountDevice(Long deviceDeployId) {
-        return navNodeMapper.unmountDevice(deviceDeployId);
+        int count = navNodeMapper.unmountDevice(deviceDeployId);
+        if (count > 0) {
+            // Free the n4_address space held by the unmounted device so future
+            // moves into the same path do not collide with uk_n4_address
+            DeviceDeployment device = deviceDeploymentMapper.findByDeviceDeployId(deviceDeployId);
+            if (device != null) {
+                device.setN4Address("unmounted/" + deviceDeployId);
+                deviceDeploymentMapper.update(device);
+            }
+            pointDeploymentMapper.tombstoneAddressesByDeviceIds(List.of(deviceDeployId));
+        }
+        return count;
     }
 
     // ===== Internal Utilities =====
@@ -546,6 +570,7 @@ public class DashboardNavService {
             impact.setChildCount(impact.getChildCount() + 1);
         }
         devices += navNodeMapper.countDevicesByNodeId(nodeId);
+        pointDeploymentMapper.tombstoneAddressesByNavNode(nodeId);
         navNodeMapper.unmountAllByNode(nodeId);
         navNodeMapper.logicalDelete(nodeId);
         return devices;
