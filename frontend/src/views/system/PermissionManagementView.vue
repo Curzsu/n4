@@ -19,7 +19,7 @@
         :data="permissionTree"
         row-key="permId"
         default-expand-all
-        :indent="24"
+        :indent="32"
         height="100%"
         style="width: 100%"
         :header-cell-style="headerCellStyle"
