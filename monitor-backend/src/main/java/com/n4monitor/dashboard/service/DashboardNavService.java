@@ -306,18 +306,7 @@ public class DashboardNavService {
                 }
 
                 updateDeviceAndPointAddresses(device, targetSystemName, targetParent.getNodeName());
-                if (targetSystemName != null && !targetSystemName.isBlank()
-                        && device.getDeviceDeployName() != null) {
-                    deviceDeploymentMapper.releaseUnmountedNameConflict(
-                            targetSystemName, device.getDeviceDeployName());
-                }
-                try {
-                    deviceDeploymentMapper.update(device);
-                } catch (DuplicateKeyException e) {
-                    throw new IllegalArgumentException(
-                            "Cannot move device because the target system already contains a device named '"
-                                    + device.getDeviceDeployName() + "'");
-                }
+                saveDeviceWithResolvedPaths(device, targetSystemName);
             }
 
             // Logically delete source nodes (descendants first, then root)
@@ -498,7 +487,22 @@ public class DashboardNavService {
             device.setSystemName(systemName);
         }
         updateDeviceAndPointAddresses(device, systemName, node.getNodeName());
-        deviceDeploymentMapper.update(device);
+        saveDeviceWithResolvedPaths(device, systemName);
+    }
+
+    private void saveDeviceWithResolvedPaths(DeviceDeployment device, String systemName) {
+        if (systemName != null && !systemName.isBlank()
+                && device.getDeviceDeployName() != null) {
+            deviceDeploymentMapper.releaseUnmountedNameConflict(
+                    systemName, device.getDeviceDeployName());
+        }
+        try {
+            deviceDeploymentMapper.update(device);
+        } catch (DuplicateKeyException e) {
+            throw new IllegalArgumentException(
+                    "Target system already contains a device named '"
+                            + device.getDeviceDeployName() + "'");
+        }
     }
 
     /** Delete node and cascade unmount devices */
