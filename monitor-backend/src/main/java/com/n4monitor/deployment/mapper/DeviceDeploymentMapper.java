@@ -21,6 +21,9 @@ public interface DeviceDeploymentMapper {
 
     int update(DeviceDeployment deployment);
 
+    int releaseUnmountedNameConflict(@Param("systemName") String systemName,
+                                     @Param("deviceDeployName") String deviceDeployName);
+
     int updateNode(@Param("deviceDeployId") Long deviceDeployId,
                    @Param("navNodeId") Long navNodeId,
                    @Param("deviceDeployName") String deviceDeployName,

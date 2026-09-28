@@ -306,7 +306,18 @@ public class DashboardNavService {
                 }
 
                 updateDeviceAndPointAddresses(device, targetSystemName, targetParent.getNodeName());
-                deviceDeploymentMapper.update(device);
+                if (targetSystemName != null && !targetSystemName.isBlank()
+                        && device.getDeviceDeployName() != null) {
+                    deviceDeploymentMapper.releaseUnmountedNameConflict(
+                            targetSystemName, device.getDeviceDeployName());
+                }
+                try {
+                    deviceDeploymentMapper.update(device);
+                } catch (DuplicateKeyException e) {
+                    throw new IllegalArgumentException(
+                            "Cannot move device because the target system already contains a device named '"
+                                    + device.getDeviceDeployName() + "'");
+                }
             }
 
             // Logically delete source nodes (descendants first, then root)

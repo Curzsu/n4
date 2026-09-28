@@ -79,6 +79,15 @@
         WHERE device_deploy_id = #{deviceDeployId}
     </update>
 
+    <update id="releaseUnmountedNameConflict">
+        UPDATE device_deployment
+        SET system_name = CONCAT('unmounted/', device_deploy_id),
+            update_time = NOW()
+        WHERE system_name = #{systemName}
+          AND device_deploy_name = #{deviceDeployName}
+          AND (nav_node_id IS NULL OR is_deleted = 1)
+    </update>
+
     <update id="updateNode">
         UPDATE device_deployment
         SET nav_node_id = #{navNodeId},
