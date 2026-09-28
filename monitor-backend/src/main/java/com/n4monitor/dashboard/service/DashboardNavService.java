@@ -442,6 +442,9 @@ public class DashboardNavService {
         for (PointDeployment point : points) {
             boolean changed = false;
             String pointN4 = point.getN4Address();
+            if (pointN4 != null && pointN4.startsWith("unmounted/")) {
+                continue;
+            }
             if (pointN4 != null) {
                 if (pointN4.startsWith("slot:/")) {
                     point.setN4Address("slot:/Drivers/ModbusTcpNetwork/" + targetNodeName + "/points/MqttNetwork/" + point.getPointName());
