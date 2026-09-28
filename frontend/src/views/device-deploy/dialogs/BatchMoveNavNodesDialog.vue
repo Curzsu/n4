@@ -8,30 +8,46 @@
   >
     <!-- Result view: shown after Confirm succeeds -->
     <div v-if="moveResult" class="move-summary-panel">
-      <div class="move-summary-title">Move Summary</div>
-      <div class="move-summary-grid">
-        <div class="summary-item">
-          <span class="summary-label">Items</span>
-          <span class="summary-value">{{ moveResult.itemCount }} {{ moveResult.itemType }}</span>
+      <div class="move-summary-heading">
+        <div>
+          <div class="move-summary-kicker">REVIEW MOVE</div>
+          <div class="move-summary-title">Move Summary</div>
         </div>
-        <div class="summary-item">
-          <span class="summary-label">Devices</span>
-          <span class="summary-value">{{ moveResult.devices }}</span>
+        <span class="summary-ready"><span class="summary-ready-dot"></span>Ready</span>
+      </div>
+
+      <div class="move-summary-metrics">
+        <div class="summary-metric summary-metric-primary">
+          <span class="summary-metric-label">Items</span>
+          <span class="summary-metric-value">{{ moveResult.itemCount }}</span>
+          <span class="summary-metric-caption">{{ moveResult.itemType }}</span>
         </div>
-        <div class="summary-item" v-if="moveResult.subGroups > 0">
-          <span class="summary-label">Sub-groups</span>
-          <span class="summary-value">{{ moveResult.subGroups }}</span>
+        <div class="summary-metric">
+          <span class="summary-metric-label">Devices</span>
+          <span class="summary-metric-value">{{ moveResult.devices }}</span>
+          <span class="summary-metric-caption">in this move</span>
         </div>
-        <div class="summary-item summary-wide">
-          <span class="summary-label">From</span>
-          <span class="summary-value mono">{{ moveResult.from }}</span>
-        </div>
-        <div class="summary-item summary-wide">
-          <span class="summary-label">To</span>
-          <span class="summary-value mono">{{ moveResult.to }}</span>
+        <div class="summary-metric" v-if="moveResult.subGroups > 0">
+          <span class="summary-metric-label">Sub-groups</span>
+          <span class="summary-metric-value">{{ moveResult.subGroups }}</span>
+          <span class="summary-metric-caption">included</span>
         </div>
       </div>
+
+      <div class="summary-route">
+        <div class="summary-route-card summary-route-from">
+          <span class="summary-route-label">FROM</span>
+          <span class="summary-route-value mono">{{ moveResult.from }}</span>
+        </div>
+        <span class="summary-route-arrow" aria-hidden="true">→</span>
+        <div class="summary-route-card summary-route-to">
+          <span class="summary-route-label">TO</span>
+          <span class="summary-route-value mono">{{ moveResult.to }}</span>
+        </div>
+      </div>
+
       <div class="move-summary-note" v-if="moveResult.devices > 0">
+        <span class="move-summary-note-icon" aria-hidden="true">i</span>
         Devices keep their data and points; their system paths (N4 topics) will follow the new hierarchy after the move.
       </div>
     </div>
@@ -392,62 +408,204 @@ defineExpose({
 
 .move-summary-panel {
   margin-top: 4px;
-  padding: 10px 12px;
-  background: rgba(15, 23, 42, 0.4);
-  border: 1px solid #334155;
-  border-radius: 4px;
+  padding: 18px;
+  background: linear-gradient(145deg, rgba(20, 34, 52, 0.96), rgba(15, 23, 42, 0.88));
+  border: 1px solid #34465f;
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgba(148, 163, 184, 0.06), 0 12px 28px rgba(2, 8, 23, 0.18);
+}
+
+.move-summary-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.move-summary-kicker {
+  margin-bottom: 3px;
+  color: #60a5fa;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
 }
 
 .move-summary-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #cbd5e1;
-  margin-bottom: 8px;
-}
-
-.move-summary-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px 16px;
-}
-
-.summary-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.summary-item.summary-wide {
-  grid-column: 1 / -1;
-}
-
-.summary-label {
-  font-size: 12px;
-  color: #64748b;
-  min-width: 72px;
-}
-
-.summary-value {
-  font-size: 13px;
   color: #e2e8f0;
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.summary-ready {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 1px solid rgba(52, 211, 153, 0.2);
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.08);
+  color: #6ee7b7;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.summary-ready-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.55);
+}
+
+.move-summary-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 9px;
+}
+
+.summary-metric {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 4px 8px;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid rgba(71, 85, 105, 0.65);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.48);
+}
+
+.summary-metric-primary {
+  border-color: rgba(59, 130, 246, 0.36);
+  background: linear-gradient(145deg, rgba(30, 64, 115, 0.36), rgba(15, 23, 42, 0.58));
+}
+
+.summary-metric-label {
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.summary-metric-value {
+  color: #e2e8f0;
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 1.15;
+}
+
+.summary-metric-caption {
+  grid-column: 1 / -1;
   overflow: hidden;
+  color: #64748b;
+  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.summary-value.mono {
+.summary-route {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.summary-route-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid rgba(71, 85, 105, 0.68);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.summary-route-to {
+  border-color: rgba(45, 212, 191, 0.3);
+  background: linear-gradient(145deg, rgba(13, 78, 79, 0.24), rgba(15, 23, 42, 0.55));
+}
+
+.summary-route-label {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.summary-route-value {
+  overflow: hidden;
+  color: #cbd5e1;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary-route-to .summary-route-value {
+  color: #99f6e4;
+}
+
+.summary-route-value.mono {
   font-family: monospace;
 }
 
-.summary-value.to-pending {
-  color: #64748b;
+.summary-route-arrow {
+  color: #60a5fa;
+  font-size: 19px;
+  text-align: center;
 }
 
 .move-summary-note {
-  margin-top: 8px;
-  font-size: 12px;
-  color: #64748b;
-  line-height: 1.4;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 11px;
+  border: 1px solid rgba(71, 85, 105, 0.38);
+  border-radius: 7px;
+  background: rgba(30, 41, 59, 0.42);
+  color: #94a3b8;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.move-summary-note-icon {
+  display: inline-flex;
+  flex: 0 0 15px;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: rgba(96, 165, 250, 0.15);
+  color: #60a5fa;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+@media (max-width: 480px) {
+  .move-summary-panel {
+    padding: 14px;
+  }
+
+  .move-summary-metrics {
+    gap: 6px;
+  }
+
+  .summary-metric {
+    padding: 9px 8px;
+  }
+
+  .summary-route {
+    grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .summary-route-card {
+    padding: 9px 8px;
+  }
 }
 </style>
