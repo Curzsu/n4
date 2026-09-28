@@ -9,6 +9,7 @@ import com.n4monitor.deployment.entity.DeviceDeployment;
 import com.n4monitor.deployment.entity.PointDeployment;
 import com.n4monitor.deployment.mapper.DeviceDeploymentMapper;
 import com.n4monitor.deployment.mapper.PointDeploymentMapper;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -451,7 +452,12 @@ public class DashboardNavService {
                 }
             }
             if (changed) {
-                pointDeploymentMapper.update(point);
+                try {
+                    pointDeploymentMapper.update(point);
+                } catch (DuplicateKeyException e) {
+                    throw new IllegalArgumentException(
+                            "Cannot move point because the target N4 address is already in use: " + point.getN4Address());
+                }
             }
         }
     }
