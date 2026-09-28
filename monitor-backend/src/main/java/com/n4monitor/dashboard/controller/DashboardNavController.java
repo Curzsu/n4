@@ -1,5 +1,7 @@
 package com.n4monitor.dashboard.controller;
 
+import com.n4monitor.annotation.BusinessType;
+import com.n4monitor.annotation.OperationLog;
 import com.n4monitor.common.ApiResponse;
 import com.n4monitor.dashboard.dto.BatchMoveNavNodesDto;
 import com.n4monitor.dashboard.dto.DeleteImpactDto;
@@ -52,6 +54,10 @@ public class DashboardNavController {
     /** Create navigation node */
     @PostMapping("/nodes")
     @PreAuthorize("hasAuthority('device:deploy:group:add')")
+    @OperationLog(
+            module = "Deployment Management",
+            operation = "Create deployment group",
+            businessType = BusinessType.CREATE)
     public ApiResponse<NavNode> createNode(@RequestBody NavNode node) {
         return ApiResponse.success(navService.createNode(node));
     }
@@ -59,13 +65,21 @@ public class DashboardNavController {
     /** Update navigation node */
     @PutMapping("/nodes/{nodeId}")
     @PreAuthorize("hasAuthority('device:deploy:group:edit')")
+    @OperationLog(
+            module = "Deployment Management",
+            operation = "Edit deployment group",
+            businessType = BusinessType.UPDATE)
     public ApiResponse<NavNode> updateNode(@PathVariable Long nodeId, @RequestBody NavNode node) {
         return ApiResponse.success(navService.updateNode(nodeId, node));
     }
 
     /** Batch move navigation nodes to a target parent node */
     @PostMapping("/nodes/batch-move")
-    @PreAuthorize("hasAuthority('device:deploy:group:edit')")
+    @PreAuthorize("hasAuthority('device:deploy:group:batch-move')")
+    @OperationLog(
+            module = "Deployment Management",
+            operation = "Batch move deployment groups",
+            businessType = BusinessType.UPDATE)
     public ApiResponse<Integer> batchMoveNodes(@RequestBody BatchMoveNavNodesDto dto) {
         return ApiResponse.success(navService.batchMoveNodes(dto.getNodeIds(), dto.getTargetParentId()));
     }
@@ -73,6 +87,10 @@ public class DashboardNavController {
     /** Delete node (cascade delete children and unmount devices) */
     @DeleteMapping("/nodes/{nodeId}")
     @PreAuthorize("hasAuthority('device:deploy:group:delete')")
+    @OperationLog(
+            module = "Deployment Management",
+            operation = "Delete deployment group",
+            businessType = BusinessType.DELETE)
     public ApiResponse<DeleteImpactDto> deleteNode(@PathVariable Long nodeId) {
         return ApiResponse.success(navService.deleteNode(nodeId));
     }
@@ -94,6 +112,10 @@ public class DashboardNavController {
     /** Mount devices to a leaf node */
     @PostMapping("/nodes/{nodeId}/devices")
     @PreAuthorize("hasAuthority('device:deploy:mount')")
+    @OperationLog(
+            module = "Deployment Management",
+            operation = "Mount devices",
+            businessType = BusinessType.UPDATE)
     public ApiResponse<Integer> mountDevices(@PathVariable Long nodeId,
                                              @RequestBody List<Long> deviceIds) {
         return ApiResponse.success(navService.mountDevices(nodeId, deviceIds));
@@ -102,6 +124,10 @@ public class DashboardNavController {
     /** Unmount device */
     @DeleteMapping("/devices/{deviceDeployId}/mount")
     @PreAuthorize("hasAuthority('device:deploy:unmount')")
+    @OperationLog(
+            module = "Deployment Management",
+            operation = "Unmount device",
+            businessType = BusinessType.UPDATE)
     public ApiResponse<Integer> unmountDevice(@PathVariable Long deviceDeployId) {
         return ApiResponse.success(navService.unmountDevice(deviceDeployId));
     }

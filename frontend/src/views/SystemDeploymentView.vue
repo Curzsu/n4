@@ -281,7 +281,7 @@
                 <div class="header-actions">
                   <el-button
                     v-if="isGroupBatchMoving"
-                    v-permission="'device:deploy:group:edit'"
+                    v-permission="'device:deploy:group:batch-move'"
                     size="small"
                     class="btn-primary"
                     :icon="Rank"
@@ -300,7 +300,7 @@
                   </el-button>
                   <el-button
                     v-else
-                    v-permission="'device:deploy:group:edit'"
+                    v-permission="'device:deploy:group:batch-move'"
                     size="small"
                     class="btn-secondary"
                     :icon="Rank"

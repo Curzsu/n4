@@ -77,6 +77,10 @@ public class DeploymentController {
     /** Deploy new device (generate points from template) */
     @PostMapping
     @PreAuthorize("hasAuthority('device:deploy:add')")
+    @OperationLog(
+            module = "Deployment Management",
+            operation = "Deploy device",
+            businessType = BusinessType.CREATE)
     public ApiResponse<DeviceDeployment> createDeployment(@RequestBody DeviceDeployment deployment) {
         return ApiResponse.success(deploymentService.createDeployment(deployment));
     }
@@ -84,6 +88,10 @@ public class DeploymentController {
     /** Update deployed device */
     @PutMapping("/{deviceDeployId}")
     @PreAuthorize("hasAuthority('device:deploy:edit')")
+    @OperationLog(
+            module = "Deployment Management",
+            operation = "Edit device deployment",
+            businessType = BusinessType.UPDATE)
     public ApiResponse<String> updateDevice(@PathVariable Long deviceDeployId,
                                             @RequestBody DeviceDeployment deployment) {
         deploymentService.updateDevice(deviceDeployId, deployment);
@@ -93,6 +101,10 @@ public class DeploymentController {
     /** Move device to another node */
     @PutMapping("/{deviceDeployId}/move")
     @PreAuthorize("hasAuthority('device:deploy:edit')")
+    @OperationLog(
+            module = "Deployment Management",
+            operation = "Move device deployment",
+            businessType = BusinessType.UPDATE)
     public ApiResponse<String> moveDevice(@PathVariable Long deviceDeployId,
                                           @RequestBody Map<String, Object> body) {
         Long targetNodeId = body.get("targetNodeId") == null ? null
@@ -105,6 +117,10 @@ public class DeploymentController {
     /** Update deployed point */
     @PutMapping("/points/{pointDeployId}")
     @PreAuthorize("hasAuthority('device:deploy:edit')")
+    @OperationLog(
+            module = "Deployment Management",
+            operation = "Edit deployed point",
+            businessType = BusinessType.UPDATE)
     public ApiResponse<String> updatePoint(@PathVariable Long pointDeployId,
                                            @RequestBody PointDeployment point) {
         deploymentService.updatePoint(pointDeployId, point);
@@ -114,6 +130,10 @@ public class DeploymentController {
     /** Delete device deployment (cascade deletes points) */
     @DeleteMapping("/{deviceDeployId}")
     @PreAuthorize("hasAuthority('device:deploy:delete')")
+    @OperationLog(
+            module = "Deployment Management",
+            operation = "Delete device deployment",
+            businessType = BusinessType.DELETE)
     public ApiResponse<String> deleteDeployment(@PathVariable Long deviceDeployId) {
         deploymentService.deleteDeployment(deviceDeployId);
         return ApiResponse.success("Device deployment deleted successfully");
