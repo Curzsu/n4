@@ -18,7 +18,7 @@
       <el-table
         :data="permissionTree"
         row-key="permId"
-        :indent="48"
+        :indent="18"
         :row-class-name="permissionRowClass"
         :expand-row-keys="defaultExpandedKeys"
         height="100%"
@@ -30,10 +30,11 @@
         class="custom-table"
         v-loading="loading"
       >
-        <el-table-column prop="permName" label="Permission Name" min-width="200" align="left" header-align="center" show-overflow-tooltip :resizable="false">
+        <el-table-column prop="permName" label="Permission Name" min-width="200" class-name="permission-name-column" align="left" header-align="center" show-overflow-tooltip :resizable="false">
           <template #default="{ row }">
             <span class="tree-perm-name">
-              <el-icon v-if="isValidIcon(row.icon)" class="perm-icon"><component :is="row.icon" /></el-icon>
+              <el-icon v-if="isValidIcon(row.icon)" class="perm-icon"><component :is="knownIcons[row.icon as keyof typeof knownIcons]" /></el-icon>
+              <span v-else class="perm-icon-placeholder" aria-hidden="true" />
               <span>{{ row.permName }}</span>
             </span>
           </template>
@@ -397,11 +398,21 @@ onMounted(() => {
 .tree-perm-name {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  min-width: 0;
+  gap: 4px;
 
-  .perm-icon {
+  .perm-icon,
+  .perm-icon-placeholder {
+    flex: 0 0 12px;
+    width: 12px;
     font-size: 12px;
     color: $text-secondary;
+  }
+
+  > span:last-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 
@@ -594,20 +605,28 @@ onMounted(() => {
     text-align: center !important;
   }
 
-  /* Leaf rows render a placeholder where parent rows render the expand icon;
-     both must occupy the same width (20px icon + 2px margin) so rows at the
-     same tree level align. */
-  .el-table__placeholder {
-    display: inline-block;
-    width: 22px;
+  td.permission-name-column .cell {
+    padding: 0 8px !important;
   }
-  .el-table__expand-icon {
+
+  /* Keep each tree gutter fixed so long labels cannot shift sibling rows. */
+  .el-table__indent {
+    flex: none;
+  }
+  .el-table__row .el-table__placeholder,
+  .el-table__row .el-table__expand-icon {
+    flex: 0 0 16px;
+    width: 16px;
+    margin-right: 4px;
+  }
+  .el-table__row .el-table__expand-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     color: $text-secondary;
     font-size: 11px;
-    width: 20px;
     height: 20px;
     line-height: 20px;
-    margin-right: 2px;
   }
 
   /* Level typography: directory bold/bright, menu regular, buttons muted */
