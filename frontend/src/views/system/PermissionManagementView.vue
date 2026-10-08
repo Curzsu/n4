@@ -18,7 +18,7 @@
       <el-table
         :data="permissionTree"
         row-key="permId"
-        :indent="18"
+        :indent="16"
         :row-class-name="permissionRowClass"
         :expand-row-keys="defaultExpandedKeys"
         height="100%"
@@ -33,7 +33,7 @@
         <el-table-column prop="permName" label="Permission Name" min-width="200" class-name="permission-name-column" align="left" header-align="center" show-overflow-tooltip :resizable="false">
           <template #default="{ row }">
             <span class="tree-perm-name">
-              <el-icon v-if="isValidIcon(row.icon)" class="perm-icon"><component :is="knownIcons[row.icon as keyof typeof knownIcons]" /></el-icon>
+              <el-icon v-if="getPermissionIcon(row as PermissionNode)" class="perm-icon"><component :is="getPermissionIcon(row as PermissionNode)" /></el-icon>
               <span v-else class="perm-icon-placeholder" aria-hidden="true" />
               <span>{{ row.permName }}</span>
             </span>
@@ -159,21 +159,27 @@ import {
   Clock,
   Coin,
   Cpu,
+  Delete,
   Document,
+  Download,
   EditPen,
   Key,
+  Link,
   List,
   Lock,
   Monitor,
   Operation,
   Plus,
   Refresh,
+  Remove,
   Setting,
   SetUp,
   SwitchButton,
+  Sort,
   Tickets,
   Tools,
   TrendCharts,
+  Upload,
   User,
 } from '@element-plus/icons-vue'
 import { permissionApi } from '@/api/permission'
@@ -201,8 +207,27 @@ const knownIcons = {
   User,
 }
 
-function isValidIcon(name?: string) {
-  return Boolean(name && name in knownIcons)
+function getPermissionIcon(row: PermissionNode) {
+  if (row.icon && Object.hasOwn(knownIcons, row.icon)) {
+    return knownIcons[row.icon as keyof typeof knownIcons]
+  }
+  if (row.permType === 1) return undefined
+  if (row.permCode === 'device:deploy:alarm:edit') return Bell
+
+  switch (row.permCode.split(':').at(-1)) {
+    case 'add': return Plus
+    case 'edit': return EditPen
+    case 'delete': return Delete
+    case 'batch-move': return Sort
+    case 'mount': return Link
+    case 'unmount': return Remove
+    case 'import': return Upload
+    case 'export': return Download
+    case 'view': return Monitor
+    case 'change': return Key
+    case 'logout': return SwitchButton
+    default: return Operation
+  }
 }
 
 const loading = ref(false)
@@ -249,10 +274,25 @@ const cellStyle = {
   borderBottom: '1px solid #1f2937',
 }
 
-/** Row level class derived from the dotted display order (e.g. "3.1.2" -> depth 2) */
+const lastSiblingIds = computed(() => {
+  const ids = new Set<number>()
+  const collect = (nodes: PermissionViewNode[]) => {
+    const lastNode = nodes.at(-1)
+    if (lastNode) ids.add(lastNode.permId)
+    nodes.forEach(node => {
+      if (node.children?.length) collect(node.children)
+    })
+  }
+  collect(permissionTree.value)
+  return ids
+})
+
+/** Derive depth, resource type, and branch endings from the displayed tree. */
 function permissionRowClass({ row }: { row: PermissionViewNode }): string {
   const depth = (row.displayOrder.match(/\./g) || []).length
-  return `perm-level-${depth}`
+  const rowType = row.permType === 1 ? 'perm-menu-row' : 'perm-action-row'
+  const branchEnd = lastSiblingIds.value.has(row.permId) ? 'perm-last-sibling' : ''
+  return `perm-level-${depth} ${rowType} ${branchEnd}`
 }
 
 /** Expand root nodes only on first load: level 1 visible, level 2+ collapsed */
@@ -586,8 +626,8 @@ onMounted(() => {
   td.el-table__cell .cell,
   th.el-table__cell .cell {
     padding: 0 4px !important;
-    line-height: 20px !important;
-    height: 20px !important;
+    line-height: 24px !important;
+    height: 24px !important;
     display: flex;
     align-items: center;
     font-size: 10px !important;
@@ -629,6 +669,49 @@ onMounted(() => {
     line-height: 20px;
   }
 
+  /* Connect action rows to their parent without adding another empty gutter. */
+  .perm-action-row .el-table__placeholder {
+    position: relative;
+    height: 24px;
+
+    &::before,
+    &::after {
+      content: '';
+      position: absolute;
+      left: 4px;
+      border-color: #334155;
+      border-style: solid;
+    }
+
+    &::before {
+      top: -1px;
+      bottom: -1px;
+      border-width: 0 0 0 1px;
+    }
+
+    &::after {
+      top: 50%;
+      width: 8px;
+      border-width: 1px 0 0;
+    }
+  }
+  .perm-action-row.perm-last-sibling .el-table__placeholder::before {
+    bottom: 50%;
+  }
+
+  .perm-menu-row .tree-perm-name {
+    font-weight: 500;
+  }
+  .perm-action-row .tree-perm-name {
+    font-weight: 400;
+    color: #b6c2d3;
+
+    .perm-icon {
+      color: #829ab6;
+      font-size: 11px;
+    }
+  }
+
   /* Level typography: directory bold/bright, menu regular, buttons muted */
   tr.perm-level-0 .tree-perm-name {
     font-weight: 600;
@@ -637,8 +720,8 @@ onMounted(() => {
   tr.perm-level-1 .tree-perm-name {
     color: #e5e7eb;
   }
-  tr.perm-level-2 .tree-perm-name,
-  tr.perm-level-3 .tree-perm-name {
+  tr.perm-level-2.perm-menu-row .tree-perm-name,
+  tr.perm-level-3.perm-menu-row .tree-perm-name {
     color: #94a3b8;
   }
 }
