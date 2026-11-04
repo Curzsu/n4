@@ -1,5 +1,5 @@
 <template>
-  <div class="assistant">
+  <div class="assistant" :class="{ resizing: resizeDrag }">
     <header class="page-header">
       <RouterLink to="/" class="back-link"><el-icon><ArrowLeft /></el-icon> N4 Monitor</RouterLink>
       <div class="header-actions">
@@ -116,18 +116,25 @@
         </div>
       </form>
     </footer>
-    <DataAssistantExecution
-      v-if="detailsOpen && selectedTurn"
-      :key="selectedTurn.id"
-      class="execution-panel"
-      :question="selectedTurn.question"
-      :pending="selectedTurn.pending"
-      :error="selectedTurn.error"
-      :result="selectedTurn.result"
-      :dataset-labels="datasetLabels"
-      :column-labels="columnLabels"
-      @close="detailsOpen = false"
-    />
+    <div v-if="detailsOpen && selectedTurn" class="execution-panel"
+         :style="{ '--execution-width': executionWidth === undefined ? undefined : `${executionWidth}px` }">
+      <div class="resize-handle" role="separator" tabindex="0" aria-label="Resize execution details"
+           aria-orientation="vertical" aria-controls="assistant-execution"
+           @pointerdown="startResize" @pointermove="resizePanel" @lostpointercapture="endResize"
+           @keydown.left.prevent="resizeWithKeyboard($event, 24)"
+           @keydown.right.prevent="resizeWithKeyboard($event, -24)" />
+      <DataAssistantExecution
+        :key="selectedTurn.id"
+        class="execution-details"
+        :question="selectedTurn.question"
+        :pending="selectedTurn.pending"
+        :error="selectedTurn.error"
+        :result="selectedTurn.result"
+        :dataset-labels="datasetLabels"
+        :column-labels="columnLabels"
+        @close="detailsOpen = false"
+      />
+    </div>
   </div>
 </template>
 
@@ -172,6 +179,10 @@ const pending = ref(false)
 const detailsOpen = ref(true)
 const selectedTurnId = ref<number>()
 const selectedTurn = computed(() => turns.value.find(({ id }) => id === selectedTurnId.value))
+const executionWidth = ref<number>()
+const resizeDrag = ref<{ pointerId: number; startX: number; startWidth: number }>()
+const MIN_EXECUTION_WIDTH = 290
+const MIN_CONVERSATION_WIDTH = 360
 let nextTurnId = 0
 
 async function scrollToLatest() {
@@ -210,6 +221,38 @@ function clearConversation() {
 function showDetails(turnId: number) {
   selectedTurnId.value = turnId
   detailsOpen.value = true
+}
+
+function setExecutionWidth(handle: HTMLElement, width: number) {
+  const workspaceWidth = handle.parentElement?.parentElement?.clientWidth ?? window.innerWidth
+  const maxWidth = Math.max(MIN_EXECUTION_WIDTH, workspaceWidth - MIN_CONVERSATION_WIDTH)
+  executionWidth.value = Math.min(maxWidth, Math.max(MIN_EXECUTION_WIDTH, width))
+}
+
+function startResize(event: PointerEvent) {
+  if (event.button !== 0 || resizeDrag.value) return
+  const handle = event.currentTarget as HTMLElement
+  const panel = handle.parentElement
+  if (!panel) return
+  event.preventDefault()
+  handle.setPointerCapture(event.pointerId)
+  resizeDrag.value = { pointerId: event.pointerId, startX: event.clientX, startWidth: panel.offsetWidth }
+}
+
+function resizePanel(event: PointerEvent) {
+  const drag = resizeDrag.value
+  if (drag?.pointerId !== event.pointerId) return
+  setExecutionWidth(event.currentTarget as HTMLElement, drag.startWidth + drag.startX - event.clientX)
+}
+
+function endResize(event: PointerEvent) {
+  if (resizeDrag.value?.pointerId === event.pointerId) resizeDrag.value = undefined
+}
+
+function resizeWithKeyboard(event: KeyboardEvent, step: number) {
+  const handle = event.currentTarget as HTMLElement
+  const panel = handle.parentElement
+  if (panel) setExecutionWidth(handle, panel.offsetWidth + step)
 }
 
 function onComposerKey(event: KeyboardEvent) {
@@ -259,7 +302,26 @@ function barWidth(value: string | number | undefined, largest: string | number |
 .header-actions { justify-content: flex-end; flex-wrap: wrap; }
 .response-header { justify-content: space-between; margin-bottom: 8px; }
 .feed { grid-area: 2 / 1; min-height: 0; overflow: auto; }
-.execution-panel { grid-area: 2 / 2 / 4; width: clamp(290px, 30vw, 390px); }
+.execution-panel {
+  position: relative;
+  grid-area: 2 / 2 / 4;
+  display: flex;
+  min-height: 0;
+  width: clamp(290px, var(--execution-width, clamp(290px, 30vw, 390px)), calc(100vw - 360px));
+}
+.execution-details { flex: 1; }
+.resize-handle {
+  position: absolute;
+  z-index: 1;
+  inset: 0 auto 0 -5px;
+  width: 11px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.resize-handle:hover, .resize-handle:focus-visible, .resizing .resize-handle {
+  background: linear-gradient(to right, transparent 4px, $accent-green 4px, $accent-green 6px, transparent 6px);
+}
+.resizing { cursor: col-resize; user-select: none; }
 .content { width: min(100% - 32px, 920px); margin: auto; padding: 28px 0; }
 .welcome { padding: clamp(20px, 8vh, 84px) 0 12px; text-align: center; }
 .welcome > p:not(.eyebrow) { color: $text-secondary; margin: 8px 0 24px; }
@@ -327,6 +389,7 @@ textarea { display: block; width: 100%; resize: vertical; max-height: 28vh; padd
   }
 
   .execution-panel { grid-area: 3 / 1; width: 100%; max-height: 36dvh; }
+  .resize-handle { display: none; }
   .composer-area { grid-area: 4 / 1; }
 }
 </style>
