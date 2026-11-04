@@ -38,6 +38,10 @@
                 <dd>{{ result.query.search }}</dd>
               </div>
             </dl>
+            <details class="query-code">
+              <summary>Structured query (JSON)</summary>
+              <pre><code>{{ JSON.stringify(result.query, null, 2) }}</code></pre>
+            </details>
           </details>
         </li>
         <li>
@@ -47,12 +51,22 @@
               <span v-if="result.execution">{{ formatDuration(result.execution.queryMillis) }}</span>
             </summary>
             <dl>
+              <div v-if="result.execution?.dataRead">
+                <dt>Read from</dt><dd>{{ result.execution.dataRead.source }}</dd>
+              </div>
               <div><dt>Matched records</dt><dd>{{ result.evidence.matchedCount.toLocaleString() }}</dd></div>
               <div v-if="result.query.operation !== 'count'">
                 <dt>{{ result.query.operation === 'group' ? 'Groups shown' : 'Rows shown' }}</dt>
                 <dd>{{ result.evidence.rows.length.toLocaleString() }}</dd>
               </div>
             </dl>
+            <details v-if="result.execution?.dataRead?.sql" class="query-code" open>
+              <summary>Executed SQL</summary>
+              <pre><code>{{ result.execution.dataRead.sql }}</code></pre>
+            </details>
+            <p v-if="result.execution?.dataRead?.postProcessed" class="step-note">
+              N4 Monitor applies any remaining filters and computes the requested result after reading the data.
+            </p>
             <p v-if="result.evidence.truncated" class="step-note">The displayed results are limited.</p>
           </details>
         </li>
@@ -145,6 +159,8 @@ dl { margin: 6px 0 0; font-size: 12px; }
 dl > div { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 8px; padding: 3px 0; }
 dt { color: $text-secondary; }
 dd { margin: 0; overflow-wrap: anywhere; }
+.query-code { margin-top: 8px; background: $bg-dark; font-size: 12px; }
+pre { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 @media (max-width: 760px) {
   .execution { border-left: 0; border-top: 1px solid $border-card; }

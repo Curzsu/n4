@@ -640,11 +640,15 @@ public class TdengineSyncService {
      *         empty file
      */
     public long countAlarmEvents(EventExportFilter filter) {
+        return countAlarmEventsWithSql(filter).value();
+    }
+
+    public SqlResult<Long> countAlarmEventsWithSql(EventExportFilter filter) {
         String sql = EventExportSql.count(filter, tdengineConfig.getEventSupertable());
         try (Connection readConn = openReadConnection();
              Statement stmt = readConn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
-            return rs.next() ? rs.getLong(1) : 0L;
+            return new SqlResult<>(rs.next() ? rs.getLong(1) : 0L, sql);
         } catch (SQLException e) {
             log.error("Failed to count alarm events for export", e);
             throw new IllegalStateException("Failed to count alarm events for export", e);
@@ -658,6 +662,10 @@ public class TdengineSyncService {
      * aborts the export, it never truncates the file silently.
      */
     public List<AlarmRecordDto> queryAlarmEventsPage(EventExportFilter filter, int offset, int limit) {
+        return queryAlarmEventsPageWithSql(filter, offset, limit).value();
+    }
+
+    public SqlResult<List<AlarmRecordDto>> queryAlarmEventsPageWithSql(EventExportFilter filter, int offset, int limit) {
         String sql = EventExportSql.page(filter, tdengineConfig.getEventSupertable(), limit, offset);
         List<AlarmRecordDto> result = new ArrayList<>();
         try (Connection readConn = openReadConnection();
@@ -670,8 +678,10 @@ public class TdengineSyncService {
             log.error("Failed to read alarm events export page (offset {}, limit {})", offset, limit, e);
             throw new IllegalStateException("Failed to read alarm events for export", e);
         }
-        return result;
+        return new SqlResult<>(result, sql);
     }
+
+    public record SqlResult<T>(T value, String sql) {}
 
     /**
      * Borrow a read connection from the dedicated read pool. Reads never share

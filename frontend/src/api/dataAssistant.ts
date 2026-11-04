@@ -27,6 +27,11 @@ export interface DataAnswer {
     queryMillis: number
     summaryMillis: number
     summaryGenerated: boolean
+    dataRead?: {
+      source: string
+      sql: string | null
+      postProcessed: boolean
+    }
   }
 }
 

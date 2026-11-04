@@ -5,9 +5,11 @@ import com.n4monitor.alarm.dto.EventExportFilter;
 import com.n4monitor.alarm.model.AlarmStatus;
 import com.n4monitor.alarm.service.AlarmService;
 import com.n4monitor.deployment.entity.DeviceDeployment;
+import com.n4monitor.deployment.mapper.DeviceDeploymentMapper;
 import com.n4monitor.deployment.service.DeploymentService;
 import com.n4monitor.exception.BusinessException;
 import com.n4monitor.tdengine.TdengineSyncService;
+import org.apache.ibatis.session.SqlSessionFactory;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
@@ -61,13 +63,15 @@ public class DataAssistantService {
     private final AlarmService alarms;
     private final TdengineSyncService history;
     private final DeploymentService deployments;
+    private final SqlSessionFactory sqlSessions;
 
     DataAssistantService(GeminiClient gemini, AlarmService alarms,
-                         TdengineSyncService history, DeploymentService deployments) {
+                         TdengineSyncService history, DeploymentService deployments, SqlSessionFactory sqlSessions) {
         this.gemini = gemini;
         this.alarms = alarms;
         this.history = history;
         this.deployments = deployments;
+        this.sqlSessions = sqlSessions;
     }
 
     Answer ask(Question request, Set<String> permissions) {
@@ -88,7 +92,8 @@ public class DataAssistantService {
                 : gemini.plan(question, allowedDatasets, today);
         validateQuery(query, allowedDatasets);
         long queryStart = System.nanoTime();
-        Evidence evidence = execute(query, today);
+        QueryResult result = execute(query, today);
+        Evidence evidence = result.evidence();
         long summaryStart = System.nanoTime();
         String answer;
         boolean summaryGenerated;
@@ -101,7 +106,7 @@ public class DataAssistantService {
         }
         var execution = new Execution(presetQuery, TimeUnit.NANOSECONDS.toMillis(queryStart - planningStart),
                 TimeUnit.NANOSECONDS.toMillis(summaryStart - queryStart),
-                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - summaryStart), summaryGenerated);
+                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - summaryStart), summaryGenerated, result.dataRead());
         return new Answer(answer, query, evidence, execution);
     }
 
@@ -145,30 +150,39 @@ public class DataAssistantService {
         }
     }
 
-    private Evidence execute(Query query, LocalDate today) {
+    private QueryResult execute(Query query, LocalDate today) {
         List<Map<String, String>> rows;
         List<String> columns;
+        DataRead dataRead;
         switch (query.dataset()) {
             case ACTIVE -> {
                 rows = alarms.getActiveAlarms("active").stream().map(this::alarmRow).toList();
                 columns = ALARM_COLUMNS;
+                dataRead = new DataRead("Redis snapshot", null, true);
             }
             case EVENTS -> {
                 EventExportFilter filter = eventFilter(query, today);
                 if ("count".equals(query.operation()) && !hasText(query.search()) && !hasText(query.status())) {
-                    return count(history.countAlarmEvents(filter));
+                    var result = history.countAlarmEventsWithSql(filter);
+                    return new QueryResult(count(result.value()), new DataRead("TDengine", result.sql(), false));
                 }
-                var events = history.queryAlarmEventsPage(filter, 0, MAX_EVENT_ROWS + 1);
+                var result = history.queryAlarmEventsPageWithSql(filter, 0, MAX_EVENT_ROWS + 1);
+                var events = result.value();
                 if (events.size() > MAX_EVENT_ROWS) {
                     throw new BusinessException(422, "Too many historical alarm frames. Choose a shorter date range or a severity.");
                 }
                 // The export page already orders these rows by write time ascending.
                 rows = events.reversed().stream().map(this::eventRow).toList();
                 columns = EVENT_COLUMNS;
+                dataRead = new DataRead("TDengine", result.sql(), true);
             }
             case DEVICES -> {
                 rows = deployments.listAll().stream().map(this::deviceRow).toList();
                 columns = DEVICE_COLUMNS;
+                String sql = sqlSessions.getConfiguration()
+                        .getMappedStatement(DeviceDeploymentMapper.class.getName() + ".findAll")
+                        .getBoundSql(null).getSql().strip();
+                dataRead = new DataRead("MySQL", sql, true);
             }
             default -> throw new IllegalStateException("Unsupported dataset");
         }
@@ -179,7 +193,7 @@ public class DataAssistantService {
                 .filter(row -> !hasText(query.status()) || query.status().equals(row.get("status")))
                 .filter(row -> search.isEmpty() || row.get(query.searchField()).toLowerCase(Locale.ROOT).contains(search))
                 .toList();
-        return switch (query.operation()) {
+        Evidence evidence = switch (query.operation()) {
             case "count" -> count(matches.size());
             case "group" -> group(matches, query.groupBy());
             case "list" -> new Evidence(matches.size(), columns,
@@ -187,6 +201,7 @@ public class DataAssistantService {
                             .collect(Collectors.toList()), matches.size() > MAX_RESULTS);
             default -> throw new IllegalStateException("Unsupported operation");
         };
+        return new QueryResult(evidence, dataRead);
     }
 
     private EventExportFilter eventFilter(Query query, LocalDate today) {
@@ -260,8 +275,12 @@ public class DataAssistantService {
 
     public record Evidence(long matchedCount, List<String> columns, List<Map<String, ?>> rows, boolean truncated) {}
 
+    private record QueryResult(Evidence evidence, DataRead dataRead) {}
+
+    public record DataRead(String source, String sql, boolean postProcessed) {}
+
     public record Execution(boolean presetQuery, long planningMillis, long queryMillis,
-                            long summaryMillis, boolean summaryGenerated) {}
+                            long summaryMillis, boolean summaryGenerated, DataRead dataRead) {}
 
     public record Answer(String answer, Query query, Evidence evidence, Execution execution) {}
 }
