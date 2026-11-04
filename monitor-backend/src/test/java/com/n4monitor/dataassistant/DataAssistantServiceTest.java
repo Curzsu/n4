@@ -20,6 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -74,6 +76,22 @@ class DataAssistantServiceTest {
                 Set.of("alarm:view"));
 
         assertEquals(1, result.evidence().matchedCount());
+    }
+
+    @Test
+    void usesAnUnfilteredDayCountForTheHistoricalStarter() {
+        when(history.countAlarmEvents(any())).thenReturn(17L);
+        when(gemini.answer(any(), any(), any())).thenReturn("17 alarm frames.");
+
+        var result = service.ask(
+                new DataAssistantService.Question("How many alarm frames were recorded today?", List.of()),
+                Set.of("alarm:event:view"));
+
+        assertEquals(17, result.evidence().matchedCount());
+        assertEquals("alarm_events", result.query().dataset());
+        assertEquals("count", result.query().operation());
+        assertEquals(result.query().startDate(), result.query().endDate());
+        verify(gemini, never()).plan(any(), any(), any());
     }
 
     @Test

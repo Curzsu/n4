@@ -4,14 +4,18 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.n4monitor.exception.BusinessException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.ProxySelector;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -19,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 
 @Component
+@Slf4j
 class GeminiClient {
     private static final URI ENDPOINT = URI.create(
             "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent");
@@ -32,10 +37,12 @@ class GeminiClient {
             Select count for totals, group for breakdowns or rankings, and list for details.
             groupBy is required only for group. For alarm_events, provide inclusive startDate and endDate
             in YYYY-MM-DD, in Asia/Shanghai. Use at most 30 dates and end on or before today.
-            Default both dates to today if no period is given.
+            Always include both dates, even when they are identical. Use the supplied today for "today"
+            and for both dates when no period is given.
             Historical lists show the newest frames first by recording time.
             Use severity only for alarms: Critical, Major, Minor or Warning.
-            Use status for exact alarm acknowledgement state: Ack, Unack or Cleared.
+            Use status only when the question or its follow-up context specifies an acknowledgement state:
+            Ack, Unack or Cleared. An unqualified count includes every acknowledgement state.
             For one case-insensitive literal substring, set both search and searchField.
             Search fields for alarms: source, location, message. For historical alarms also stage.
             Search fields for devices: device, alias, deviceType, system, location, manufacturer, model.
@@ -64,13 +71,31 @@ class GeminiClient {
                     "startDate", Map.of("type", "STRING"),
                     "endDate", Map.of("type", "STRING")));
 
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(8)).build();
+    private final HttpClient http;
     private final ObjectMapper mapper;
     private final String apiKey;
 
-    GeminiClient(ObjectMapper mapper, @Value("${data-assistant.gemini-api-key:}") String apiKey) {
+    GeminiClient(ObjectMapper mapper,
+                 @Value("${data-assistant.gemini-api-key:}") String apiKey,
+                 @Value("${data-assistant.gemini-proxy:}") String proxyAddress) {
         this.mapper = mapper;
         this.apiKey = apiKey.strip();
+        var clientBuilder = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(8));
+        if (!proxyAddress.isBlank()) {
+            URI proxy;
+            try {
+                proxy = URI.create(proxyAddress.strip());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Gemini proxy must be an HTTP proxy URL");
+            }
+            if (!"http".equalsIgnoreCase(proxy.getScheme()) || proxy.getHost() == null || proxy.getUserInfo() != null
+                    || proxy.getPort() == 0 || proxy.getPort() > 65535) {
+                throw new IllegalArgumentException("Gemini proxy must be an HTTP proxy URL without credentials");
+            }
+            int port = proxy.getPort() == -1 ? 80 : proxy.getPort();
+            clientBuilder.proxy(ProxySelector.of(new InetSocketAddress(proxy.getHost(), port)));
+        }
+        this.http = clientBuilder.build();
     }
 
     DataAssistantService.Query plan(DataAssistantService.Question question, List<String> allowedDatasets,
@@ -136,7 +161,11 @@ class GeminiClient {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new BusinessException(503, "Gemini request was interrupted");
+        } catch (HttpTimeoutException e) {
+            log.warn("Gemini request timed out ({})", e.getClass().getSimpleName());
+            throw new BusinessException(504, "Gemini request timed out. Check the backend network and proxy settings.");
         } catch (IOException | IllegalArgumentException e) {
+            log.warn("Gemini request failed ({})", e.getClass().getSimpleName());
             throw new BusinessException(502, "Unable to complete the Gemini request");
         }
     }

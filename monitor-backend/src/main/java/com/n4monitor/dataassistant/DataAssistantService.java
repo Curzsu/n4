@@ -37,6 +37,7 @@ public class DataAssistantService {
     private static final String ACTIVE = "active_alarms";
     private static final String EVENTS = "alarm_events";
     private static final String DEVICES = "deployments";
+    private static final String TODAY_ALARM_FRAMES_QUESTION = "How many alarm frames were recorded today?";
     private static final Map<String, String> DATASET_PERMISSIONS = Map.of(
             ACTIVE, "alarm:view", EVENTS, "alarm:event:view", DEVICES, "device:deploy:view");
     private static final Map<String, List<String>> GROUP_FIELDS = Map.of(
@@ -79,7 +80,9 @@ public class DataAssistantService {
             throw new AccessDeniedException("No Data Assistant datasets available");
         }
         LocalDate today = LocalDate.now(QUERY_ZONE);
-        Query query = gemini.plan(question, allowedDatasets, today);
+        Query query = TODAY_ALARM_FRAMES_QUESTION.equalsIgnoreCase(question.text())
+                ? new Query(EVENTS, "count", null, null, null, null, null, today.toString(), today.toString())
+                : gemini.plan(question, allowedDatasets, today);
         validateQuery(query, allowedDatasets);
         Evidence evidence = execute(query, today);
         try {

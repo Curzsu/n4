@@ -30,6 +30,8 @@
 在本地 `.env` 中设置 `GEMINI_API_KEY` 后重启后端。Docker Compose 和
 `start-n4-monitor.bat` 会读取该文件。直接启动 Spring Boot 时，通过进程环境变量传入密钥。
 问数需要后端能够访问 `generativelanguage.googleapis.com`。
+如果后端需要代理，可设置 `GEMINI_PROXY` 为 HTTP 代理地址。未设置时使用环境变量
+`HTTPS_PROXY` 或 `https_proxy`。代理只用于 Gemini 请求，地址需能从后端进程所在环境访问。
 
 可以询问实时告警、历史告警帧和已部署设备。页面支持计数、分组和明细查询，可用同一页面内最近三条成功的
 提问作为追问上下文。历史查询按上海时区统计，单次覆盖最多 30 个自然日。历史记录按帧统计，同一告警可能

@@ -101,6 +101,7 @@ fuxa:
 
 data-assistant:
   gemini-api-key: ${GEMINI_API_KEY:}
+  gemini-proxy: ${GEMINI_PROXY:${HTTPS_PROXY:${https_proxy:}}}
 
 # JWT security configuration
 jwt:
