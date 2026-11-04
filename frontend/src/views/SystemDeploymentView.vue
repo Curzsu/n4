@@ -286,7 +286,7 @@
                     class="btn-primary"
                     :icon="Rank"
                     :disabled="selectedChildGroups.length === 0"
-                    @click="openBatchMoveDialog"
+                    @click="handleBatchMoveButtonClick"
                   >
                     Move<template v-if="selectedChildGroups.length"> ({{ selectedChildGroups.length }})</template>
                   </el-button>
@@ -304,7 +304,7 @@
                     size="small"
                     class="btn-secondary"
                     :icon="Rank"
-                    @click="enterGroupBatchMove"
+                    @click="handleBatchMoveButtonClick"
                   >
                     Batch Move
                   </el-button>

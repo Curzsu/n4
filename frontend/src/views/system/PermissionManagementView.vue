@@ -296,7 +296,7 @@ function permissionRowClass({ row }: { row: PermissionViewNode }): string {
 }
 
 /** Expand root nodes only on first load: level 1 visible, level 2+ collapsed */
-const defaultExpandedKeys = computed(() => permissionTree.value.map(node => node.permId))
+const defaultExpandedKeys = computed(() => permissionTree.value.map(node => String(node.permId)))
 
 async function loadTree() {
   loading.value = true
