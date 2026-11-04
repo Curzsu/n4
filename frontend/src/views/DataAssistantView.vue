@@ -2,7 +2,14 @@
   <div class="assistant">
     <header class="page-header">
       <RouterLink to="/" class="back-link"><el-icon><ArrowLeft /></el-icon> N4 Monitor</RouterLink>
-      <span class="model">Gemini 3.5 Flash-Lite</span>
+      <div class="header-actions">
+        <span class="model">Gemini 3.5 Flash-Lite</span>
+        <button v-if="turns.length" type="button" class="details-button"
+                :aria-expanded="detailsOpen" aria-controls="assistant-execution"
+                @click="detailsOpen = !detailsOpen">
+          Execution details
+        </button>
+      </div>
     </header>
 
     <main ref="feed" class="feed" aria-label="Data Assistant conversation">
@@ -27,7 +34,14 @@
         <article v-for="turn in turns" :key="turn.id" class="turn">
           <p class="question">{{ turn.question }}</p>
           <div class="response">
-            <p class="eyebrow">DATA ASSISTANT</p>
+            <div class="response-header">
+              <p class="eyebrow">DATA ASSISTANT</p>
+              <button type="button" class="details-button" aria-controls="assistant-execution"
+                      :aria-pressed="detailsOpen && selectedTurnId === turn.id"
+                      @click="showDetails(turn.id)">
+                View execution
+              </button>
+            </div>
             <p v-if="turn.pending" role="status" class="muted">Querying monitoring data…</p>
             <p v-else-if="turn.error" role="alert" class="error">{{ turn.error }}</p>
             <template v-else-if="turn.result">
@@ -102,6 +116,18 @@
         </div>
       </form>
     </footer>
+    <DataAssistantExecution
+      v-if="detailsOpen && selectedTurn"
+      :key="selectedTurn.id"
+      class="execution-panel"
+      :question="selectedTurn.question"
+      :pending="selectedTurn.pending"
+      :error="selectedTurn.error"
+      :result="selectedTurn.result"
+      :dataset-labels="datasetLabels"
+      :column-labels="columnLabels"
+      @close="detailsOpen = false"
+    />
   </div>
 </template>
 
@@ -110,6 +136,7 @@ import { computed, nextTick, ref } from 'vue'
 import { ArrowLeft, ChatDotRound } from '@element-plus/icons-vue'
 import { askData, type DataAnswer, type Dataset } from '@/api/dataAssistant'
 import { useAuthStore } from '@/stores/auth'
+import DataAssistantExecution from './DataAssistantExecution.vue'
 
 interface Turn {
   id: number
@@ -142,6 +169,9 @@ const feed = ref<HTMLElement>()
 const input = ref('')
 const turns = ref<Turn[]>([])
 const pending = ref(false)
+const detailsOpen = ref(true)
+const selectedTurnId = ref<number>()
+const selectedTurn = computed(() => turns.value.find(({ id }) => id === selectedTurnId.value))
 let nextTurnId = 0
 
 async function scrollToLatest() {
@@ -156,6 +186,7 @@ async function submit(text: string) {
   const context = turns.value.filter((turn) => turn.result).slice(-3).map((turn) => turn.question)
   const turn = ref<Turn>({ id: nextTurnId++, question, pending: true })
   turns.value.push(turn.value)
+  selectedTurnId.value = turn.value.id
   pending.value = true
   input.value = ''
   void scrollToLatest()
@@ -172,6 +203,13 @@ async function submit(text: string) {
 function clearConversation() {
   turns.value = []
   input.value = ''
+  selectedTurnId.value = undefined
+  detailsOpen.value = true
+}
+
+function showDetails(turnId: number) {
+  selectedTurnId.value = turnId
+  detailsOpen.value = true
 }
 
 function onComposerKey(event: KeyboardEvent) {
@@ -189,13 +227,15 @@ function barWidth(value: string | number | undefined, largest: string | number |
 <style scoped lang="scss">
 .assistant {
   height: 100%;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   background: radial-gradient(ellipse at top, #102520, transparent 48%), $bg-dark;
   font-size: 14px;
 }
 
 .page-header {
+  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -215,7 +255,11 @@ function barWidth(value: string | number | undefined, largest: string | number |
 
 .model, .muted { color: $text-secondary; }
 .model { font-size: 12px; }
-.feed { flex: 1; min-height: 0; overflow: auto; }
+.header-actions, .response-header { display: flex; align-items: center; gap: 10px; }
+.header-actions { justify-content: flex-end; flex-wrap: wrap; }
+.response-header { justify-content: space-between; margin-bottom: 8px; }
+.feed { grid-area: 2 / 1; min-height: 0; overflow: auto; }
+.execution-panel { grid-area: 2 / 2 / 4; width: clamp(290px, 30vw, 390px); }
 .content { width: min(100% - 32px, 920px); margin: auto; padding: 28px 0; }
 .welcome { padding: clamp(20px, 8vh, 84px) 0 12px; text-align: center; }
 .welcome > p:not(.eyebrow) { color: $text-secondary; margin: 8px 0 24px; }
@@ -248,13 +292,14 @@ button {
 
 button:hover:enabled { border-color: $accent-green; }
 button:disabled { opacity: .45; cursor: default; }
+.details-button { padding: 4px 8px; background: transparent; color: $text-secondary; font-size: 12px; }
+.details-button[aria-pressed='true'] { color: #65e9bd; border-color: #286454; }
 .suggestions button { min-height: 76px; padding: 12px; text-align: left; }
 .suggestions button span { display: block; color: #65e9bd; font-size: 10px; margin-bottom: 5px; }
 .turn { display: grid; gap: 12px; margin-bottom: 24px; scroll-margin-top: 16px; }
 .question, .answer { overflow-wrap: anywhere; white-space: pre-wrap; }
 .question { justify-self: end; padding: 10px 14px; background: #17352e; border-radius: 12px; max-width: 90%; }
 .response { min-width: 0; padding: 16px; background: $bg-card; border: 1px solid $border-card; border-radius: 12px; }
-.response > p + p { margin-top: 8px; }
 .error { color: #fca5a5; }
 .evidence { margin-top: 14px; overflow: hidden; border: 1px solid $border-card; border-radius: 8px; }
 .evidence-header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 10px 12px; }
@@ -266,7 +311,7 @@ table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: lef
 th, td { border-top: 1px solid $border-card; padding: 7px 12px; overflow-wrap: anywhere; }
 th { position: sticky; top: 0; background: $bg-card-hover; color: $text-secondary; }
 .count-bar { display: block; height: 3px; margin-top: 4px; background: $accent-green; border-radius: 4px; }
-.composer-area { padding: 12px 16px 16px; border-top: 1px solid $border-card; }
+.composer-area { grid-area: 3 / 1; padding: 12px 16px 16px; border-top: 1px solid $border-card; }
 .composer { max-width: 920px; margin: auto; border: 1px solid $border-card; border-radius: 12px; background: $bg-card; }
 .composer:focus-within { border-color: $accent-green; }
 textarea { display: block; width: 100%; resize: vertical; max-height: 28vh; padding: 12px; background: transparent; color: inherit; border: 0; outline: 0; font: inherit; }
@@ -274,4 +319,14 @@ textarea { display: block; width: 100%; resize: vertical; max-height: 28vh; padd
 .clear, .send { padding: 6px 12px; }
 .send { background: #6ee7b7; border-color: transparent; color: #08251b; font-weight: 700; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+@media (max-width: 760px) {
+  .assistant {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+  }
+
+  .execution-panel { grid-area: 3 / 1; width: 100%; max-height: 36dvh; }
+  .composer-area { grid-area: 4 / 1; }
+}
 </style>

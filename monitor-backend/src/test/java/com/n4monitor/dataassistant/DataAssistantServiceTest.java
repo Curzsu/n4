@@ -16,7 +16,9 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -60,6 +62,8 @@ class DataAssistantServiceTest {
         assertEquals(List.of(Map.of("severity", "Major", "count", 2L),
                 Map.of("severity", "Warning", "count", 1L)), result.evidence().rows());
         assertEquals("Three UPS alarms.", result.answer());
+        assertFalse(result.execution().presetQuery());
+        assertTrue(result.execution().summaryGenerated());
     }
 
     @Test
@@ -91,7 +95,21 @@ class DataAssistantServiceTest {
         assertEquals("alarm_events", result.query().dataset());
         assertEquals("count", result.query().operation());
         assertEquals(result.query().startDate(), result.query().endDate());
+        assertTrue(result.execution().presetQuery());
         verify(gemini, never()).plan(any(), any(), any());
+    }
+
+    @Test
+    void retainsQueryResultsAndReportsWhenSummaryFails() {
+        when(history.countAlarmEvents(any())).thenReturn(17L);
+        when(gemini.answer(any(), any(), any())).thenThrow(new BusinessException(502, "Summary unavailable"));
+
+        var result = service.ask(
+                new DataAssistantService.Question("How many alarm frames were recorded today?", List.of()),
+                Set.of("alarm:event:view"));
+
+        assertEquals(17, result.evidence().matchedCount());
+        assertFalse(result.execution().summaryGenerated());
     }
 
     @Test

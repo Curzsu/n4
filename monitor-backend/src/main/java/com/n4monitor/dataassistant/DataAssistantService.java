@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
@@ -79,18 +80,29 @@ public class DataAssistantService {
         if (allowedDatasets.isEmpty()) {
             throw new AccessDeniedException("No Data Assistant datasets available");
         }
+        long planningStart = System.nanoTime();
         LocalDate today = LocalDate.now(QUERY_ZONE);
-        Query query = TODAY_ALARM_FRAMES_QUESTION.equalsIgnoreCase(question.text())
+        boolean presetQuery = TODAY_ALARM_FRAMES_QUESTION.equalsIgnoreCase(question.text());
+        Query query = presetQuery
                 ? new Query(EVENTS, "count", null, null, null, null, null, today.toString(), today.toString())
                 : gemini.plan(question, allowedDatasets, today);
         validateQuery(query, allowedDatasets);
+        long queryStart = System.nanoTime();
         Evidence evidence = execute(query, today);
+        long summaryStart = System.nanoTime();
+        String answer;
+        boolean summaryGenerated;
         try {
-            return new Answer(gemini.answer(question, query, evidence), query, evidence);
+            answer = gemini.answer(question, query, evidence);
+            summaryGenerated = true;
         } catch (BusinessException e) {
-            return new Answer("The query succeeded. The Gemini summary is unavailable. See the results below.",
-                    query, evidence);
+            answer = "The query succeeded. The Gemini summary is unavailable. See the results below.";
+            summaryGenerated = false;
         }
+        var execution = new Execution(presetQuery, TimeUnit.NANOSECONDS.toMillis(queryStart - planningStart),
+                TimeUnit.NANOSECONDS.toMillis(summaryStart - queryStart),
+                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - summaryStart), summaryGenerated);
+        return new Answer(answer, query, evidence, execution);
     }
 
     private Question validateQuestion(Question request) {
@@ -248,5 +260,8 @@ public class DataAssistantService {
 
     public record Evidence(long matchedCount, List<String> columns, List<Map<String, ?>> rows, boolean truncated) {}
 
-    public record Answer(String answer, Query query, Evidence evidence) {}
+    public record Execution(boolean presetQuery, long planningMillis, long queryMillis,
+                            long summaryMillis, boolean summaryGenerated) {}
+
+    public record Answer(String answer, Query query, Evidence evidence, Execution execution) {}
 }

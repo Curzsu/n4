@@ -21,6 +21,13 @@ export interface DataAnswer {
     rows: Record<string, string | number>[]
     truncated: boolean
   }
+  execution?: {
+    presetQuery: boolean
+    planningMillis: number
+    queryMillis: number
+    summaryMillis: number
+    summaryGenerated: boolean
+  }
 }
 
 export function askData(text: string, context: string[]): Promise<DataAnswer> {
