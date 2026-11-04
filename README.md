@@ -22,6 +22,22 @@
 - 自动化回归测试：执行 `scripts\run_regression_test.bat` 或 `python scripts/regression_test.py`
 - 服务器部署：见 [deploy/README.md](deploy/README.md)
 
+## 问数
+
+登录后，从顶部 **Ask Data** 进入独立页面 `/ask-data`。首次启动会将问数权限
+`data-assistant:view` 同步给超级管理员。其他角色需要同时拥有问数权限和对应的数据页面权限。
+
+在本地 `.env` 中设置 `GEMINI_API_KEY` 后重启后端。Docker Compose 和
+`start-n4-monitor.bat` 会读取该文件。直接启动 Spring Boot 时，通过进程环境变量传入密钥。
+问数需要后端能够访问 `generativelanguage.googleapis.com`。
+
+可以询问实时告警、历史告警帧和已部署设备。页面支持计数、分组和明细查询，可用同一页面内最近三条成功的
+提问作为追问上下文。历史查询按上海时区统计，单次覆盖最多 30 个自然日。历史记录按帧统计，同一告警可能
+对应多帧。若明细或分组需要读取超过 2,000 条历史帧，请缩小日期范围或指定告警级别。
+
+Gemini 3.5 Flash-Lite 负责理解问题和生成摘要。后端校验权限及查询条件，然后通过现有服务读取数据。
+发送给 Gemini 的内容包括问题、追问上下文和用于生成摘要的查询结果，每次最多发送 30 行明细或分组。
+
 ## ⚠️ 安全约定：.env 不入库
 
 根目录 `.env`（含 MySQL / Redis / TDengine 的真实地址与口令）**不纳入版本控制**：`.gitignore` 已忽略 `*.env`（仅放行 `.env.example`），git 历史也已通过 filter-repo 重写清除。每台部署机需自行 `cp .env.example .env` 并按环境填写真实口令。

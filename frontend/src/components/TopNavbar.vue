@@ -11,6 +11,11 @@
           :class="['nav-tab', { active: tab === activeTab }]"
           @click="handleTabClick(tab)"
         >{{ tab }}</span>
+        <RouterLink
+          v-if="authStore.hasPermission('data-assistant:view')"
+          to="/ask-data"
+          class="nav-tab ask-data-link"
+        >Ask Data</RouterLink>
       </div>
     </div>
     <div class="navbar-right">
@@ -172,6 +177,10 @@ function handleBadgeClick(severity: string) {
 .nav-tab:hover {
   color: $text-primary;
   background-color: $bg-card-hover;
+}
+
+.ask-data-link {
+  text-decoration: none;
 }
 
 .navbar-right {

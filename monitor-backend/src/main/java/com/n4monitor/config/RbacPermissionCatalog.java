@@ -60,7 +60,9 @@ public final class RbacPermissionCatalog {
             menu("sys:log:list", "Audit Logs", "system:authority", "/logs", "LogView", "Tickets", 4),
             button("sys:log:delete", "Delete Logs", "sys:log:list", 1),
             button("auth:password:change", "Change Password", "system:authority", 5),
-            button("auth:logout", "Logout", "system:authority", 6)
+            button("auth:logout", "Logout", "system:authority", 6),
+
+            menu("data-assistant:view", "Ask Data", null, "/ask-data", "DataAssistantView", "TrendCharts", 7)
     );
 
     private static final Set<String> OPERATOR_PERMISSION_CODES = Set.of(

@@ -99,6 +99,9 @@ fuxa:
   enabled: ${FUXA_ENABLED:true}
   cabin-idle-shutdown-delay-seconds: ${FUXA_CABIN_IDLE_SHUTDOWN_DELAY_SECONDS:60}
 
+data-assistant:
+  gemini-api-key: ${GEMINI_API_KEY:}
+
 # JWT security configuration
 jwt:
   secret: ${JWT_SECRET:N4MonitorJwtSecretKeyMustBeLongEnoughForHmacSha256Algorithm2026!}

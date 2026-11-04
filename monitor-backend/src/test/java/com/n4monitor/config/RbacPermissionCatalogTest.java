@@ -31,7 +31,8 @@ class RbacPermissionCatalogTest {
                         "alarm:event:view",
                         "trend",
                         "report",
-                        "system"),
+                        "system",
+                        "data-assistant:view"),
                 catalog.stream()
                         .filter(definition -> definition.parentCode() == null)
                         .map(RbacPermissionCatalog.PermissionDefinition::code)
@@ -48,6 +49,7 @@ class RbacPermissionCatalogTest {
         assertParent(definitions, "trend", null, "Trend", null, null);
         assertParent(definitions, "report", null, "Report", null, null);
         assertParent(definitions, "system", null, "System", null, null);
+        assertParent(definitions, "data-assistant:view", null, "Ask Data", "/ask-data", "DataAssistantView");
 
         assertParent(definitions, "device:template:view", "system", "Device Template", "/device-template", "device-deploy/ProductManagerView");
         assertButton(definitions, "device:template:add", "device:template:view", "Add Template", 1);
@@ -123,6 +125,7 @@ class RbacPermissionCatalogTest {
         assertFalse(operatorPermissions.contains("device:template:point:delete"));
         assertFalse(operatorPermissions.contains("device:deploy:group:delete"));
         assertFalse(operatorPermissions.contains("device:deploy:delete"));
+        assertFalse(operatorPermissions.contains("data-assistant:view"));
     }
 
     private static void assertButton(

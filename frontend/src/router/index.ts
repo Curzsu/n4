@@ -23,6 +23,12 @@ const router = createRouter({
       meta: { permission: 'dashboard:view' },
     },
     {
+      path: '/ask-data',
+      name: 'ask-data',
+      component: () => import('@/views/DataAssistantView.vue'),
+      meta: { permission: 'data-assistant:view', bare: true },
+    },
+    {
       path: '/alarm',
       name: 'alarm',
       component: () => import('@/views/AlarmView.vue'),

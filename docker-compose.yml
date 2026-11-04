@@ -46,6 +46,7 @@ services:
       TDENGINE_URL: ${TDENGINE_URL}
       TDENGINE_USERNAME: ${TDENGINE_USERNAME}
       TDENGINE_PASSWORD: ${TDENGINE_PASSWORD}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       # FUXA is already running on the host; backend calls it for template provisioning
       FUXA_BASE_URL: ${FUXA_BASE_URL}
       # Alarm Flink job toggle (set false to disable embedded Flink processing).
