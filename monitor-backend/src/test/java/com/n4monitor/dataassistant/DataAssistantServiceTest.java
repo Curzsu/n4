@@ -42,6 +42,23 @@ class DataAssistantServiceTest {
             gemini, alarms, history, deployments, sqlSessions);
 
     @Test
+    void disabledHistoryIsRemovedFromPlannerDatasets() {
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "historyEnabled", false);
+        when(gemini.plan(any(), eq(List.of("active_alarms")), any()))
+                .thenReturn(new DataAssistantService.Query(
+                        "active_alarms", "count", null, null, null, null, null, null, null));
+        when(alarms.getActiveAlarms("active")).thenReturn(List.of());
+        when(gemini.answer(any(), any(), any())).thenReturn("No current alarms.");
+
+        var result = service.ask(new DataAssistantService.Question("Count current alarms", List.of()),
+                Set.of("alarm:view", "alarm:event:view"));
+
+        assertEquals(0, result.evidence().matchedCount());
+        verify(gemini).plan(any(), eq(List.of("active_alarms")), any());
+        verifyNoInteractions(history);
+    }
+
+    @Test
     void rejectsModelSelectedDatasetOutsideUserPermissions() {
         when(gemini.plan(any(), any(), any())).thenReturn(new DataAssistantService.Query(
                 "deployments", "count", null, null, null, null, null, null, null));

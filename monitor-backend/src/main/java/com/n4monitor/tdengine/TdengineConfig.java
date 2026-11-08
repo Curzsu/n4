@@ -19,6 +19,9 @@ import org.springframework.context.annotation.Configuration;
 @ConfigurationProperties(prefix = "tdengine")
 public class TdengineConfig {
 
+    /** Disable history reads and persistence in metadata-only experiments. */
+    private boolean enabled = true;
+
     /** JDBC connection URL (REST mode, port 6041) */
     private String url;
 

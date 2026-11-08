@@ -48,6 +48,18 @@ if exist "%ROOT%.env" (
   )
 )
 
+rem Process variables override the shared remote-source .env.
+if exist "%ROOT%.env.local" (
+  echo Loading isolated local lab settings...
+  for /f "usebackq tokens=1,* delims==" %%A in ("%ROOT%.env.local") do (
+    if not "%%A"=="" (
+      echo %%A| findstr /b "#" >nul
+      if errorlevel 1 set "%%A=%%B"
+    )
+  )
+  call :load_local_port
+)
+
 echo Checking for an existing N4 Monitor backend on port %BACKEND_PORT%...
 call :stop_port %BACKEND_PORT% "N4 Monitor backend"
 
@@ -69,6 +81,10 @@ start "" "http://localhost:5173/"
 echo.
 echo N4 Monitor startup commands have been launched.
 echo FUXA is not restarted by this script. Keep the configured FUXA service running.
+exit /b 0
+
+:load_local_port
+set "BACKEND_PORT=%SERVER_PORT%"
 exit /b 0
 
 :stop_port

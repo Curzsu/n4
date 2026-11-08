@@ -66,3 +66,6 @@ n4_monitor*.sql
 
 # Archify diagram sources/exports (local only, not for the repo)
 docs/diagrams/
+
+# Local lab credentials and backups
+.local-lab/

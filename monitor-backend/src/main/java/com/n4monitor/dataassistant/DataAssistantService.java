@@ -12,6 +12,7 @@ import com.n4monitor.tdengine.TdengineSyncService;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.time.DateTimeException;
 import java.time.Instant;
@@ -59,6 +60,9 @@ public class DataAssistantService {
     private static final List<String> DEVICE_COLUMNS = List.of(
             "device", "alias", "deviceType", "system", "location", "status", "manufacturer", "model");
 
+    @Value("${tdengine.enabled:true}")
+    private boolean historyEnabled = true;
+
     private final GeminiClient gemini;
     private final AlarmService alarms;
     private final TdengineSyncService history;
@@ -78,6 +82,7 @@ public class DataAssistantService {
         Question question = validateQuestion(request);
         List<String> allowedDatasets = DATASET_PERMISSIONS.entrySet().stream()
                 .filter(entry -> permissions.contains(entry.getValue()))
+                .filter(entry -> historyEnabled || !EVENTS.equals(entry.getKey()))
                 .map(Map.Entry::getKey)
                 .sorted()
                 .toList();

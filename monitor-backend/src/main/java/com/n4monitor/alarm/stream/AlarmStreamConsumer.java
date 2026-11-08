@@ -5,6 +5,7 @@ import com.n4monitor.alarm.model.PointAlarmState;
 import com.n4monitor.tdengine.TdengineSyncService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.data.redis.connection.stream.Consumer;
 import org.springframework.data.redis.connection.stream.MapRecord;
@@ -62,6 +63,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @Slf4j
 @Component
+@ConditionalOnProperty(name = "tdengine.enabled", havingValue = "true", matchIfMissing = true)
 public class AlarmStreamConsumer implements SmartLifecycle {
 
     private final StringRedisTemplate redisTemplate;

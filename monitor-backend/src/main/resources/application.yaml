@@ -14,6 +14,8 @@ spring:
     import:
       - optional:file:.env[.properties]
       - optional:file:../.env[.properties]
+      - optional:file:.env.local[.properties]
+      - optional:file:../.env.local[.properties]
 
   datasource:
     url: ${MYSQL_URL:jdbc:mysql://localhost:3306/n4_monitor?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
@@ -46,6 +48,7 @@ mybatis:
 # batched-statement workload (WS fetch protocol adds a round trip per query);
 # revisit together with a STMT2 prepared-statement migration.
 tdengine:
+  enabled: ${TDENGINE_ENABLED:true}
   url: ${TDENGINE_URL:jdbc:TAOS-RS://localhost:6041/n4}
   username: ${TDENGINE_USERNAME:root}
   password: ${TDENGINE_PASSWORD:}

@@ -1,6 +1,7 @@
 package com.n4monitor.tdengine;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.n4monitor.exception.BusinessException;
 import com.n4monitor.alarm.dto.AlarmRecordDto;
 import com.n4monitor.alarm.dto.EventExportFilter;
 import com.n4monitor.alarm.model.PointAlarmState;
@@ -209,6 +210,7 @@ public class TdengineSyncService {
      * do this through the full URL while the database is still missing.
      */
     private void ensureSchema() throws SQLException {
+        requireEnabled();
         synchronized (SCHEMA_LOCK) {
             if (schemaReady) {
                 return;
@@ -689,6 +691,7 @@ public class TdengineSyncService {
      * thread-safe and each writer thread owns its connection exclusively.
      */
     private Connection openReadConnection() throws SQLException {
+        requireEnabled();
         HikariDataSource pool = readPool;
         if (pool == null) {
             synchronized (this) {
@@ -699,6 +702,12 @@ public class TdengineSyncService {
             }
         }
         return pool.getConnection();
+    }
+
+    private void requireEnabled() {
+        if (!tdengineConfig.isEnabled()) {
+            throw new BusinessException(503, "Historical storage is disabled in this environment");
+        }
     }
 
     private HikariDataSource buildReadPool() {
