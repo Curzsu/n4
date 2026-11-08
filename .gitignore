@@ -69,3 +69,6 @@ docs/diagrams/
 
 # Local lab credentials and backups
 .local-lab/
+
+# Local browser validation artifacts
+.playwright-cli/

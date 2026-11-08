@@ -1,0 +1,99 @@
+{
+  "title": "N4 设备知识图谱",
+  "subtitle": "资产与告警规则 · 已验证快照",
+  "overview": "资产总览",
+  "full": "全量结构",
+  "example": "示例设备",
+  "search": "搜索设备、点位或策略",
+  "searchButton": "搜索",
+  "fit": "适配画布",
+  "labels": "显示名称",
+  "globalNodes": "全库实体",
+  "globalEdges": "全库关系",
+  "shownNodes": "当前实体",
+  "shownEdges": "当前关系",
+  "details": "节点详情",
+  "detailsHint": "点击节点查看来源和属性；双击设备展开点位与规则。",
+  "expand": "展开关联",
+  "empty": "尚未选择节点",
+  "legend": "实体类型（全库）",
+  "snapshot": "快照",
+  "source": "来源",
+  "viewTitle": "资产总览",
+  "overviewHint": "展示全部部署节点与设备。拖动画布、滚轮缩放，双击设备查看详细关系。",
+  "fullHint": "展示当前快照的全部实体与关系。采用固定布局，放大后点击节点查看详情。",
+  "detailHint": "展示选中设备的点位、策略、条件及模板；共享策略不会展开到其他设备。",
+  "neighborHint": "展示所选实体与直接邻居；最多 600 个实体。",
+  "searchEmpty": "没有匹配结果；可试试 GAS、UPS、Voltage 或设备编号。",
+  "searchCount": "匹配结果（最多展示前 30 项）",
+  "allLoaded": "完整快照已加载",
+  "snapshotNote": "只包含当前已验证版本，不混入旧快照。",
+  "unassigned": "未分配部署节点",
+  "hint": "已载入全部数据；视图按层次展示",
+  "loading": "正在绘制图谱…",
+  "categories": {
+    "DeploymentNode": "部署节点",
+    "Device": "设备",
+    "DeviceTemplate": "设备模板",
+    "Point": "点位",
+    "PointTemplate": "点位模板",
+    "AlarmPolicy": "告警策略",
+    "TriggerCondition": "触发条件"
+  },
+  "relations": {
+    "CHILD_OF": "隶属",
+    "DEPLOYED_IN": "部署于",
+    "HAS_POINT": "具有点位",
+    "INSTANCE_OF": "对应模板",
+    "USES_POLICY": "采用策略",
+    "HAS_CONDITION": "包含条件"
+  },
+  "properties": {
+    "name": "名称",
+    "alias": "别名",
+    "location": "位置",
+    "systemName": "系统",
+    "deviceType": "设备类型",
+    "model": "型号",
+    "purpose": "用途",
+    "manufacturer": "制造商",
+    "level": "级别",
+    "deviceDeployId": "设备编号",
+    "pointDeployId": "点位编号",
+    "pointType": "点位类型",
+    "mqttPath": "MQTT 路径",
+    "unit": "单位",
+    "kind": "策略类型",
+    "timeDelay": "确认延迟（秒）",
+    "deadband": "死区",
+    "updatedAt": "更新时间",
+    "threshold": "阈值",
+    "operator": "比较符",
+    "priority": "匹配优先级",
+    "severity": "严重程度",
+    "message": "提示",
+    "enumValue": "枚举值",
+    "meaning": "含义",
+    "source_table": "来源表",
+    "source_id": "来源主键",
+    "deleted": "已删除"
+  },
+  "searchAliases": {
+    "气体": [
+      "gas",
+      "concentration_of_gas"
+    ],
+    "电压": [
+      "voltage"
+    ],
+    "电流": [
+      "current"
+    ],
+    "温度": [
+      "temperature"
+    ],
+    "湿度": [
+      "humidity"
+    ]
+  }
+}

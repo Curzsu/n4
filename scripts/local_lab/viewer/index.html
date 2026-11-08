@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>N4 Graph Observatory</title><link rel="icon" href="data:,"><link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header><div class="brand"><span class="brandmark">N4</span><div><h1 data-i18n="title">N4 Graph</h1><p data-i18n="subtitle">Verified asset and rule graph</p></div></div>
+<div class="status"><span></span><span data-i18n="allLoaded">Full snapshot loaded</span></div></header>
+<section class="toolbar">
+<nav><button id="overview" class="active" data-i18n="overview">Overview</button><button id="full" data-i18n="full">All entities</button><button id="example" data-i18n="example">Example</button></nav>
+<form id="search-form"><input id="search" type="search" autocomplete="off" aria-label="Search graph"><button data-i18n="searchButton">Search</button><div id="results" hidden></div></form>
+<button id="fit" data-i18n="fit">Fit</button><label class="label-switch"><input id="labels" type="checkbox"><span data-i18n="labels">Labels</span></label>
+</section>
+<main>
+<div id="chart" role="img" aria-label="Interactive asset knowledge graph"></div>
+<aside class="detail-card"><h2 data-i18n="details">Node details</h2><p class="muted" data-i18n="detailsHint">Select a node</p>
+<div id="selection"><div class="placeholder"><span class="placeholder-icon">◎</span><span data-i18n="empty">No selection</span></div></div>
+<button id="expand" class="primary" data-i18n="expand" disabled>Explore</button></aside>
+<aside class="stats-card"><div class="eyebrow" data-i18n="title">N4 Graph</div><div class="metrics">
+<div><strong id="global-nodes"></strong><span data-i18n="globalNodes">All nodes</span></div><div><strong id="global-edges"></strong><span data-i18n="globalEdges">All edges</span></div>
+<div class="visible"><strong id="shown-nodes">0</strong><span data-i18n="shownNodes">Visible nodes</span></div><div class="visible"><strong id="shown-edges">0</strong><span data-i18n="shownEdges">Visible edges</span></div></div>
+<h3 data-i18n="legend">Types</h3><div id="legend"></div><div class="snapshot"><span data-i18n="snapshot">Snapshot</span><code id="snapshot"></code><p data-i18n="snapshotNote">Current version only</p></div></aside>
+<footer><div><strong id="view-title"></strong><p id="view-hint"></p></div><span class="canvas-help">＋ / − &nbsp; · &nbsp; ⤢</span></footer>
+<div id="loading" hidden data-i18n="loading">Rendering…</div>
+</main>
+<script id="graph-data" type="application/json">__GRAPH_JSON__</script>
+<script id="language-data" type="application/json">__LANG_JSON__</script>
+<script src="echarts.min.js"></script><script src="viewer.js"></script>
+</body></html>
