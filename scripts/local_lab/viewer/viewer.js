@@ -28,15 +28,10 @@
     const count = document.createElement("span"); count.className = "count"; count.textContent = format.format(data.counts[kind] || 0);
     row.append(dot, label, count); el("legend").append(row);
   });
-  const chart = echarts.init(el("chart"), null, { renderer: "canvas", useDirtyRect: true });
+  const chart = echarts.init(el("chart"), null, { renderer: "canvas" });
   let selected = null, current = null, labelsOn = false;
   function frame() {
-    const width = chart.getWidth(), height = chart.getHeight();
-    const left = width > 1100 ? 310 : width > 760 ? 250 : 20;
-    const right = width > 1100 ? 275 : width > 760 ? 225 : 20;
-    const size = Math.max(100, Math.min(width - left - right, height - 120));
-    return { left: left + (width - left - right - size) / 2,
-      top: 30 + (height - 120 - size) / 2, width: size, height: size };
+    return { left: 0, top: 0, right: 0, bottom: 0, width: "100%", height: "100%" };
   }
   const positions = new Map();
   function hash(value) {
